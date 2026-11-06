@@ -1,0 +1,17 @@
+# Changes here will be overwritten by Copier; NEVER EDIT MANUALLY
+_commit: v4.6.5
+_src_path: https://github.com/jupyterlab/extension-template
+advanced: false
+author_email: konrad.jelen@gmail.com
+author_name: Stellars Henson
+has_ai_rules: false
+has_binder: false
+has_settings: true
+kind: frontend-and-server
+labextension_name: '@stellarshenson/jupyterlab-advanced-file-browser-extension'
+project_short_description: File browser with foldable folder tree, extra columns and
+    sorting; replaces our separate file browser extensions
+python_name: jupyterlab_advanced_file_browser_extension
+repository: https://github.com/stellarshenson/jupyterlab_advanced_file_browser_extension
+test: true
+

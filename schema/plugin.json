@@ -1,0 +1,8 @@
+{
+  "jupyter.lab.shortcuts": [],
+  "title": "@stellarshenson/jupyterlab-advanced-file-browser-extension",
+  "description": "@stellarshenson/jupyterlab-advanced-file-browser-extension settings.",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}
