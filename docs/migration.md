@@ -64,8 +64,11 @@ file browser they rely on.
 
 - **`IDefaultFileBrowser` stays provided** - `jupyterlab_nb_venv_kernels_ui_extension` requires the
   token; without it none of its four commands activates
-- **`model.path` stays the folder at the top of the listing** - unfolding a folder does not change
-  it; six of the separate extensions read it as the current folder
+- **`model.path` is the current folder** - with unfolding on it follows the selected row: a click
+  on a folder makes that folder current, a click on a file makes the file's folder current, a click
+  on the empty area makes the listing's top folder current (the Star Colonel's decision of
+  2026-11-06, as upstream `jupyterlab-unfold`). Six of the separate extensions read `model.path`
+  as the current folder, so they act on the selected folder
 - **`model.cd()` and `filebrowser:go-to-path` still enter a folder** - as in the standard browser
 - **Rows keep the stock markup** - `.jp-DirListing-item` with `data-isdir` and `data-file-type`,
   `.jp-DirListing-itemIcon` and `.jp-DirListing-itemText`, which the icon, share and patch
@@ -78,7 +81,7 @@ file browser they rely on.
   functional tests run with `jupyterlab_core_patches_extension` installed as well as without it
 - **With the option off the browser is the standard one** - no other extension sees a change
 
-Two of the separate extensions match a row by its displayed name relative to `model.path`. On a
+Two of the separate extensions match a row by its displayed name relative to the folder on screen. On a
 row inside an unfolded folder they act on the wrong path: the symlink, executable and Python
 package marks of `jupyterlab_vscode_icons_extension`, and a drop from the share panel onto a
 nested folder row in `jupyterlab_share_files_extension`. These are limits of those extensions;
