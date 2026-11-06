@@ -7,6 +7,7 @@ import { readFileSync } from 'fs';
 import {
   browserHandle,
   clickEmptyArea,
+  dragRow,
   menuItem,
   openItemMenu,
   rowLocator,
@@ -30,6 +31,34 @@ async function selectedPaths(page: IJupyterLabPageFixture): Promise<string[]> {
   return browser.evaluate(b =>
     Array.from(b.selectedItems(), (item: any) => item.path as string).sort()
   );
+}
+
+/** Run a command of the application and wait for its result. */
+async function run(page: IJupyterLabPageFixture, command: string) {
+  await page.evaluate(id => window.jupyterapp.commands.execute(id), command);
+}
+
+/** Select folder a with a plain click and its row a/x.txt with a Ctrl click. */
+async function selectFolderAndRow(page: IJupyterLabPageFixture, root: string) {
+  await (await rowLocator(page, `${root}/a`)).click();
+  await (
+    await rowLocator(page, `${root}/a/x.txt`)
+  ).click({ modifiers: ['ControlOrMeta'] });
+  await expect
+    .poll(() => selectedPaths(page))
+    .toEqual([`${root}/a`, `${root}/a/x.txt`]);
+}
+
+/** Record the server path of every rename and move (PATCH on the contents API). */
+function recordMoves(page: IJupyterLabPageFixture): string[] {
+  const moves: string[] = [];
+  page.on('request', request => {
+    const { pathname } = new URL(request.url());
+    if (request.method() === 'PATCH' && pathname.includes('/api/contents/')) {
+      moves.push(decodeURIComponent(pathname.split('/api/contents/')[1]));
+    }
+  });
+  return moves;
 }
 
 /** The paths of the selected rows, in screen order. */
@@ -186,4 +215,74 @@ test('ACC-NESTED-41-KEYS arrow keys and Enter work through nested rows', async (
   await expect(
     page.locator('#jp-main-dock-panel .lm-TabBar-tab.jp-mod-current')
   ).toContainText('x.txt');
+});
+
+test('ACC-NESTED-77-OUTERMOST a folder selected with its own rows acts once', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/x.txt', 'b/']);
+  await unfold(page, `${tmpPath}/a`);
+
+  // Paste into b copies the folder with its row, and not the row a second time beside it
+  await selectFolderAndRow(page, tmpPath);
+  await run(page, 'filebrowser:copy');
+  await (await rowLocator(page, `${tmpPath}/b`)).click();
+  await run(page, 'filebrowser:paste');
+  expect(await page.contents.fileExists(`${tmpPath}/b/a/x.txt`)).toBe(true);
+  expect(await page.contents.fileExists(`${tmpPath}/b/x.txt`)).toBe(false);
+
+  // Delete asks for the folder alone and deletes it without an error dialog
+  await selectFolderAndRow(page, tmpPath);
+  const deleted = run(page, 'filebrowser:delete');
+  const dialog = page.locator('.jp-Dialog');
+  await expect(dialog.locator('.jp-Dialog-body')).toContainText(': a?');
+  await dialog.locator('.jp-mod-accept').click();
+  await deleted;
+  expect(await page.contents.directoryExists(`${tmpPath}/a`)).toBe(false);
+  await expect(dialog).toHaveCount(0);
+});
+
+test('ACC-NESTED-77-OUTERMOST Cut and Paste move a folder selected with its own rows once', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/x.txt', 'b/']);
+  await unfold(page, `${tmpPath}/a`);
+  await selectFolderAndRow(page, tmpPath);
+  const moves = recordMoves(page);
+
+  await run(page, 'filebrowser:cut');
+  await (await rowLocator(page, `${tmpPath}/b`)).click();
+  await run(page, 'filebrowser:paste');
+
+  expect(await page.contents.fileExists(`${tmpPath}/b/a/x.txt`)).toBe(true);
+  expect(await page.contents.fileExists(`${tmpPath}/b/x.txt`)).toBe(false);
+  expect(await page.contents.directoryExists(`${tmpPath}/a`)).toBe(false);
+  // One move, of the folder; a second one of a/x.txt would race the folder's move
+  expect(moves).toEqual([`${tmpPath}/a`]);
+  await expect(page.locator('.jp-Dialog')).toHaveCount(0);
+});
+
+test('ACC-NESTED-77-OUTERMOST a drop moves a folder selected with its own rows once', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/x.txt', 'b/']);
+  await unfold(page, `${tmpPath}/a`);
+  await selectFolderAndRow(page, tmpPath);
+  const moves = recordMoves(page);
+
+  // A press on a row of a multiple selection keeps the selection, so the drag carries both rows
+  await dragRow(page, `${tmpPath}/a`, `${tmpPath}/b`);
+
+  await expect
+    .poll(() => page.contents.fileExists(`${tmpPath}/b/a/x.txt`), {
+      timeout: SERVER_TIMEOUT
+    })
+    .toBe(true);
+  expect(await page.contents.fileExists(`${tmpPath}/b/x.txt`)).toBe(false);
+  expect(await page.contents.directoryExists(`${tmpPath}/a`)).toBe(false);
+  expect(moves).toEqual([`${tmpPath}/a`]);
+  await expect(page.locator('.jp-Dialog')).toHaveCount(0);
 });

@@ -19,7 +19,7 @@ import { MessageLoop } from '@lumino/messaging';
 import { Widget } from '@lumino/widgets';
 
 import folderOpenSvgstr from '../style/icons/folder-open.svg';
-import type { TreeFileBrowserModel } from './model';
+import { isBelow, type TreeFileBrowserModel } from './model';
 
 const INDENT_CLASS = 'jp-AdvancedFileBrowser-indent';
 const GUIDE_CLASS = 'jp-AdvancedFileBrowser-guide';
@@ -76,6 +76,14 @@ export function treeOrder(
   };
   walk(localPath(top));
   return result;
+}
+
+/**
+ * The paths that lie below no other path of the list, so an action on a folder
+ * does not act on its own rows a second time.
+ */
+export function outermost(paths: string[]): string[] {
+  return paths.filter(p => !paths.some(q => isBelow(p, q)));
 }
 
 /**
@@ -154,6 +162,21 @@ export class TreeDirListing extends DirListing {
     }
     // The stock rename joins model.path with the old name.
     return this.model.withPath(PathExt.dirname(path), () => super.rename());
+  }
+
+  copy(): void {
+    this._selectOutermost();
+    super.copy();
+  }
+
+  cut(): void {
+    this._selectOutermost();
+    super.cut();
+  }
+
+  delete(): Promise<void> {
+    this._selectOutermost();
+    return super.delete();
   }
 
   handleEvent(event: Event): void {
@@ -257,10 +280,13 @@ export class TreeDirListing extends DirListing {
       event.dropAction = event.proposedAction;
     }
     const promises: Promise<Contents.IModel | null>[] = [];
-    for (const path of event.mimeData.getData(CONTENTS_MIME) as string[]) {
+    for (const path of outermost(
+      event.mimeData.getData(CONTENTS_MIME) as string[]
+    )) {
       const name = PathExt.basename(manager.services.contents.localPath(path));
       const newPath = PathExt.join(basePath, name);
-      if (newPath === path) {
+      // The server's copytree recurses for a folder dropped into itself or below itself.
+      if (newPath === path || basePath === path || isBelow(basePath, path)) {
         continue;
       }
       promises.push(
@@ -364,13 +390,31 @@ export class TreeDirListing extends DirListing {
     );
   }
 
+  /** With unfolding on, deselect each row that a selected folder holds. */
+  private _selectOutermost(): void {
+    if (!this.model.unfolding) {
+      return;
+    }
+    const keep = new Set(outermost(Object.keys(this.selection)));
+    for (const path of Object.keys(this.selection)) {
+      if (!keep.has(path)) {
+        delete this.selection[path];
+      }
+    }
+    this.update();
+  }
+
   private _setCurrentFolder(event: MouseEvent): void {
     const item = this.modelForClick(event);
     if (item) {
       this.model.setCurrentFolder(
         item.type === 'directory' ? item.path : PathExt.dirname(item.path)
       );
-    } else if (this.contentNode.contains(event.target as Node)) {
+    } else if (
+      // The scrollbar gutter (offsetX >= clientWidth) is not the empty area.
+      event.target === this.contentNode &&
+      event.offsetX < this.contentNode.clientWidth
+    ) {
       this.clearSelectedItems();
       this.update();
       this.model.setCurrentFolder(null);

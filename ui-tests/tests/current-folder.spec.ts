@@ -4,6 +4,7 @@
  */
 import { expect, IJupyterLabPageFixture, test } from '@jupyterlab/galata';
 import {
+  browserHandle,
   browserPaths,
   clickEmptyArea,
   rowLocator,
@@ -107,6 +108,39 @@ test('ACC-FOLDER-31-CLICKEMPTY click on the empty area returns to the top folder
   await expect
     .poll(async () => (await visibleRows(page)).filter(row => row.selected))
     .toEqual([]);
+});
+
+test('DEF-FOLDER-3-SCROLLBAR a press on the scrollbar keeps the folder and the selection', async ({
+  page,
+  tmpPath
+}) => {
+  await setup(page, tmpPath, true);
+  await unfold(page, `${tmpPath}/a`);
+  await clickRow(page, `${tmpPath}/a/b`);
+  await expectCurrent(page, `${tmpPath}/a/b`);
+
+  // Headless Chromium hides scrollbars, so dispatch the mousedown a scrollbar press gives:
+  // on the content node, beside a row, past its client width
+  const browser = await browserHandle(page);
+  await browser.evaluate(b => {
+    const content: HTMLElement = b.listing.contentNode;
+    const box = content.getBoundingClientRect();
+    content.dispatchEvent(
+      new MouseEvent('mousedown', {
+        bubbles: true,
+        button: 0,
+        clientX: box.left + content.clientLeft + content.clientWidth + 1,
+        clientY: box.top + 5
+      })
+    );
+  });
+
+  expect((await browserPaths(page)).path).toBe(`${tmpPath}/a/b`);
+  expect(
+    await browser.evaluate(b =>
+      Array.from(b.selectedItems(), (item: any) => item.path)
+    )
+  ).toEqual([`${tmpPath}/a/b`]);
 });
 
 test('ACC-FOLDER-32-NEWITEM New Folder lands in the current folder', async ({

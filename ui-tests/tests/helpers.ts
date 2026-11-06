@@ -223,6 +223,41 @@ export async function unfold(
   }
 }
 
+/**
+ * Drag the row `from` by its name with the mouse and drop it on the row `to`. `ctrl`
+ * holds Control from the press to the drop: the press toggles the selection of `from`,
+ * and the drop copies instead of moving.
+ */
+export async function dragRow(
+  page: IJupyterLabPageFixture,
+  from: string,
+  to: string,
+  ctrl = false
+): Promise<void> {
+  const centre = async (path: string) => {
+    const box = (await (
+      await rowLocator(page, path)
+    )
+      .locator('.jp-DirListing-itemText')
+      .boundingBox())!;
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+  const start = await centre(from);
+  const end = await centre(to);
+  await page.mouse.move(start.x, start.y);
+  if (ctrl) {
+    await page.keyboard.down('Control');
+  }
+  await page.mouse.down();
+  // Past the listing's 5 px drag threshold, then onto the target row
+  await page.mouse.move(start.x + 10, start.y + 10, { steps: 5 });
+  await page.mouse.move(end.x, end.y, { steps: 10 });
+  await page.mouse.up();
+  if (ctrl) {
+    await page.keyboard.up('Control');
+  }
+}
+
 /** Right-click `target` and return the context menu it opens. */
 export async function openMenu(
   page: IJupyterLabPageFixture,

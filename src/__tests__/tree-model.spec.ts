@@ -7,7 +7,7 @@ import type { Contents } from '@jupyterlab/services';
 import { ServiceManagerMock } from '@jupyterlab/services/lib/testutils';
 import { nullTranslator } from '@jupyterlab/translation';
 
-import { TreeDirListing, treeOrder } from '../listing';
+import { outermost, TreeDirListing, treeOrder } from '../listing';
 import { TreeFileBrowserModel } from '../model';
 
 function row(
@@ -121,6 +121,12 @@ describe('treeOrder', () => {
     expect(
       paths(treeOrder([row('a/x.txt', 'file'), row('b.txt', 'file')], ''))
     ).toEqual(['b.txt']);
+  });
+});
+
+describe('outermost', () => {
+  it('ACC-NESTED-77-OUTERMOST drops each path below another selected path', () => {
+    expect(outermost(['a', 'a/x.txt', 'b', 'ab'])).toEqual(['a', 'b', 'ab']);
   });
 });
 

@@ -425,6 +425,6 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
   private _stateKey: string | null = null;
 }
 
-function isBelow(path: string, top: string): boolean {
+export function isBelow(path: string, top: string): boolean {
   return top === '' ? path !== '' : path.startsWith(top + '/');
 }

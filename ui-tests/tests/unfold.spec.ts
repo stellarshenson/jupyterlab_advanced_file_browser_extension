@@ -8,6 +8,7 @@ import {
   browserHandle,
   browserPaths,
   clickTriangle,
+  dragRow,
   IRow,
   rowLocator,
   seedTree,
@@ -433,6 +434,36 @@ test('ACC-UNFOLD-16-DROP drop on a nested folder row moves the file into it', as
     })
     .toBe(true);
   expect(await page.contents.fileExists(`${tmpPath}/x.txt`)).toBe(false);
+});
+
+test('ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/b/', 'a/x.txt']);
+  await unfold(page, `${tmpPath}/a`);
+  await expect
+    .poll(() => paths(page, tmpPath))
+    .toEqual(['a', 'a/b', 'a/x.txt']);
+  const writes: string[] = [];
+  page.on('request', request => {
+    if (request.method() !== 'GET' && request.url().includes('/api/contents')) {
+      writes.push(`${request.method()} ${request.url()}`);
+    }
+  });
+
+  // Stock lm-dragenter takes a drop only on a folder row that is not selected. Each Ctrl
+  // press toggles a: selected for the drop on a/b, unselected for the drop on its own row.
+  // A file row never takes the drop, so the drop on a/x.txt reaches no listing.
+  for (const target of ['a/b', 'a', 'a/x.txt']) {
+    await dragRow(page, `${tmpPath}/a`, `${tmpPath}/${target}`, true);
+    // A refresh sent after the drop answers after any request the drop sent
+    await (await browserHandle(page)).evaluate(b => b.model.refresh());
+    expect(writes, `drop on ${target}`).toEqual([]);
+  }
+  expect(await page.contents.directoryExists(`${tmpPath}/a/b/a`)).toBe(false);
+  expect(await page.contents.directoryExists(`${tmpPath}/a/a`)).toBe(false);
+  await expect(page.locator('.jp-Dialog')).toHaveCount(0);
 });
 
 test('ACC-UNFOLD-17-SORTHEAD header sort orders every level', async ({
