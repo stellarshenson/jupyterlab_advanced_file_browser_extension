@@ -77,7 +77,7 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T21:23:08Z @kj added
   - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
   - log: 2026-11-06T21:33:38Z @kj closed: fixed: with unfolding on, paste() requests a render, so the row of a folder cut and pasted onto itself loses jp-mod-cut; `src/listing.ts`
-- [-] `DEF-FOLDER-14-OVERLAY-SCROLLBAR` **Press on an overlay scrollbar may reset the current folder** - MINOR; likely cause: the empty-area rule offsetX < contentNode.clientWidth cannot see an overlay scrollbar, which takes no width (Chrome on macOS with a trackpad); a press on it may count as the empty area and reset the current folder; not reproduced yet
+- [ ] `DEF-FOLDER-14-OVERLAY-SCROLLBAR` **Press on an overlay scrollbar may reset the current folder** - MINOR; likely cause: the empty-area rule offsetX < contentNode.clientWidth cannot see an overlay scrollbar, which takes no width (Chrome on macOS with a trackpad); a press on it may count as the empty area and reset the current folder; not reproduced yet
   - repro: unfolding on; Chromium with --enable-features=OverlayScrollbar; unfold enough rows to scroll, click a nested folder, press on the scrollbar: check whether model.path resets
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T21:23:08Z @kj added
@@ -85,6 +85,8 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T21:36:57Z @kj reproduction attempt: Galata spec with launchOptions --enable-features=OverlayScrollbar and --enable-blink-features=OverlayScrollbars, --hide-scrollbars removed; in HeadlessChrome 158 (headless shell) and Chromium 156 the listing and a plain overflow:scroll div kept a 15 px classic scrollbar, so no overlay scrollbar existed
   - log: 2026-11-06T21:36:58Z @kj reproduction result: 40 rows in unfolded a, click a/b, press on the scrollbar thumb and drag 80 px: scrollTop 0 to 156, the mousedown reached contentNode with offsetX 246 past clientWidth 235, model.path stayed a/b, a/b stayed selected; logs `tmp/workflows/review-v1/logs/o2-overlay-probe-1.log` to `o2-overlay-probe-4.log`; spec removed
   - log: 2026-11-06T21:36:58Z @kj rejected: not reproduced: Chromium OverlayScrollbar, a Galata press and drag on the listing scrollbar in headless Chromium 158 and 156 with --enable-features=OverlayScrollbar met a 15 px classic scrollbar, not an overlay one, and kept the current folder; Star Colonel decided 2026-11-06: fix if it reproduces
+  - log: 2026-11-06T22:15:44Z @kj reopened
+  - log: 2026-11-06T22:15:44Z @kj Star Colonel decided 2026-11-06: fix without a repro; a press in the rightmost 16 px of a scrolling listing counts as a scrollbar press and keeps the current folder
 
 ## Open in Terminal `TERM`
 
