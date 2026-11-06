@@ -16,6 +16,7 @@ import { classes, LabIcon } from '@jupyterlab/ui-components';
 import { ElementExt } from '@lumino/domutils';
 import type { Drag } from '@lumino/dragdrop';
 import { MessageLoop } from '@lumino/messaging';
+import type { Signal } from '@lumino/signaling';
 import { Widget } from '@lumino/widgets';
 
 import folderOpenSvgstr from '../style/icons/folder-open.svg';
@@ -93,6 +94,7 @@ interface IListingInternals {
   _sortedItems: Contents.IModel[];
   _items: HTMLElement[];
   _clipboard: string[];
+  _isCut: boolean;
   _focusIndex: number;
   _selectTimer: number;
   _sortNotebooksFirst: boolean;
@@ -185,15 +187,28 @@ export class TreeDirListing extends DirListing {
   }
 
   paste(): Promise<void> {
-    if (this.model.unfolding) {
-      // A folder copied into itself or below makes copytree recurse; a move there fails.
-      const base = this.model.path;
-      const internals = this._internals;
-      internals._clipboard = internals._clipboard.filter(
-        path => path !== base && !isBelow(base, path)
-      );
+    if (!this.model.unfolding) {
+      return super.paste();
     }
-    return super.paste();
+    // A folder copied into itself or below makes copytree recurse; a move there fails.
+    const base = this.model.path;
+    const internals = this._internals;
+    const beside = !internals._isCut && internals._clipboard.includes(base);
+    internals._clipboard = internals._clipboard.filter(
+      path => path !== base && !isBelow(base, path)
+    );
+    // The stock paste of an emptied clipboard clears the cut state without a render.
+    this.update();
+    const pasted = super.paste();
+    if (!beside) {
+      return pasted;
+    }
+    // A copied folder that is the current folder lands beside it, as the stock a-Copy1.
+    internals._clipboard = [base];
+    return Promise.all([
+      pasted,
+      this.model.withPath(PathExt.dirname(base), () => super.paste())
+    ]).then(() => undefined);
   }
 
   duplicate(): Promise<void> {
@@ -461,13 +476,17 @@ export class TreeDirListing extends DirListing {
     if (!this.model.unfolding) {
       return;
     }
-    const keep = new Set(outermost(Object.keys(this.selection)));
-    for (const path of Object.keys(this.selection)) {
+    const selected = Object.keys(this.selection);
+    const keep = new Set(outermost(selected));
+    for (const path of selected) {
       if (!keep.has(path)) {
         delete this.selection[path];
       }
     }
     this.update();
+    if (keep.size < selected.length) {
+      (this.selectionChanged as Signal<DirListing, void>).emit(undefined);
+    }
   }
 
   private _setCurrentFolder(event: MouseEvent): void {

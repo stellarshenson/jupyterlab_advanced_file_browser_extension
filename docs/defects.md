@@ -60,22 +60,31 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
   - log: 2026-11-06T20:16:44Z @kj amended text "with unfolding on, uploading README.md into a/b asks to overwrite when README.md exists only in another unfolded folder; the stock check in FileBrowserModel.upload matches the name against every loaded row; the other file is not touched" -> "with unfolding on, uploading README.md into a/b asks to overwrite when README.md exists only in another unfolded folder; the stock check in FileBrowserModel.upload matches the name against every loaded row; the other file is not touched; fix: the stock upload sees the target folder's rows only; `src/model.ts`"
   - log: 2026-11-06T20:16:44Z @kj closed: fixed: with unfolding on, the stock upload runs on a view whose _items holds the target folder's rows only; src/model.ts
-- [ ] `DEF-FOLDER-11-SELFPASTE-SILENT` **Copy and Paste on the selected folder does nothing and shows no message** - MINOR; with unfolding on, the selected folder is the current folder, so the paste override drops it as a paste into itself (ACC-FOLDER-81-SELFPASTE); no request, no message, the clipboard is emptied; stock and VS Code create a-Copy1 beside it; open question for the owner: skip, paste beside, or a message
+- [x] `DEF-FOLDER-11-SELFPASTE-SILENT` **Copy and Paste on the selected folder does nothing and shows no message** - MINOR; with unfolding on, the selected folder is the current folder, so the paste override drops it as a paste into itself (ACC-FOLDER-81-SELFPASTE); no request, no message, the clipboard is emptied; stock and VS Code create a-Copy1 beside it; open question for the owner: skip, paste beside, or a message
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-81-SELFPASTE a folder pasted inside itself stays passed, with ACC-FOLDER-34-PASTE, `tmp/workflows/review-v1/logs/o2-selfpaste-after.log`; it failed on the build without the change, no copy request of a after Copy and Paste on the current folder a (`tmp/workflows/review-v1/logs/o2-selfpaste-before.log`)
+  - root-cause: 2026-11-06T21:27:53Z @kj with unfolding on, a click on folder a makes a the current folder, so model.path is a; the paste override of ACC-FOLDER-81-SELFPASTE drops every clipboard path equal to model.path, the clipboard is left empty and the stock paste returns at its empty-clipboard check without a request or a message
   - repro: unfolding on; click folder a, Copy, Paste: nothing happens; with unfolding off the same keys create a-Copy1
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T21:14:30Z @kj added
   - log: 2026-11-06T21:14:30Z @kj found by review round 2 (ux-designer), deferred by the adjudicator to the owner; caused by the DEF-FOLDER-6-PASTE-INTOSELF fix
   - log: 2026-11-06T21:23:08Z @kj Star Colonel decided 2026-11-06: paste beside it; a copied folder equal to the current folder pastes into its parent as a-Copy1, as stock; below it and Cut onto itself stay skipped
-- [ ] `DEF-FOLDER-13-CUT-DIMMED` **Cut folder row stays dimmed after Paste onto itself** - MINOR; with unfolding on, Cut on the selected folder then Paste: the paste override empties the clipboard, stock paste returns early without update(), so row a keeps jp-mod-cut until the next render
+  - log: 2026-11-06T21:30:38Z @kj closed: fixed: with unfolding on, a copied folder equal to the current folder is pasted into its parent folder as a-Copy1; `src/listing.ts` paste()
+- [x] `DEF-FOLDER-13-CUT-DIMMED` **Cut folder row stays dimmed after Paste onto itself** - MINOR; with unfolding on, Cut on the selected folder then Paste: the paste override empties the clipboard, stock paste returns early without update(), so row a keeps jp-mod-cut until the next render
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: DEF-FOLDER-13-CUT-DIMMED a cut folder pasted onto itself loses the cut style passed, with ACC-FOLDER-34-PASTE and ACC-FOLDER-81-SELFPASTE, `tmp/workflows/review-v1/logs/o2-cutdim-after.log`; it failed on the build without the change, row a kept jp-mod-cut (`tmp/workflows/review-v1/logs/o2-cutdim-before.log`)
+  - root-cause: 2026-11-06T21:32:19Z @kj the paste override drops the cut folder a, which is model.path, and leaves the clipboard empty; the stock paste returns at its empty-clipboard check, which sets _isCut to false before the loop that removes jp-mod-cut and requests no render, so row a stays dimmed
   - repro: unfolding on; click folder a, Cut, Paste: row a stays dimmed although the clipboard is empty
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T21:23:08Z @kj added
   - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
-- [ ] `DEF-FOLDER-14-OVERLAY-SCROLLBAR` **Press on an overlay scrollbar may reset the current folder** - MINOR; likely cause: the empty-area rule offsetX < contentNode.clientWidth cannot see an overlay scrollbar, which takes no width (Chrome on macOS with a trackpad); a press on it may count as the empty area and reset the current folder; not reproduced yet
+  - log: 2026-11-06T21:33:38Z @kj closed: fixed: with unfolding on, paste() requests a render, so the row of a folder cut and pasted onto itself loses jp-mod-cut; `src/listing.ts`
+- [-] `DEF-FOLDER-14-OVERLAY-SCROLLBAR` **Press on an overlay scrollbar may reset the current folder** - MINOR; likely cause: the empty-area rule offsetX < contentNode.clientWidth cannot see an overlay scrollbar, which takes no width (Chrome on macOS with a trackpad); a press on it may count as the empty area and reset the current folder; not reproduced yet
   - repro: unfolding on; Chromium with --enable-features=OverlayScrollbar; unfold enough rows to scroll, click a nested folder, press on the scrollbar: check whether model.path resets
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T21:23:08Z @kj added
   - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
+  - log: 2026-11-06T21:36:57Z @kj reproduction attempt: Galata spec with launchOptions --enable-features=OverlayScrollbar and --enable-blink-features=OverlayScrollbars, --hide-scrollbars removed; in HeadlessChrome 158 (headless shell) and Chromium 156 the listing and a plain overflow:scroll div kept a 15 px classic scrollbar, so no overlay scrollbar existed
+  - log: 2026-11-06T21:36:58Z @kj reproduction result: 40 rows in unfolded a, click a/b, press on the scrollbar thumb and drag 80 px: scrollTop 0 to 156, the mousedown reached contentNode with offsetX 246 past clientWidth 235, model.path stayed a/b, a/b stayed selected; logs `tmp/workflows/review-v1/logs/o2-overlay-probe-1.log` to `o2-overlay-probe-4.log`; spec removed
+  - log: 2026-11-06T21:36:58Z @kj rejected: not reproduced: Chromium OverlayScrollbar, a Galata press and drag on the listing scrollbar in headless Chromium 158 and 156 with --enable-features=OverlayScrollbar met a 15 px classic scrollbar, not an overlay one, and kept the current folder; Star Colonel decided 2026-11-06: fix if it reproduces
 
 ## Open in Terminal `TERM`
 
@@ -117,11 +126,14 @@ File browser actions on rows inside unfolded folders act on the item's own path
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
   - log: 2026-11-06T20:11:25Z @kj amended text "with unfolding on, Duplicate on rows from several folders copies each into model.path, the current folder, not beside its original; stock duplicate() copies into model.path" -> "with unfolding on, Duplicate on rows from several folders copies each into model.path, the current folder, not beside its original; stock duplicate() copies into model.path; fix: duplicate() copies each file into its own folder; `src/listing.ts`"
   - log: 2026-11-06T20:11:25Z @kj closed: fixed: with unfolding on, duplicate() copies each selected file into its own folder; src/listing.ts
-- [ ] `DEF-NESTED-12-SELECTION-SIGNAL` **Dropping nested rows from the selection emits no selectionChanged** - MINOR; _selectOutermost, run by copy, cut and delete with unfolding on, deletes selection entries and calls update() but never emits the listing's public selectionChanged signal, which every stock selection change emits and FileBrowser re-emits; no listener exists today
+- [x] `DEF-NESTED-12-SELECTION-SIGNAL` **Dropping nested rows from the selection emits no selectionChanged** - MINOR; _selectOutermost, run by copy, cut and delete with unfolding on, deletes selection entries and calls update() but never emits the listing's public selectionChanged signal, which every stock selection change emits and FileBrowser re-emits; no listener exists today
+  - evidence: `src/__tests__/tree-model.spec.ts`: DEF-NESTED-12-SELECTION-SIGNAL copy emits selectionChanged when it drops nested rows passed in `make test`, 22 of 22 Jest tests, `tmp/workflows/review-v1/logs/o2-signal-after.log`; it failed without the change, 0 signals instead of 1 (`tmp/workflows/review-v1/logs/o2-signal-before.log`)
+  - root-cause: 2026-11-06T21:30:47Z @kj _selectOutermost (`src/listing.ts`) removes entries from the stock selection object directly and only calls update(); the private stock _selectionChanged signal is emitted by the stock selection methods only, so this change of the selection reaches no selectionChanged listener
   - repro: unfolding on; connect to filebrowser.selectionChanged; select a and a/x.txt, Copy: the selection loses a/x.txt and no signal fires
   - test-tags: UNIT
   - log: 2026-11-06T21:23:08Z @kj added
   - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
+  - log: 2026-11-06T21:31:56Z @kj closed: fixed: _selectOutermost emits the listing selectionChanged when it drops a nested path; `src/listing.ts`
 
 ## Folder unfolding `UNFOLD`
 

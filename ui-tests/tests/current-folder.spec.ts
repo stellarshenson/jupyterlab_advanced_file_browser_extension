@@ -465,7 +465,43 @@ test('ACC-FOLDER-81-SELFPASTE a folder pasted inside itself stays', async ({
   expect(writes).toEqual([`copy ${tmpPath}/x.txt`]);
   expect(await page.contents.directoryExists(`${tmpPath}/a`)).toBe(true);
   expect(await page.contents.directoryExists(`${tmpPath}/a/a`)).toBe(false);
+
+  // A copied folder that is the current folder lands beside it, as the stock a-Copy1
+  await page.evaluate(() =>
+    window.jupyterapp.commands.execute('filebrowser:copy')
+  );
+  await paste();
+  expect(writes).toEqual([`copy ${tmpPath}/x.txt`, `copy ${tmpPath}/a`]);
+  expect(await page.contents.directoryExists(`${tmpPath}/a-Copy1`)).toBe(true);
+  expect(await page.contents.directoryExists(`${tmpPath}/a/a`)).toBe(false);
   await expect(page.locator('.jp-Dialog')).toHaveCount(0);
+});
+
+test('DEF-FOLDER-13-CUT-DIMMED a cut folder pasted onto itself loses the cut style', async ({
+  page,
+  tmpPath
+}) => {
+  await setup(page, tmpPath, true);
+  await clickRow(page, `${tmpPath}/a`);
+  await expectCurrent(page, `${tmpPath}/a`);
+  await page.evaluate(() =>
+    window.jupyterapp.commands.execute('filebrowser:cut')
+  );
+  const row = await rowLocator(page, `${tmpPath}/a`);
+  await expect(row).toHaveClass(/jp-mod-cut/);
+
+  await page.evaluate(() =>
+    window.jupyterapp.commands.execute('filebrowser:paste')
+  );
+  // A render requested by the paste runs within two frames; the 10 s poll renders much later
+  await page.evaluate(
+    () =>
+      new Promise(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      )
+  );
+
+  expect(await row.getAttribute('class')).not.toContain('jp-mod-cut');
 });
 
 test('ACC-FOLDER-35-STOCK unfolding off keeps the folder on click', async ({

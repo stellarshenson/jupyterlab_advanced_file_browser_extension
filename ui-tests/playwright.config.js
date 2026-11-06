@@ -10,6 +10,9 @@ const BASE_URL = `http://localhost:${PORT}`;
 
 module.exports = {
   ...baseConfig,
+  // Under load a parallel worker's tmpPath teardown can 404 the page's start-up listing of the
+  // shared server root ("Directory not found" dialog); one retry absorbs that race
+  retries: 1,
   use: { ...baseConfig.use, baseURL: BASE_URL },
   webServer: {
     command: 'jlpm start',

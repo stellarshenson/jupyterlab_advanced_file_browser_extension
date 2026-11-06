@@ -178,6 +178,27 @@ describe('TreeFileBrowserModel', () => {
     expect(paths(listing.sortedItems())).toEqual(['a', 'b.txt']);
   });
 
+  it('DEF-NESTED-12-SELECTION-SIGNAL copy emits selectionChanged when it drops nested rows', async () => {
+    await model.toggle('a');
+    listing.sort(listing.sortState);
+    const selection = (
+      listing as unknown as { selection: Record<string, boolean> }
+    ).selection;
+    selection['a'] = true;
+    selection['a/x.txt'] = true;
+    let emitted = 0;
+    listing.selectionChanged.connect(() => emitted++);
+
+    listing.copy();
+
+    expect(Object.keys(selection)).toEqual(['a']);
+    expect(emitted).toBe(1);
+
+    listing.copy();
+
+    expect(emitted).toBe(1);
+  });
+
   it('ACC-UNFOLD-21-FILTER items keeps each folder on the path to a match', async () => {
     await model.toggle('a');
     model.setFilter(item => (item.name.startsWith('x') ? {} : null));
