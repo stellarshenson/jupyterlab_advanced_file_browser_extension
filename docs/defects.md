@@ -60,6 +60,22 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
   - log: 2026-11-06T20:16:44Z @kj amended text "with unfolding on, uploading README.md into a/b asks to overwrite when README.md exists only in another unfolded folder; the stock check in FileBrowserModel.upload matches the name against every loaded row; the other file is not touched" -> "with unfolding on, uploading README.md into a/b asks to overwrite when README.md exists only in another unfolded folder; the stock check in FileBrowserModel.upload matches the name against every loaded row; the other file is not touched; fix: the stock upload sees the target folder's rows only; `src/model.ts`"
   - log: 2026-11-06T20:16:44Z @kj closed: fixed: with unfolding on, the stock upload runs on a view whose _items holds the target folder's rows only; src/model.ts
+- [ ] `DEF-FOLDER-11-SELFPASTE-SILENT` **Copy and Paste on the selected folder does nothing and shows no message** - MINOR; with unfolding on, the selected folder is the current folder, so the paste override drops it as a paste into itself (ACC-FOLDER-81-SELFPASTE); no request, no message, the clipboard is emptied; stock and VS Code create a-Copy1 beside it; open question for the owner: skip, paste beside, or a message
+  - repro: unfolding on; click folder a, Copy, Paste: nothing happens; with unfolding off the same keys create a-Copy1
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-06T21:14:30Z @kj added
+  - log: 2026-11-06T21:14:30Z @kj found by review round 2 (ux-designer), deferred by the adjudicator to the owner; caused by the DEF-FOLDER-6-PASTE-INTOSELF fix
+  - log: 2026-11-06T21:23:08Z @kj Star Colonel decided 2026-11-06: paste beside it; a copied folder equal to the current folder pastes into its parent as a-Copy1, as stock; below it and Cut onto itself stay skipped
+- [ ] `DEF-FOLDER-13-CUT-DIMMED` **Cut folder row stays dimmed after Paste onto itself** - MINOR; with unfolding on, Cut on the selected folder then Paste: the paste override empties the clipboard, stock paste returns early without update(), so row a keeps jp-mod-cut until the next render
+  - repro: unfolding on; click folder a, Cut, Paste: row a stays dimmed although the clipboard is empty
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-06T21:23:08Z @kj added
+  - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
+- [ ] `DEF-FOLDER-14-OVERLAY-SCROLLBAR` **Press on an overlay scrollbar may reset the current folder** - MINOR; likely cause: the empty-area rule offsetX < contentNode.clientWidth cannot see an overlay scrollbar, which takes no width (Chrome on macOS with a trackpad); a press on it may count as the empty area and reset the current folder; not reproduced yet
+  - repro: unfolding on; Chromium with --enable-features=OverlayScrollbar; unfold enough rows to scroll, click a nested folder, press on the scrollbar: check whether model.path resets
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-06T21:23:08Z @kj added
+  - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
 
 ## Open in Terminal `TERM`
 
@@ -101,6 +117,11 @@ File browser actions on rows inside unfolded folders act on the item's own path
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
   - log: 2026-11-06T20:11:25Z @kj amended text "with unfolding on, Duplicate on rows from several folders copies each into model.path, the current folder, not beside its original; stock duplicate() copies into model.path" -> "with unfolding on, Duplicate on rows from several folders copies each into model.path, the current folder, not beside its original; stock duplicate() copies into model.path; fix: duplicate() copies each file into its own folder; `src/listing.ts`"
   - log: 2026-11-06T20:11:25Z @kj closed: fixed: with unfolding on, duplicate() copies each selected file into its own folder; src/listing.ts
+- [ ] `DEF-NESTED-12-SELECTION-SIGNAL` **Dropping nested rows from the selection emits no selectionChanged** - MINOR; _selectOutermost, run by copy, cut and delete with unfolding on, deletes selection entries and calls update() but never emits the listing's public selectionChanged signal, which every stock selection change emits and FileBrowser re-emits; no listener exists today
+  - repro: unfolding on; connect to filebrowser.selectionChanged; select a and a/x.txt, Copy: the selection loses a/x.txt and no signal fires
+  - test-tags: UNIT
+  - log: 2026-11-06T21:23:08Z @kj added
+  - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
 
 ## Folder unfolding `UNFOLD`
 
