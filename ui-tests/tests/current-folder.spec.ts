@@ -322,6 +322,45 @@ test('DEF-FOLDER-14-OVERLAY-SCROLLBAR a press on an overlay scrollbar keeps the 
   ).toEqual([`${tmpPath}/a/b`]);
 });
 
+test('DEF-FOLDER-16-ROW-GAP a press between two rows keeps the folder and the selection', async ({
+  page,
+  tmpPath
+}) => {
+  await setup(page, tmpPath, true);
+  await unfold(page, `${tmpPath}/a`);
+  await clickRow(page, `${tmpPath}/a/b`);
+  await expectCurrent(page, `${tmpPath}/a/b`);
+
+  // Rows are inline-grid, so a 3 px line gap below each row hits no row and targets the content node
+  const browser = await browserHandle(page);
+  const point = await browser.evaluate(b => {
+    const content: HTMLElement = b.listing.contentNode;
+    const box = content.getBoundingClientRect();
+    const [first, second] = Array.from(
+      content.querySelectorAll(':scope > .jp-DirListing-item'),
+      row => row.getBoundingClientRect()
+    );
+    const x = box.left + content.clientLeft + content.clientWidth / 2;
+    const y = (first.bottom + second.top) / 2;
+    return {
+      x,
+      y,
+      scrolls: content.scrollHeight > content.clientHeight,
+      onContent: document.elementFromPoint(x, y) === content
+    };
+  });
+  expect(point).toMatchObject({ scrolls: false, onContent: true });
+
+  await page.mouse.click(point.x, point.y);
+
+  expect((await browserPaths(page)).path).toBe(`${tmpPath}/a/b`);
+  expect(
+    await browser.evaluate(b =>
+      Array.from(b.selectedItems(), (item: any) => item.path)
+    )
+  ).toEqual([`${tmpPath}/a/b`]);
+});
+
 test('ACC-FOLDER-32-NEWITEM New File and New Folder land in the current folder', async ({
   page,
   tmpPath

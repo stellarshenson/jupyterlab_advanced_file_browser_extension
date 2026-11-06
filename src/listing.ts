@@ -32,8 +32,6 @@ const ITEM_ICON_CLASS = 'jp-DirListing-itemIcon';
 const ITEM_TEXT_CLASS = 'jp-DirListing-itemText';
 const DROP_TARGET_CLASS = 'jp-mod-dropTarget';
 const CONTENTS_MIME = 'application/x-jupyter-icontents';
-// An overlay scrollbar takes no width, so a press this close to the right edge of a scrolling listing counts as one.
-const OVERLAY_SCROLLBAR_WIDTH = 16;
 
 export const folderOpenIcon = new LabIcon({
   name: 'jupyterlab-advanced-file-browser-extension:folder-open',
@@ -206,11 +204,17 @@ export class TreeDirListing extends DirListing {
       return pasted;
     }
     // A copied folder that is the current folder lands beside it, as the stock a-Copy1.
-    internals._clipboard = [base];
-    return Promise.all([
-      pasted,
-      this.model.withPath(PathExt.dirname(base), () => super.paste())
-    ]).then(() => undefined);
+    const trans = this.translator.load('jupyterlab');
+    const copied = this.model.manager.copy(base, PathExt.dirname(base)).then(
+      () => undefined,
+      error => {
+        void showErrorMessage(
+          trans._p('showErrorMessage', 'Paste Error'),
+          error
+        );
+      }
+    );
+    return Promise.all([pasted, copied]).then(() => undefined);
   }
 
   duplicate(): Promise<void> {
@@ -494,16 +498,15 @@ export class TreeDirListing extends DirListing {
   private _setCurrentFolder(event: MouseEvent): void {
     const content = this.contentNode;
     const item = this.modelForClick(event);
+    const { _items } = this._internals;
+    const last = _items[_items.length - 1];
     if (item) {
       this._makeCurrent(item);
     } else if (
-      // A scrollbar is not the empty area: a classic one lies past clientWidth, an overlay one inside it.
+      // The empty area is the area below the last row: a gap between rows and a scrollbar beside them are not.
       event.target === content &&
-      event.offsetX <
-        content.clientWidth -
-          (content.scrollHeight > content.clientHeight
-            ? OVERLAY_SCROLLBAR_WIDTH
-            : 0)
+      event.offsetX < content.clientWidth &&
+      (!last || event.clientY > last.getBoundingClientRect().bottom)
     ) {
       this.clearSelectedItems();
       this.update();

@@ -199,6 +199,29 @@ describe('TreeFileBrowserModel', () => {
     expect(emitted).toBe(1);
   });
 
+  it('DEF-FOLDER-15-PATH-HELD Paste beside leaves the current folder free during the copy', async () => {
+    await model.toggle('a');
+    listing.sort(listing.sortState);
+    (listing as unknown as { selection: Record<string, boolean> }).selection[
+      'a'
+    ] = true;
+    listing.copy();
+    model.setCurrentFolder('a');
+    let finish: (value: Contents.IModel) => void = () => undefined;
+    const copy = jest
+      .spyOn(model.manager, 'copy')
+      .mockImplementation(() => new Promise(resolve => (finish = resolve)));
+
+    const pasted = listing.paste();
+    model.setCurrentFolder('b');
+
+    expect(model.path).toBe('b');
+    expect(copy.mock.calls).toEqual([['a', '']]);
+
+    finish(row('a-Copy1', 'directory'));
+    await pasted;
+  });
+
   it('ACC-UNFOLD-21-FILTER items keeps each folder on the path to a match', async () => {
     await model.toggle('a');
     model.setFilter(item => (item.name.startsWith('x') ? {} : null));
