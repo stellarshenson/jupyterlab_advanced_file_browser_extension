@@ -272,6 +272,56 @@ test('DEF-FOLDER-3-SCROLLBAR a press on the scrollbar keeps the folder and the s
   ).toEqual([`${tmpPath}/a/b`]);
 });
 
+test('DEF-FOLDER-14-OVERLAY-SCROLLBAR a press on an overlay scrollbar keeps the folder and the selection', async ({
+  page,
+  tmpPath
+}) => {
+  await setup(page, tmpPath, true);
+  // 40 more rows in a make the listing scroll; written straight into the server root
+  const root: string = await page.evaluate(
+    () =>
+      JSON.parse(document.getElementById('jupyter-config-data')!.textContent!)
+        .serverRoot
+  );
+  for (let i = 0; i < 40; i++) {
+    writeFileSync(join(root, tmpPath, 'a', `f${10 + i}.txt`), 'f');
+  }
+  await unfold(page, `${tmpPath}/a`);
+  await clickRow(page, `${tmpPath}/a/b`);
+  await expectCurrent(page, `${tmpPath}/a/b`);
+
+  // Headless Chromium hides scrollbars, so they take no width, as an overlay scrollbar does.
+  // The press goes 8 px left of the right edge, in the 3 px line gap below the first row,
+  // where a press on the scrollbar reaches the content node and hits no row
+  const browser = await browserHandle(page);
+  const point = await browser.evaluate(b => {
+    const content: HTMLElement = b.listing.contentNode;
+    const box = content.getBoundingClientRect();
+    const [first, second] = Array.from(
+      content.querySelectorAll(':scope > .jp-DirListing-item'),
+      row => row.getBoundingClientRect()
+    );
+    const x = box.left + content.clientLeft + content.clientWidth - 8;
+    const y = (first.bottom + second.top) / 2;
+    return {
+      x,
+      y,
+      scrolls: content.scrollHeight > content.clientHeight,
+      onContent: document.elementFromPoint(x, y) === content
+    };
+  });
+  expect(point).toMatchObject({ scrolls: true, onContent: true });
+
+  await page.mouse.click(point.x, point.y);
+
+  expect((await browserPaths(page)).path).toBe(`${tmpPath}/a/b`);
+  expect(
+    await browser.evaluate(b =>
+      Array.from(b.selectedItems(), (item: any) => item.path)
+    )
+  ).toEqual([`${tmpPath}/a/b`]);
+});
+
 test('ACC-FOLDER-32-NEWITEM New File and New Folder land in the current folder', async ({
   page,
   tmpPath

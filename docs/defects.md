@@ -77,8 +77,11 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T21:23:08Z @kj added
   - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
   - log: 2026-11-06T21:33:38Z @kj closed: fixed: with unfolding on, paste() requests a render, so the row of a folder cut and pasted onto itself loses jp-mod-cut; `src/listing.ts`
-- [ ] `DEF-FOLDER-14-OVERLAY-SCROLLBAR` **Press on an overlay scrollbar may reset the current folder** - MINOR; likely cause: the empty-area rule offsetX < contentNode.clientWidth cannot see an overlay scrollbar, which takes no width (Chrome on macOS with a trackpad); a press on it may count as the empty area and reset the current folder; not reproduced yet
-  - repro: unfolding on; Chromium with --enable-features=OverlayScrollbar; unfold enough rows to scroll, click a nested folder, press on the scrollbar: check whether model.path resets
+- [x] `DEF-FOLDER-14-OVERLAY-SCROLLBAR` **Press on an overlay scrollbar may reset the current folder** - MINOR; with unfolding on, a press on an overlay scrollbar, which takes no width, that hits no row (the 3 px gap below each row) passes the empty-area rule offsetX < contentNode.clientWidth and resets the current folder; fix: the rightmost 16 px of a scrolling listing are not empty area; `src/listing.ts`
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: DEF-FOLDER-14-OVERLAY-SCROLLBAR a press on an overlay scrollbar keeps the folder and the selection passed, 15 of 15 in the spec, `tmp/workflows/review-v1/logs/o3-overlay-after.log`; it failed on the build without the change, model.path reset to the top folder (`tmp/workflows/review-v1/logs/o3-overlay-before.log`)
+  - related: ACC-FOLDER-31-CLICKEMPTY
+  - root-cause: 2026-11-06T22:18:16Z @kj TreeDirListing._setCurrentFolder counts a press on contentNode as the empty area when offsetX < contentNode.clientWidth; that test sees only a scrollbar that takes layout width; an overlay scrollbar takes none, so a press on it that reaches contentNode clears the selection and makes the top folder current
+  - repro: unfolding on; scrollbars that take no width (headless Chromium hides them); 40 files in unfolded a make the listing scroll; click a/b, press 8 px left of the listing's right edge in the 3 px gap below the first row: model.path resets to the top folder
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T21:23:08Z @kj added
   - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
@@ -87,6 +90,9 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T21:36:58Z @kj rejected: not reproduced: Chromium OverlayScrollbar, a Galata press and drag on the listing scrollbar in headless Chromium 158 and 156 with --enable-features=OverlayScrollbar met a 15 px classic scrollbar, not an overlay one, and kept the current folder; Star Colonel decided 2026-11-06: fix if it reproduces
   - log: 2026-11-06T22:15:44Z @kj reopened
   - log: 2026-11-06T22:15:44Z @kj Star Colonel decided 2026-11-06: fix without a repro; a press in the rightmost 16 px of a scrolling listing counts as a scrollbar press and keeps the current folder
+  - log: 2026-11-06T22:25:29Z @kj amended text "likely cause: the empty-area rule offsetX < contentNode.clientWidth cannot see an overlay scrollbar, which takes no width (Chrome on macOS with a trackpad); a press on it may count as the empty area and reset the current folder; not reproduced yet" -> "with unfolding on, a press on an overlay scrollbar, which takes no width, that hits no row (the 3 px gap below each row) passes the empty-area rule offsetX < contentNode.clientWidth and resets the current folder; fix: the rightmost 16 px of a scrolling listing are not empty area; `src/listing.ts`"
+  - log: 2026-11-06T22:25:29Z @kj closed: fixed: in a listing that scrolls vertically, a press in the rightmost 16 px of contentNode is not the empty area; src/listing.ts
+  - log: 2026-11-06T22:25:36Z @kj edited repro "unfolding on; Chromium with --enable-features=OverlayScrollbar; unfold enough rows to scroll, click a nested folder, press on the scrollbar: check whether model.path resets" -> "unfolding on; scrollbars that take no width (headless Chromium hides them); 40 files in unfolded a make the listing scroll; click a/b, press 8 px left of the listing's right edge in the 3 px gap below the first row: model.path resets to the top folder"
 
 ## Open in Terminal `TERM`
 

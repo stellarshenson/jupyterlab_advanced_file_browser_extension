@@ -32,6 +32,8 @@ const ITEM_ICON_CLASS = 'jp-DirListing-itemIcon';
 const ITEM_TEXT_CLASS = 'jp-DirListing-itemText';
 const DROP_TARGET_CLASS = 'jp-mod-dropTarget';
 const CONTENTS_MIME = 'application/x-jupyter-icontents';
+// An overlay scrollbar takes no width, so a press this close to the right edge of a scrolling listing counts as one.
+const OVERLAY_SCROLLBAR_WIDTH = 16;
 
 export const folderOpenIcon = new LabIcon({
   name: 'jupyterlab-advanced-file-browser-extension:folder-open',
@@ -490,13 +492,18 @@ export class TreeDirListing extends DirListing {
   }
 
   private _setCurrentFolder(event: MouseEvent): void {
+    const content = this.contentNode;
     const item = this.modelForClick(event);
     if (item) {
       this._makeCurrent(item);
     } else if (
-      // The scrollbar gutter (offsetX >= clientWidth) is not the empty area.
-      event.target === this.contentNode &&
-      event.offsetX < this.contentNode.clientWidth
+      // A scrollbar is not the empty area: a classic one lies past clientWidth, an overlay one inside it.
+      event.target === content &&
+      event.offsetX <
+        content.clientWidth -
+          (content.scrollHeight > content.clientHeight
+            ? OVERLAY_SCROLLBAR_WIDTH
+            : 0)
     ) {
       this.clearSelectedItems();
       this.update();
