@@ -1,6 +1,6 @@
 {
     "name": "@stellarshenson/jupyterlab-advanced-file-browser-extension",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "File browser with foldable folder tree, extra columns and sorting; replaces our separate file browser extensions",
     "keywords": [
         "jupyter",
