@@ -31,6 +31,21 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - root-cause: 2026-11-06T17:23:40Z @kj TreeDirListing._setCurrentFolder treats every press with no row hit and a target inside contentNode as the empty area; a press on the scrollbar targets contentNode itself, so contentNode.contains(target) is true, while stock _evtMousedown returns at hit index -1 and keeps the selection
   - log: 2026-11-06T17:23:40Z @kj added
   - log: 2026-11-06T17:31:07Z @kj closed: fixed: only a press on contentNode inside its client width is the empty area; src/listing.ts
+- [ ] `DEF-FOLDER-6-PASTE-INTOSELF` **Paste of a folder into its own subfolder copies it into itself** - MAJOR; with unfolding on, Copy a, click a/b, Paste: jupyter_server copies a into a/b recursively until the path is too long; stock paste() sends the copy, the server has no into-itself check; the drop route is blocked since DEF-UNFOLD-5-INTOSELF
+  - repro: unfolding on; unfold a holding folder b, click a, Copy, click a/b, Paste: a/b/a/b/a... appears
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-06T19:29:04Z @kj added
+  - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
+- [ ] `DEF-FOLDER-7-RESORT` **Change of current folder re-sorts the whole tree** - MINOR; each click that changes the current folder emits refreshed, which re-sorts and re-renders every row; cause unknown whether it is slow, not measured; with ACC-FOLDER-79-ARROWKEYS every Up or Down across a folder does it; measure first
+  - repro: unfolding on; unfold folders holding about 3000 rows in total, click a row, hold Down; measure the time per key press in a Chrome performance profile
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-06T19:29:04Z @kj added
+  - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
+- [ ] `DEF-FOLDER-10-UPLOAD-PROMPT` **Upload asks to overwrite a file that is only in another folder** - MEDIUM; with unfolding on, uploading README.md into a/b asks to overwrite when README.md exists only in another unfolded folder; the stock check in FileBrowserModel.upload matches the name against every loaded row; the other file is not touched
+  - repro: unfolding on; unfold a holding README.md and a/b, click a/b, upload a file named README.md: the overwrite dialog opens
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-06T19:29:04Z @kj added
+  - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
 
 ## Open in Terminal `TERM`
 
@@ -62,6 +77,11 @@ File browser actions on rows inside unfolded folders act on the item's own path
   - root-cause: 2026-11-06T17:25:19Z @kj stock copy (_copy over selectedItems), delete (_sortedItems filtered by the selection) and the tree evtDrop (the dragged selection keys) take every selected path; with unfolding on a selection can hold a folder and its own rows, and each path becomes its own request, sent in parallel
   - log: 2026-11-06T17:25:19Z @kj added
   - log: 2026-11-06T17:31:07Z @kj closed: fixed: copy, cut, delete and the tree drop act on the outermost selected paths; src/listing.ts, src/model.ts
+- [ ] `DEF-NESTED-8-DUPLICATE` **Duplicate puts copies of rows from other folders into the current folder** - MINOR; with unfolding on, Duplicate on rows from several folders copies each into model.path, the current folder, not beside its original; stock duplicate() copies into model.path
+  - repro: unfolding on; unfold a and b, click a/x.txt, Ctrl-click b/y.txt, Duplicate: both copies appear in folder b
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-06T19:29:04Z @kj added
+  - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
 
 ## Folder unfolding `UNFOLD`
 
@@ -77,3 +97,8 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - root-cause: 2026-11-06T17:26:40Z @kj TreeDirListing.evtDrop skips a path only when the new path equals the old one; stock evtDragOver marks any row under the pointer as the drop target, and jupyter_server 2.21.1 copy calls shutil.copytree with no check that the target lies inside the source
   - log: 2026-11-06T17:26:40Z @kj added
   - log: 2026-11-06T17:31:07Z @kj closed: fixed: evtDrop skips a folder dropped onto itself or below itself; src/listing.ts
+- [ ] `DEF-UNFOLD-9-HITAREA` **Triangle reacts only on 16x13 px of a 24-27 px row** - MINOR; a click just above or below the triangle selects the folder, and a double-click there enters it, instead of folding or unfolding it
+  - repro: unfolding on; click 4 px above the centre of the triangle on folder a: a is selected and not unfolded
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-06T19:29:04Z @kj added
+  - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)

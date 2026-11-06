@@ -156,6 +156,12 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-06T17:31:07Z @kj closed: ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays passed
   - log: 2026-11-06T17:49:54Z @kj edited test "`ui-tests/tests/unfold.spec.ts`: unfold a, Ctrl-drag row a onto row a/b; assert no copy or move request is sent and a/b holds no a" -> "`ui-tests/tests/unfold.spec.ts`: unfold a; Ctrl-drag row a onto row a/b, onto its own row and onto the file row a/x.txt (each Ctrl press toggles a, and stock lm-dragenter takes a drop only on a folder row that is not selected, so the drop on its own row follows a press that deselects a); assert no copy or move request is sent and neither a/b/a nor a/a exists"; evidence "`ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays passed, `tmp/workflows/review-v1/logs/r1-galata.log`" -> "`ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays passed, `tmp/workflows/review-v1/logs/r1-tests-2-galata.log`; it fails at the drop on row a with the `basePath === path` skip removed (`tmp/workflows/review-v1/logs/r1-tests-2-without-drop-self.log`)"; reason: the round 1 check found Cut, the drop loop and the own-row drop untested; the new tests cover them and fail with each change removed
   - log: 2026-11-06T17:49:54Z @kj a file row inside the folder never takes the drop: stock lm-dragenter refuses every file row, so Lumino sends that drop to the document body and evtDrop does not run
+- [ ] `ACC-UNFOLD-80-LEFTKEY` **Left key goes to the parent folder** - MEDIUM; with unfolding on, Left on a row inside an unfolded folder selects that folder; Left on a selected unfolded folder folds it; Right on a folded folder unfolds it
+  - test: ui-tests/tests/unfold.spec.ts: unfold a holding x.txt, click a/x.txt, press Left; assert a selected and still unfolded; press Left; assert a folded
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-06T19:29:04Z @kj the keydown handler for Left selects the parent row when the selected row sits inside an unfolded folder
+  - log: 2026-11-06T19:29:04Z @kj added
+  - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
 
 ## Unfolding switch `SWITCH`
 
@@ -262,6 +268,12 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T14:03:47Z @kj added
   - log: 2026-11-06T14:03:47Z @kj breadcrumbs follow the current folder: Star Colonel decided 2026-11-06
   - log: 2026-11-06T16:28:01Z @kj closed: ACC-FOLDER-76-BREADCRUMBS breadcrumbs follow the current folder passed
+- [ ] `ACC-FOLDER-79-ARROWKEYS` **Up and Down keys move the current folder** - HIGH; with unfolding on, Up or Down that selects a row at any depth makes that row's folder current, as a click does: a folder row makes the folder current, a file row its parent folder
+  - test: ui-tests/tests/current-folder.spec.ts: unfold a and a/b, click a, press Down to a/b; assert model.path a/b; press Down to a file in a/b; assert model.path a/b; press Up to a; assert model.path a
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-06T18:01:34Z @kj the keydown that moves the selection sets model.path to the selected row's folder, the same rule as the mousedown on a row
+  - log: 2026-11-06T18:01:34Z @kj added
+  - log: 2026-11-06T18:01:34Z @kj Up/Down keyboard selection moves the current folder like a click: Star Colonel decided 2026-11-06
 
 ## Actions on nested rows `NESTED`
 
