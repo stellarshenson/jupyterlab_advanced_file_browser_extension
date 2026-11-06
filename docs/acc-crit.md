@@ -176,6 +176,11 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - test: ui-tests/tests/current-folder.spec.ts: unfolding off, click folder a; assert model.path unchanged
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T13:53:20Z @kj added
+- [ ] `ACC-FOLDER-76-BREADCRUMBS` **Breadcrumbs show the current folder** - HIGH; with unfolding on, the breadcrumbs follow model.path: they show the selected folder, and a click on a breadcrumb segment enters that folder
+  - test: ui-tests/tests/current-folder.spec.ts: unfold a, click a/b; assert the breadcrumbs end in b; click the root segment; assert the top rows are the root's children
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-06T14:03:47Z @kj added
+  - log: 2026-11-06T14:03:47Z @kj breadcrumbs follow the current folder: Star Colonel decided 2026-11-06
 
 ## Actions on nested rows `NESTED`
 

@@ -10,9 +10,6 @@
 
 Adds features to the JupyterLab file browser: folders that unfold in place as a tree, Unix Style Sorting and Open in Terminal on files. It replaces `jupyterlab_file_browser_sorting_extension` and `jupyterlab_open_in_terminal_extension`.
 
-> [!NOTE]
-> The features below are planned and not yet built. The current release is the template's placeholder.
-
 ## Features
 
 - **Folder unfolding** - A triangle on each folder row folds or unfolds the folder in place, as a tree; a double-click on a folder still enters it. Based on [jupyterlab-unfold](https://github.com/jupyterlab-contrib/jupyterlab-unfold)

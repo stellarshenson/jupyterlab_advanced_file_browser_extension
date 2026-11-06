@@ -1,8 +1,37 @@
 {
   "jupyter.lab.shortcuts": [],
-  "title": "@stellarshenson/jupyterlab-advanced-file-browser-extension",
-  "description": "@stellarshenson/jupyterlab-advanced-file-browser-extension settings.",
+  "jupyter.lab.setting-icon": "jupyterlab-advanced-file-browser-extension:folder-open",
+  "jupyter.lab.setting-icon-label": "Advanced File Browser",
+  "jupyter.lab.menus": {
+    "context": [
+      {
+        "command": "advanced-file-browser:toggle-unix-sorting",
+        "selector": ".jp-DirListing-header",
+        "rank": 19
+      },
+      {
+        "command": "advanced-file-browser:toggle-folder-unfolding",
+        "selector": ".jp-DirListing-header",
+        "rank": 20
+      }
+    ]
+  },
+  "title": "Advanced File Browser",
+  "description": "Settings of the advanced file browser.",
   "type": "object",
-  "properties": {},
+  "properties": {
+    "folderUnfolding": {
+      "type": "boolean",
+      "title": "Folder unfolding",
+      "description": "Show a triangle on each folder row that unfolds the folder in place as a tree.",
+      "default": false
+    },
+    "unixStyleSorting": {
+      "type": "boolean",
+      "title": "Unix style sorting",
+      "description": "Sort names in LC_COLLATE=C byte order, folders first, at every level of the tree.",
+      "default": true
+    }
+  },
   "additionalProperties": false
 }

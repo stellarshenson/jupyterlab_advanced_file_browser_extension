@@ -3,3 +3,35 @@
 
     https://jupyterlab.readthedocs.io/en/stable/developer/css.html
 */
+
+/* Covers the row's 4px vertical padding, so the guides join from row to row */
+.jp-AdvancedFileBrowser-indent {
+  display: flex;
+  align-self: stretch;
+  margin-block: -4px;
+}
+
+.jp-AdvancedFileBrowser-guide {
+  flex: 0 0 16px;
+  background: linear-gradient(var(--jp-border-color2), var(--jp-border-color2))
+    8px 0 / 1px 100% no-repeat;
+}
+
+/* 16px wide, so a guide's centre lies under its parent's triangle */
+.jp-AdvancedFileBrowser-toggle,
+.jp-AdvancedFileBrowser-toggleSpacer {
+  flex: 0 0 16px;
+  text-align: center;
+}
+
+.jp-AdvancedFileBrowser-toggle {
+  align-self: center;
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size0);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.jp-DirListing-item.jp-mod-selected .jp-AdvancedFileBrowser-toggle {
+  color: inherit;
+}

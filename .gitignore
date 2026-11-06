@@ -135,3 +135,6 @@ tmp/
 
 # Jest report
 junit.xml
+
+# Agent memory of workflow subagents
+.claude/agent-memory/

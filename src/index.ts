@@ -1,45 +1,60 @@
 import {
   JupyterFrontEnd,
-  JupyterFrontEndPlugin
+  JupyterFrontEndPlugin,
+  JupyterLab
 } from '@jupyterlab/application';
-
+import { WidgetTracker } from '@jupyterlab/apputils';
+import { IDocumentManager } from '@jupyterlab/docmanager';
+import {
+  FileBrowser,
+  IDefaultFileBrowser,
+  IFileBrowserFactory
+} from '@jupyterlab/filebrowser';
 import { ISettingRegistry } from '@jupyterlab/settingregistry';
+import { IStateDB } from '@jupyterlab/statedb';
+import { ITranslator } from '@jupyterlab/translation';
 
+import { ItemOrder, TreeFileBrowser } from './listing';
+import { TreeFileBrowserModel } from './model';
+import { addOpenInTerminal } from './openInTerminal';
 import { requestAPI } from './request';
+import { sortItems } from './sort';
+
+const PLUGIN_ID =
+  '@stellarshenson/jupyterlab-advanced-file-browser-extension:plugin';
 
 /**
- * Initialization data for the @stellarshenson/jupyterlab-advanced-file-browser-extension extension.
+ * The schema defaults, used as they are when the settings fail to load.
  */
-const plugin: JupyterFrontEndPlugin<void> = {
-  id: '@stellarshenson/jupyterlab-advanced-file-browser-extension:plugin',
+const DEFAULTS = { folderUnfolding: false, unixStyleSorting: true };
+
+type SettingKey = keyof typeof DEFAULTS;
+
+const unixOrder: ItemOrder = (stock, state, notebooksFirst) =>
+  sortItems(stock, state, { unix: true, notebooksFirst });
+
+/**
+ * The file browser factory, in place of core's, building tree browsers.
+ */
+const plugin: JupyterFrontEndPlugin<IFileBrowserFactory> = {
+  id: PLUGIN_ID,
   description:
-    'File browser with foldable folder tree, extra columns and sorting; replaces our separate file browser extensions',
+    'Provides the file browser factory with folder unfolding and Unix Style Sorting',
   autoStart: true,
-  optional: [ISettingRegistry],
-  activate: (
+  provides: IFileBrowserFactory,
+  requires: [IDocumentManager, ITranslator, ISettingRegistry],
+  optional: [IStateDB, JupyterLab.IInfo],
+  activate: async (
     app: JupyterFrontEnd,
-    settingRegistry: ISettingRegistry | null
-  ) => {
+    docManager: IDocumentManager,
+    translator: ITranslator,
+    settingRegistry: ISettingRegistry,
+    state: IStateDB | null,
+    info: JupyterLab.IInfo | null
+  ): Promise<IFileBrowserFactory> => {
     console.log(
       'JupyterLab extension @stellarshenson/jupyterlab-advanced-file-browser-extension is activated!'
     );
-
-    if (settingRegistry) {
-      settingRegistry
-        .load(plugin.id)
-        .then(settings => {
-          console.log(
-            '@stellarshenson/jupyterlab-advanced-file-browser-extension settings loaded:',
-            settings.composite
-          );
-        })
-        .catch(reason => {
-          console.error(
-            'Failed to load settings for @stellarshenson/jupyterlab-advanced-file-browser-extension.',
-            reason
-          );
-        });
-    }
 
     requestAPI<any>('hello', app.serviceManager.serverSettings)
       .then(data => {
@@ -50,7 +65,98 @@ const plugin: JupyterFrontEndPlugin<void> = {
           `The jupyterlab_advanced_file_browser_extension server extension appears to be missing.\n${reason}`
         );
       });
+
+    // A failed load must not keep the file browser from activating.
+    let settings: ISettingRegistry.ISettings | null = null;
+    try {
+      settings = await settingRegistry.load(PLUGIN_ID);
+    } catch (reason) {
+      console.error(`Failed to load settings for ${PLUGIN_ID}.`, reason);
+    }
+    const value = (key: SettingKey): boolean =>
+      (settings?.get(key).composite as boolean | undefined) ?? DEFAULTS[key];
+
+    const apply = (browser: TreeFileBrowser): void => {
+      browser.model.unfolding = value('folderUnfolding');
+      browser.itemOrder = value('unixStyleSorting') ? unixOrder : null;
+    };
+
+    const tracker = new WidgetTracker<TreeFileBrowser>({
+      namespace: 'filebrowser'
+    });
+    const createFileBrowser = (
+      id: string,
+      options: IFileBrowserFactory.IOptions = {}
+    ): TreeFileBrowser => {
+      const browserState =
+        options.state === null
+          ? undefined
+          : options.state || state || undefined;
+      const model = new TreeFileBrowserModel({
+        translator,
+        auto: options.auto ?? true,
+        manager: docManager,
+        driveName: options.driveName || '',
+        refreshInterval: options.refreshInterval,
+        refreshStandby: () => (info && !info.isConnected) || 'when-hidden',
+        state: browserState,
+        allowFileUploads: options.allowFileUploads ?? true,
+        // The first fetch already lists in the saved mode.
+        unfolding: value('folderUnfolding')
+      });
+      const browser = new TreeFileBrowser({
+        id,
+        model,
+        restore: options.restore,
+        translator,
+        state: browserState,
+        renderer: options.renderer
+      });
+      apply(browser);
+      void tracker.add(browser);
+      return browser;
+    };
+
+    settings?.changed.connect(() => tracker.forEach(apply));
+
+    const trans = translator.load('jupyterlab');
+    const addToggle = (id: string, key: SettingKey, label: string): void => {
+      app.commands.addCommand(id, {
+        label,
+        isToggled: () => value(key),
+        describedBy: { args: { type: 'object', properties: {} } },
+        execute: () => settings?.set(key, !value(key))
+      });
+    };
+    addToggle(
+      'advanced-file-browser:toggle-folder-unfolding',
+      'folderUnfolding',
+      trans.__('Folder Unfolding')
+    );
+    addToggle(
+      'advanced-file-browser:toggle-unix-sorting',
+      'unixStyleSorting',
+      trans.__('Unix Style Sorting')
+    );
+
+    return { createFileBrowser, tracker };
   }
 };
 
-export default plugin;
+/**
+ * Open in Terminal on file rows and the empty listing area.
+ */
+const openInTerminal: JupyterFrontEndPlugin<void> = {
+  id: '@stellarshenson/jupyterlab-advanced-file-browser-extension:open-in-terminal',
+  description:
+    'Adds Open in Terminal to file rows and the empty area of the file browser',
+  autoStart: true,
+  requires: [IDefaultFileBrowser, ITranslator],
+  activate: (
+    app: JupyterFrontEnd,
+    browser: FileBrowser,
+    translator: ITranslator
+  ) => addOpenInTerminal(app, browser, translator)
+};
+
+export default [plugin, openInTerminal];
