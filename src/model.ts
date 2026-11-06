@@ -232,11 +232,22 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
       return super.upload(file, path);
     }
     const target = path ?? this.path;
-    // The stock overwrite prompt looks for the name among the loaded rows.
+    // Loads the target's rows for the overwrite prompt and shows the new row under its folder.
     if (target === this.path && target !== this.topPath) {
       await this.unfold(target);
     }
-    return super.upload(file, target);
+    // The stock prompt matches the name against `_items`, every loaded row; the stock
+    // upload runs on a view of this model whose `_items` holds the target's rows only.
+    const folder = this._local(target);
+    const view = Object.create(this, {
+      _items: {
+        get: () =>
+          Array.from(FileBrowserModel.prototype.items.call(this)).filter(
+            item => PathExt.dirname(this._local(item.path)) === folder
+          )
+      }
+    });
+    return FileBrowserModel.prototype.upload.call(view, file, target);
   }
 
   protected handleContents(contents: Contents.IModel): void {

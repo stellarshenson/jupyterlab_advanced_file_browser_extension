@@ -92,6 +92,7 @@ export function outermost(paths: string[]): string[] {
 interface IListingInternals {
   _sortedItems: Contents.IModel[];
   _items: HTMLElement[];
+  _clipboard: string[];
   _focusIndex: number;
   _selectTimer: number;
   _sortNotebooksFirst: boolean;
@@ -137,6 +138,10 @@ export class TreeDirListing extends DirListing {
   }
 
   sort(state: DirListing.ISortState): void {
+    if (this._keepOrder) {
+      this.update();
+      return;
+    }
     super.sort(state);
     this._reorder();
   }
@@ -177,6 +182,41 @@ export class TreeDirListing extends DirListing {
   delete(): Promise<void> {
     this._selectOutermost();
     return super.delete();
+  }
+
+  paste(): Promise<void> {
+    if (this.model.unfolding) {
+      // A folder copied into itself or below makes copytree recurse; a move there fails.
+      const base = this.model.path;
+      const internals = this._internals;
+      internals._clipboard = internals._clipboard.filter(
+        path => path !== base && !isBelow(base, path)
+      );
+    }
+    return super.paste();
+  }
+
+  duplicate(): Promise<void> {
+    if (!this.model.unfolding) {
+      return super.duplicate();
+    }
+    // The stock duplicate copies every selected file into model.path, one folder only.
+    const manager = this.model.manager;
+    const promises: Promise<Contents.IModel>[] = [];
+    for (const item of this.selectedItems()) {
+      if (item.type !== 'directory') {
+        promises.push(manager.copy(item.path, PathExt.dirname(item.path)));
+      }
+    }
+    const trans = this.translator.load('jupyterlab');
+    return Promise.all(promises)
+      .then(() => undefined)
+      .catch(error => {
+        void showErrorMessage(
+          trans._p('showErrorMessage', 'Duplicate file'),
+          error
+        );
+      });
   }
 
   handleEvent(event: Event): void {
@@ -220,23 +260,49 @@ export class TreeDirListing extends DirListing {
       !(event.altKey || event.ctrlKey || event.metaKey || event.shiftKey)
     ) {
       const target = event.target as HTMLElement;
-      const { _items, _sortedItems } = this._internals;
+      const internals = this._internals;
+      const { _items, _sortedItems } = internals;
       const item = _sortedItems[_items.findIndex(row => row.contains(target))];
       if (
-        item?.type === 'directory' &&
+        item &&
         target.classList.contains(ITEM_TEXT_CLASS) &&
         this.selection[item.path] &&
         Object.keys(this.selection).length === 1
       ) {
-        event.preventDefault();
-        event.stopPropagation();
-        if ((key === 'ArrowRight') !== this.model.isUnfolded(item.path)) {
-          void this.model.toggle(item.path);
+        const isFolder = item.type === 'directory';
+        const unfolded = isFolder && this.model.isUnfolded(item.path);
+        // Left that does not fold the row goes to the row's folder, when that folder is a row.
+        const parent =
+          key === 'ArrowLeft' && !unfolded
+            ? _sortedItems.findIndex(
+                row => row.path === PathExt.dirname(item.path)
+              )
+            : -1;
+        if (isFolder || parent !== -1) {
+          event.preventDefault();
+          event.stopPropagation();
+          if (parent !== -1) {
+            internals._selectItem(parent, false);
+            ElementExt.scrollIntoViewIfNeeded(this.contentNode, _items[parent]);
+            this._makeCurrent(_sortedItems[parent]);
+          } else if ((key === 'ArrowRight') !== unfolded) {
+            void this.model.toggle(item.path);
+          }
+          return;
         }
-        return;
       }
     }
     super.evtKeydown(event);
+    // The stock Up or Down that selects a row calls preventDefault; Ctrl moves the focus only.
+    if (
+      this.model.unfolding &&
+      (key === 'ArrowUp' || key === 'ArrowDown') &&
+      !event.ctrlKey &&
+      event.defaultPrevented
+    ) {
+      const { _sortedItems, _focusIndex } = this._internals;
+      this._makeCurrent(_sortedItems[_focusIndex]);
+    }
   }
 
   protected evtDrop(event: Drag.Event): void {
@@ -407,9 +473,7 @@ export class TreeDirListing extends DirListing {
   private _setCurrentFolder(event: MouseEvent): void {
     const item = this.modelForClick(event);
     if (item) {
-      this.model.setCurrentFolder(
-        item.type === 'directory' ? item.path : PathExt.dirname(item.path)
-      );
+      this._makeCurrent(item);
     } else if (
       // The scrollbar gutter (offsetX >= clientWidth) is not the empty area.
       event.target === this.contentNode &&
@@ -417,8 +481,25 @@ export class TreeDirListing extends DirListing {
     ) {
       this.clearSelectedItems();
       this.update();
-      this.model.setCurrentFolder(null);
+      this._makeCurrent(null);
     }
+  }
+
+  /**
+   * Make the row's folder current: a folder row itself, a file row its parent;
+   * null makes the top folder current.
+   */
+  private _makeCurrent(item: Contents.IModel | null): void {
+    // The rows stay the same, so the `refreshed` this emits needs no re-sort.
+    this._keepOrder = true;
+    this.model.setCurrentFolder(
+      !item
+        ? null
+        : item.type === 'directory'
+          ? item.path
+          : PathExt.dirname(item.path)
+    );
+    this._keepOrder = false;
   }
 
   private _decorate(
@@ -509,6 +590,7 @@ export class TreeDirListing extends DirListing {
   }
 
   private _itemOrder: ItemOrder | null = null;
+  private _keepOrder = false;
   private _icons = new WeakMap<
     HTMLElement,
     { item: Contents.IModel; open: boolean }

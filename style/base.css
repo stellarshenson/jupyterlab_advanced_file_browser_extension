@@ -24,8 +24,13 @@
   text-align: center;
 }
 
+/* Spans the row's full height, as the indent does, so a press above or below the glyph still folds */
 .jp-AdvancedFileBrowser-toggle {
-  align-self: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  align-self: stretch;
+  margin-block: -4px;
   color: var(--jp-ui-font-color2);
   font-size: var(--jp-ui-font-size0);
   font-weight: 600;

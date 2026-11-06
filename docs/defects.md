@@ -31,21 +31,35 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - root-cause: 2026-11-06T17:23:40Z @kj TreeDirListing._setCurrentFolder treats every press with no row hit and a target inside contentNode as the empty area; a press on the scrollbar targets contentNode itself, so contentNode.contains(target) is true, while stock _evtMousedown returns at hit index -1 and keeps the selection
   - log: 2026-11-06T17:23:40Z @kj added
   - log: 2026-11-06T17:31:07Z @kj closed: fixed: only a press on contentNode inside its client width is the empty area; src/listing.ts
-- [ ] `DEF-FOLDER-6-PASTE-INTOSELF` **Paste of a folder into its own subfolder copies it into itself** - MAJOR; with unfolding on, Copy a, click a/b, Paste: jupyter_server copies a into a/b recursively until the path is too long; stock paste() sends the copy, the server has no into-itself check; the drop route is blocked since DEF-UNFOLD-5-INTOSELF
+- [x] `DEF-FOLDER-6-PASTE-INTOSELF` **Paste of a folder into its own subfolder copies it into itself** - MAJOR; with unfolding on, Copy a, click a/b, Paste: jupyter_server copies a into a/b recursively until the path is too long; stock paste() sends the copy, the server has no into-itself check; fix: paste() skips a folder pasted into itself or below itself; `src/listing.ts`
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-81-SELFPASTE a folder pasted inside itself stays passed, `tmp/workflows/review-v1/logs/o1-paste-after.log`; it failed on the build without the change, a copy request of a into a/b (`tmp/workflows/review-v1/logs/o1-paste-before.log`)
+  - related: ACC-FOLDER-81-SELFPASTE
+  - root-cause: 2026-11-06T20:05:43Z @kj stock DirListing.paste() copies or moves every clipboard path into model.path with no check that model.path is that path or lies below it; with unfolding on model.path can be a folder inside a copied folder, and jupyter_server 2.21.1 copy calls shutil.copytree with no into-itself check
   - repro: unfolding on; unfold a holding folder b, click a, Copy, click a/b, Paste: a/b/a/b/a... appears
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T19:29:04Z @kj added
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
-- [ ] `DEF-FOLDER-7-RESORT` **Change of current folder re-sorts the whole tree** - MINOR; each click that changes the current folder emits refreshed, which re-sorts and re-renders every row; cause unknown whether it is slow, not measured; with ACC-FOLDER-79-ARROWKEYS every Up or Down across a folder does it; measure first
+  - log: 2026-11-06T20:08:57Z @kj amended text "with unfolding on, Copy a, click a/b, Paste: jupyter_server copies a into a/b recursively until the path is too long; stock paste() sends the copy, the server has no into-itself check; the drop route is blocked since DEF-UNFOLD-5-INTOSELF" -> "with unfolding on, Copy a, click a/b, Paste: jupyter_server copies a into a/b recursively until the path is too long; stock paste() sends the copy, the server has no into-itself check; fix: paste() skips a folder pasted into itself or below itself; `src/listing.ts`"
+  - log: 2026-11-06T20:08:57Z @kj closed: fixed: with unfolding on, paste() drops each clipboard path that model.path equals or lies below; src/listing.ts
+- [x] `DEF-FOLDER-7-RESORT` **Change of current folder re-sorts the whole tree** - MINOR; each click that changes the current folder emits refreshed, which re-sorts and re-renders every row; with ACC-FOLDER-79-ARROWKEYS every Up or Down across a folder does it; fix: a current folder change made by the listing keeps the row order; `src/listing.ts`
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: DEF-FOLDER-7-RESORT a Down press into another folder keeps the row order passed, 11 of 11 in the spec; 2981 rows, median per Down press into another folder 291 ms before (`tmp/workflows/review-v1/logs/o1-resort-before.log`, kept order failed), 115 ms after (`tmp/workflows/review-v1/logs/o1-resort-after.log`); inside one folder 122 and 118 ms
+  - root-cause: 2026-11-06T19:48:41Z @kj setCurrentFolder emits refreshed; stock DirListing._onModelRefreshed calls sort, which re-sorts all rows (stock sort, itemOrder, treeOrder) though no row changed; measured at 2981 rows: 291 ms median per Down press into another folder, 122 ms inside one folder
   - repro: unfolding on; unfold folders holding about 3000 rows in total, click a row, hold Down; measure the time per key press in a Chrome performance profile
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T19:29:04Z @kj added
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
-- [ ] `DEF-FOLDER-10-UPLOAD-PROMPT` **Upload asks to overwrite a file that is only in another folder** - MEDIUM; with unfolding on, uploading README.md into a/b asks to overwrite when README.md exists only in another unfolded folder; the stock check in FileBrowserModel.upload matches the name against every loaded row; the other file is not touched
+  - log: 2026-11-06T19:51:12Z @kj closed: fixed: a current folder change made by the listing keeps the row order; src/listing.ts
+  - log: 2026-11-06T19:51:18Z @kj amended text "each click that changes the current folder emits refreshed, which re-sorts and re-renders every row; cause unknown whether it is slow, not measured; with ACC-FOLDER-79-ARROWKEYS every Up or Down across a folder does it; measure first" -> "MINOR; each click that changes the current folder emits refreshed, which re-sorts and re-renders every row; with ACC-FOLDER-79-ARROWKEYS every Up or Down across a folder does it; fix: a current folder change made by the listing keeps the row order; `src/listing.ts`"
+- [x] `DEF-FOLDER-10-UPLOAD-PROMPT` **Upload asks to overwrite a file that is only in another folder** - MEDIUM; with unfolding on, uploading README.md into a/b asks to overwrite when README.md exists only in another unfolded folder; the stock check in FileBrowserModel.upload matches the name against every loaded row; the other file is not touched; fix: the stock upload sees the target folder's rows only; `src/model.ts`
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-83-OVERWRITE upload asks to overwrite only for a file in the target folder passed, with ACC-FOLDER-33-UPLOAD, `tmp/workflows/review-v1/logs/o1-upload-after.log`; it failed on the build without the change, the prompt opened for x.txt (`tmp/workflows/review-v1/logs/o1-upload-before.log`)
+  - related: ACC-FOLDER-83-OVERWRITE
+  - root-cause: 2026-11-06T20:12:23Z @kj stock FileBrowserModel.upload asks to overwrite when any row of its private _items has the file's name; with unfolding on _items holds the rows of every loaded folder, not only the target folder
   - repro: unfolding on; unfold a holding README.md and a/b, click a/b, upload a file named README.md: the overwrite dialog opens
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T19:29:04Z @kj added
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
+  - log: 2026-11-06T20:16:44Z @kj amended text "with unfolding on, uploading README.md into a/b asks to overwrite when README.md exists only in another unfolded folder; the stock check in FileBrowserModel.upload matches the name against every loaded row; the other file is not touched" -> "with unfolding on, uploading README.md into a/b asks to overwrite when README.md exists only in another unfolded folder; the stock check in FileBrowserModel.upload matches the name against every loaded row; the other file is not touched; fix: the stock upload sees the target folder's rows only; `src/model.ts`"
+  - log: 2026-11-06T20:16:44Z @kj closed: fixed: with unfolding on, the stock upload runs on a view whose _items holds the target folder's rows only; src/model.ts
 
 ## Open in Terminal `TERM`
 
@@ -77,11 +91,16 @@ File browser actions on rows inside unfolded folders act on the item's own path
   - root-cause: 2026-11-06T17:25:19Z @kj stock copy (_copy over selectedItems), delete (_sortedItems filtered by the selection) and the tree evtDrop (the dragged selection keys) take every selected path; with unfolding on a selection can hold a folder and its own rows, and each path becomes its own request, sent in parallel
   - log: 2026-11-06T17:25:19Z @kj added
   - log: 2026-11-06T17:31:07Z @kj closed: fixed: copy, cut, delete and the tree drop act on the outermost selected paths; src/listing.ts, src/model.ts
-- [ ] `DEF-NESTED-8-DUPLICATE` **Duplicate puts copies of rows from other folders into the current folder** - MINOR; with unfolding on, Duplicate on rows from several folders copies each into model.path, the current folder, not beside its original; stock duplicate() copies into model.path
+- [x] `DEF-NESTED-8-DUPLICATE` **Duplicate puts copies of rows from other folders into the current folder** - MINOR; with unfolding on, Duplicate on rows from several folders copies each into model.path, the current folder, not beside its original; stock duplicate() copies into model.path; fix: duplicate() copies each file into its own folder; `src/listing.ts`
+  - evidence: `ui-tests/tests/nested-actions.spec.ts`: ACC-NESTED-82-DUPLICATE Duplicate puts each copy beside its original passed, with ACC-NESTED-38-MULTI, `tmp/workflows/review-v1/logs/o1-duplicate-after.log`; it failed on the build without the change, a/x-Copy1.txt missing (`tmp/workflows/review-v1/logs/o1-duplicate-before.log`)
+  - related: ACC-NESTED-82-DUPLICATE
+  - root-cause: 2026-11-06T20:09:47Z @kj stock DirListing.duplicate() copies every selected file into model.path; with unfolding on a selection can hold files of several folders, and model.path is the folder of the last clicked row
   - repro: unfolding on; unfold a and b, click a/x.txt, Ctrl-click b/y.txt, Duplicate: both copies appear in folder b
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T19:29:04Z @kj added
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
+  - log: 2026-11-06T20:11:25Z @kj amended text "with unfolding on, Duplicate on rows from several folders copies each into model.path, the current folder, not beside its original; stock duplicate() copies into model.path" -> "with unfolding on, Duplicate on rows from several folders copies each into model.path, the current folder, not beside its original; stock duplicate() copies into model.path; fix: duplicate() copies each file into its own folder; `src/listing.ts`"
+  - log: 2026-11-06T20:11:25Z @kj closed: fixed: with unfolding on, duplicate() copies each selected file into its own folder; src/listing.ts
 
 ## Folder unfolding `UNFOLD`
 
@@ -97,8 +116,14 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - root-cause: 2026-11-06T17:26:40Z @kj TreeDirListing.evtDrop skips a path only when the new path equals the old one; stock evtDragOver marks any row under the pointer as the drop target, and jupyter_server 2.21.1 copy calls shutil.copytree with no check that the target lies inside the source
   - log: 2026-11-06T17:26:40Z @kj added
   - log: 2026-11-06T17:31:07Z @kj closed: fixed: evtDrop skips a folder dropped onto itself or below itself; src/listing.ts
-- [ ] `DEF-UNFOLD-9-HITAREA` **Triangle reacts only on 16x13 px of a 24-27 px row** - MINOR; a click just above or below the triangle selects the folder, and a double-click there enters it, instead of folding or unfolding it
-  - repro: unfolding on; click 4 px above the centre of the triangle on folder a: a is selected and not unfolded
+- [x] `DEF-UNFOLD-9-HITAREA` **Triangle reacts only on 16x13 px of a 24-27 px row** - MINOR; a click just above or below the triangle selects the folder, and a double-click there enters it, instead of folding or unfolding it; fix: the triangle spans the row's height; `style/base.css`
+  - evidence: `ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-84-HITAREA triangle reacts on the full row height passed, `tmp/workflows/review-v1/logs/o1-hitarea-after.log`; it failed on the build without the change, a selected and not unfolded (`tmp/workflows/review-v1/logs/o1-hitarea-before.log`)
+  - related: ACC-UNFOLD-84-HITAREA
+  - root-cause: 2026-11-06T20:28:50Z @kj the triangle span is its 13 px glyph box, centred in the 16 px name cell of a 24 px row; handleEvent tests event.target.closest on the triangle class, so a press 5.5 px above or below the glyph reaches the stock row handler, which selects, and on a double-click enters
+  - repro: unfolding on; click 2 px below the top edge of folder a's row, in the triangle's column: a is selected and not unfolded; a click 4 px above the triangle's centre still lands on the 13 px glyph box
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T19:29:04Z @kj added
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
+  - log: 2026-11-06T20:28:54Z @kj edited repro "unfolding on; click 4 px above the centre of the triangle on folder a: a is selected and not unfolded" -> "unfolding on; click 2 px below the top edge of folder a's row, in the triangle's column: a is selected and not unfolded; a click 4 px above the triangle's centre still lands on the 13 px glyph box"
+  - log: 2026-11-06T20:33:16Z @kj amended text "a click just above or below the triangle selects the folder, and a double-click there enters it, instead of folding or unfolding it" -> "a click just above or below the triangle selects the folder, and a double-click there enters it, instead of folding or unfolding it; fix: the triangle spans the row's height; `style/base.css`"
+  - log: 2026-11-06T20:33:16Z @kj closed: fixed: the triangle stretches to the row's full height; style/base.css

@@ -466,6 +466,65 @@ test('ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays', async 
   await expect(page.locator('.jp-Dialog')).toHaveCount(0);
 });
 
+test('ACC-UNFOLD-80-LEFTKEY Left goes to the parent folder, then folds it', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/x.txt', 'b.txt']);
+  await unfold(page, `${tmpPath}/a`);
+  await (await rowLocator(page, `${tmpPath}/a/x.txt`)).click();
+  const selected = async () =>
+    (await rows(page, tmpPath)).filter(r => r.selected).map(r => r.path);
+
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(selected).toEqual(['a']);
+  expect((await rows(page, tmpPath)).find(r => r.path === 'a')?.expanded).toBe(
+    true
+  );
+  expect((await browserPaths(page)).path).toBe(`${tmpPath}/a`);
+
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(() => paths(page, tmpPath)).toEqual(['a', 'b.txt']);
+  expect(await selected()).toEqual(['a']);
+
+  await page.keyboard.press('ArrowRight');
+  await expect
+    .poll(() => paths(page, tmpPath))
+    .toEqual(['a', 'a/x.txt', 'b.txt']);
+});
+
+test('ACC-UNFOLD-84-HITAREA triangle reacts on the full row height', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/x.txt', 'b.txt']);
+  const row = await rowLocator(page, `${tmpPath}/a`);
+  const box = (await row.boundingBox())!;
+  const toggle = (await row.locator(TOGGLE).boundingBox())!;
+  const x = toggle.x + toggle.width / 2;
+  const top = box.y + 2;
+  const listed = async () =>
+    (await rows(page, tmpPath)).map(r => [r.path, r.expanded, r.selected]);
+
+  await page.mouse.click(x, top);
+  await expect.poll(listed).toEqual([
+    ['a', true, false],
+    ['a/x.txt', null, false],
+    ['b.txt', null, false]
+  ]);
+
+  await page.mouse.click(x, box.y + box.height - 2);
+  await expect.poll(listed).toEqual([
+    ['a', false, false],
+    ['b.txt', null, false]
+  ]);
+
+  // The two presses unfold and fold a; the refresh waits for a navigation the double-click started.
+  await page.mouse.dblclick(x, top);
+  await (await browserHandle(page)).evaluate(b => b.model.refresh());
+  expect(await browserPaths(page)).toEqual({ path: tmpPath, topPath: tmpPath });
+});
+
 test('ACC-UNFOLD-17-SORTHEAD header sort orders every level', async ({
   page,
   tmpPath

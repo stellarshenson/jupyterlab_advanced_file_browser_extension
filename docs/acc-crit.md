@@ -156,12 +156,22 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-06T17:31:07Z @kj closed: ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays passed
   - log: 2026-11-06T17:49:54Z @kj edited test "`ui-tests/tests/unfold.spec.ts`: unfold a, Ctrl-drag row a onto row a/b; assert no copy or move request is sent and a/b holds no a" -> "`ui-tests/tests/unfold.spec.ts`: unfold a; Ctrl-drag row a onto row a/b, onto its own row and onto the file row a/x.txt (each Ctrl press toggles a, and stock lm-dragenter takes a drop only on a folder row that is not selected, so the drop on its own row follows a press that deselects a); assert no copy or move request is sent and neither a/b/a nor a/a exists"; evidence "`ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays passed, `tmp/workflows/review-v1/logs/r1-galata.log`" -> "`ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays passed, `tmp/workflows/review-v1/logs/r1-tests-2-galata.log`; it fails at the drop on row a with the `basePath === path` skip removed (`tmp/workflows/review-v1/logs/r1-tests-2-without-drop-self.log`)"; reason: the round 1 check found Cut, the drop loop and the own-row drop untested; the new tests cover them and fail with each change removed
   - log: 2026-11-06T17:49:54Z @kj a file row inside the folder never takes the drop: stock lm-dragenter refuses every file row, so Lumino sends that drop to the document body and evtDrop does not run
-- [ ] `ACC-UNFOLD-80-LEFTKEY` **Left key goes to the parent folder** - MEDIUM; with unfolding on, Left on a row inside an unfolded folder selects that folder; Left on a selected unfolded folder folds it; Right on a folded folder unfolds it
+- [x] `ACC-UNFOLD-80-LEFTKEY` **Left key goes to the parent folder** - MEDIUM; with unfolding on, Left on a row inside an unfolded folder selects that folder; Left on a selected unfolded folder folds it; Right on a folded folder unfolds it
+  - evidence: `ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-80-LEFTKEY Left goes to the parent folder, then folds it passed, 22 of 22 in the spec, `tmp/workflows/review-v1/logs/o1-leftkey-after.log`; it failed at the first Left on the build without the change, a stayed unselected (`tmp/workflows/review-v1/logs/o1-leftkey-before.log`)
   - test: ui-tests/tests/unfold.spec.ts: unfold a holding x.txt, click a/x.txt, press Left; assert a selected and still unfolded; press Left; assert a folded
   - test-tags: FUNCTIONAL
   - mechanism: 2026-11-06T19:29:04Z @kj the keydown handler for Left selects the parent row when the selected row sits inside an unfolded folder
   - log: 2026-11-06T19:29:04Z @kj added
   - log: 2026-11-06T19:29:08Z @kj Star Colonel decided 2026-11-06: fix (review round 1 deferral)
+  - log: 2026-11-06T19:54:33Z @kj closed: ACC-UNFOLD-80-LEFTKEY Left goes to the parent folder, then folds it passed
+- [x] `ACC-UNFOLD-84-HITAREA` **Triangle reacts on the full row height** - MEDIUM; with unfolding on, a click in the triangle's column of a folder row, from the row's top edge to its bottom edge, folds or unfolds the folder without selecting it, and a double-click there does not enter it; with file checkboxes shown, 1.5 px at each edge stay the row's
+  - evidence: `ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-84-HITAREA triangle reacts on the full row height passed, unfold.spec.ts 23 of 23, `tmp/workflows/review-v1/logs/o1-hitarea-after.log`; it failed on the build without the change, a selected and not unfolded (`tmp/workflows/review-v1/logs/o1-hitarea-before.log`)
+  - test: `ui-tests/tests/unfold.spec.ts`: click 2 px below the top edge of row a in the triangle's column; assert a unfolded and not selected; click 2 px above the bottom edge; assert a folded; double-click 2 px below the top edge; assert the top folder unchanged
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-06T20:28:54Z @kj the triangle span stretches to the row's full height (align-self: stretch, margin-block -4px over the row's 4 px padding, as the indent does) and centres its glyph with flex; handleEvent is unchanged
+  - log: 2026-11-06T20:28:54Z @kj added
+  - log: 2026-11-06T20:33:16Z @kj amended text "with unfolding on, a click in the triangle's column of a folder row, anywhere from the row's top edge to its bottom edge, folds or unfolds the folder and does not select it; a double-click there does not enter the folder" -> "with unfolding on, a click in the triangle's column of a folder row, from the row's top edge to its bottom edge, folds or unfolds the folder without selecting it, and a double-click there does not enter it; with file checkboxes shown, 1.5 px at each edge stay the row's"
+  - log: 2026-11-06T20:33:16Z @kj closed: ACC-UNFOLD-84-HITAREA triangle reacts on the full row height passed
 
 ## Unfolding switch `SWITCH`
 
@@ -235,12 +245,13 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T13:53:20Z @kj added
   - log: 2026-11-06T16:28:01Z @kj closed: ACC-FOLDER-31-CLICKEMPTY click on the empty area returns to the top folder passed
 - [x] `ACC-FOLDER-32-NEWITEM` **New File and New Folder land in the current folder** - CRITICAL; after a click on a nested folder, New File and New Folder create the item in that folder and show its row there
-  - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-32-NEWITEM New Folder lands in the current folder passed, `tmp/workflows/functional-v1/logs/suite-1.log`
-  - test: ui-tests/tests/current-folder.spec.ts: unfold a, click a/b, run New Folder; assert a/b/Untitled Folder exists with its row under a/b
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-32-NEWITEM New File and New Folder land in the current folder passed, current-folder.spec.ts 13 of 13, `tmp/workflows/review-v1/logs/o1-newfile-after.log`; the New File step fails on a build whose createNewFile does not unfold the current folder, no name editor (`tmp/workflows/review-v1/logs/o1-newfile-without.log`)
+  - test: `ui-tests/tests/current-folder.spec.ts`: unfold a, click a/b, run New File; assert a/b/untitled.txt exists with its row first under a/b; fold a/b, run New Folder; assert a/b/Untitled Folder exists with its row first under a/b
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T13:53:20Z @kj added
   - log: 2026-11-06T13:53:37Z @kj new items land in the selected row's folder, as upstream jupyterlab-unfold: Star Colonel decided 2026-11-06
   - log: 2026-11-06T16:28:01Z @kj closed: ACC-FOLDER-32-NEWITEM New Folder lands in the current folder passed
+  - log: 2026-11-06T20:38:49Z @kj edited test "ui-tests/tests/current-folder.spec.ts: unfold a, click a/b, run New Folder; assert a/b/Untitled Folder exists with its row under a/b" -> "`ui-tests/tests/current-folder.spec.ts`: unfold a, click a/b, run New File; assert a/b/untitled.txt exists with its row first under a/b; fold a/b, run New Folder; assert a/b/Untitled Folder exists with its row first under a/b"; evidence "`ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-32-NEWITEM New Folder lands in the current folder passed, `tmp/workflows/functional-v1/logs/suite-1.log`" -> "`ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-32-NEWITEM New File and New Folder land in the current folder passed, current-folder.spec.ts 13 of 13, `tmp/workflows/review-v1/logs/o1-newfile-after.log`; the New File step fails on a build whose createNewFile does not unfold the current folder, no name editor (`tmp/workflows/review-v1/logs/o1-newfile-without.log`)"; reason: review round 1 found New File untested; the test now runs New File before New Folder, each from a folded current folder
 - [x] `ACC-FOLDER-33-UPLOAD` **Upload lands in the current folder** - HIGH; after a click on a nested folder, an uploaded file is saved in that folder
   - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-33-UPLOAD upload lands in the current folder passed, `tmp/workflows/functional-v1/logs/suite-1.log`
   - test: ui-tests/tests/current-folder.spec.ts: click a/b, upload u.txt; assert a/b/u.txt exists
@@ -268,12 +279,28 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T14:03:47Z @kj added
   - log: 2026-11-06T14:03:47Z @kj breadcrumbs follow the current folder: Star Colonel decided 2026-11-06
   - log: 2026-11-06T16:28:01Z @kj closed: ACC-FOLDER-76-BREADCRUMBS breadcrumbs follow the current folder passed
-- [ ] `ACC-FOLDER-79-ARROWKEYS` **Up and Down keys move the current folder** - HIGH; with unfolding on, Up or Down that selects a row at any depth makes that row's folder current, as a click does: a folder row makes the folder current, a file row its parent folder
+- [x] `ACC-FOLDER-79-ARROWKEYS` **Up and Down keys move the current folder** - HIGH; with unfolding on, Up or Down that selects a row at any depth makes that row's folder current, as a click does: a folder row makes the folder current, a file row its parent folder
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-79-ARROWKEYS Up and Down move the current folder passed, 10 of 10 in the spec, `tmp/workflows/review-v1/logs/o1-arrowkeys-after.log`; it failed at the first Down on the pre-change build, model.path stayed a (`tmp/workflows/review-v1/logs/o1-arrowkeys-before.log`)
   - test: ui-tests/tests/current-folder.spec.ts: unfold a and a/b, click a, press Down to a/b; assert model.path a/b; press Down to a file in a/b; assert model.path a/b; press Up to a; assert model.path a
   - test-tags: FUNCTIONAL
   - mechanism: 2026-11-06T18:01:34Z @kj the keydown that moves the selection sets model.path to the selected row's folder, the same rule as the mousedown on a row
   - log: 2026-11-06T18:01:34Z @kj added
   - log: 2026-11-06T18:01:34Z @kj Up/Down keyboard selection moves the current folder like a click: Star Colonel decided 2026-11-06
+  - log: 2026-11-06T19:36:06Z @kj closed: closed: ACC-FOLDER-79-ARROWKEYS Up and Down move the current folder passed
+- [x] `ACC-FOLDER-81-SELFPASTE` **A folder pasted inside itself stays** - HIGH; with unfolding on, Paste of a copied or cut folder while the current folder is that folder or a folder inside it sends no copy or move request for that folder; the other clipboard items paste normally
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-81-SELFPASTE a folder pasted inside itself stays passed, with ACC-FOLDER-34-PASTE, `tmp/workflows/review-v1/logs/o1-paste-after.log`; it failed on the build without the change, a copy request of a into a/b (`tmp/workflows/review-v1/logs/o1-paste-before.log`)
+  - test: `ui-tests/tests/current-folder.spec.ts`: unfold a holding b; copy a and x.txt, click a/b, Paste; assert the only copy request is of x.txt, a/b/x.txt exists and a/b/a does not; cut a, click a, Paste; assert no move request, a stays and a/a does not exist
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-06T20:05:43Z @kj with unfolding on, paste() first drops from the clipboard each path that model.path equals or lies below (model.ts isBelow), the evtDrop rule
+  - log: 2026-11-06T20:05:43Z @kj added
+  - log: 2026-11-06T20:08:57Z @kj closed: ACC-FOLDER-81-SELFPASTE a folder pasted inside itself stays passed
+- [x] `ACC-FOLDER-83-OVERWRITE` **Upload asks to overwrite only for a file in the target folder** - MEDIUM; with unfolding on, the overwrite prompt on upload opens only when the target folder itself holds a file of that name, not when the name exists only in another unfolded folder
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-83-OVERWRITE upload asks to overwrite only for a file in the target folder passed, with ACC-FOLDER-33-UPLOAD, `tmp/workflows/review-v1/logs/o1-upload-after.log`; it failed on the build without the change, the prompt opened for x.txt (`tmp/workflows/review-v1/logs/o1-upload-before.log`)
+  - test: `ui-tests/tests/current-folder.spec.ts`: unfold a, click a/b, upload x.txt; assert no prompt and a/b/x.txt saved while a/x.txt and x.txt keep their text; upload y.txt; assert the Overwrite file? prompt opens, and Cancel keeps a/b/y.txt
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-06T20:12:23Z @kj with unfolding on, upload() runs the stock upload with _items reading only the rows whose folder is the target, so the stock name check sees the target folder alone
+  - log: 2026-11-06T20:12:23Z @kj added
+  - log: 2026-11-06T20:16:44Z @kj closed: ACC-FOLDER-83-OVERWRITE upload asks to overwrite only for a file in the target folder passed
 
 ## Actions on nested rows `NESTED`
 
@@ -325,6 +352,13 @@ File browser actions on rows inside unfolded folders act on the item's own path
   - log: 2026-11-06T17:25:23Z @kj added
   - log: 2026-11-06T17:31:07Z @kj closed: ACC-NESTED-77-OUTERMOST a folder selected with its own rows acts once passed
   - log: 2026-11-06T17:49:54Z @kj edited test "`ui-tests/tests/nested-actions.spec.ts`: select a and a/x.txt, Copy, click b, Paste; assert b/a/x.txt exists and b/x.txt does not; Delete the same selection; assert the dialog names a alone and a is gone; `src/__tests__/tree-model.spec.ts`: outermost of a, a/x.txt, b, ab is a, b, ab" -> "`ui-tests/tests/nested-actions.spec.ts`: select a and a/x.txt, Copy, click b, Paste; assert b/a/x.txt exists and b/x.txt does not; Delete the same selection; assert the dialog names a alone and a is gone; select a and a/x.txt, Cut, click b, Paste; assert one move request, of a, then b/a/x.txt exists, b/x.txt does not and a is gone; drag the same selection onto row b; assert the same; `src/__tests__/tree-model.spec.ts`: outermost of a, a/x.txt, b, ab is a, b, ab"; evidence "`ui-tests/tests/nested-actions.spec.ts`: ACC-NESTED-77-OUTERMOST a folder selected with its own rows acts once passed, `tmp/workflows/review-v1/logs/r1-galata.log`; `src/__tests__/tree-model.spec.ts`: ACC-NESTED-77-OUTERMOST drops each path below another selected path passed, make test Jest 21 of 21, `tmp/workflows/review-v1/logs/r1-make-test.log`" -> "`ui-tests/tests/nested-actions.spec.ts`: ACC-NESTED-77-OUTERMOST a folder selected with its own rows acts once, ACC-NESTED-77-OUTERMOST Cut and Paste move a folder selected with its own rows once and ACC-NESTED-77-OUTERMOST a drop moves a folder selected with its own rows once passed, `tmp/workflows/review-v1/logs/r1-tests-2-galata.log`; the Cut test fails with the cut() override removed (`tmp/workflows/review-v1/logs/r1-tests-2-without-cut.log`) and the drop test fails with outermost() removed from the evtDrop loop (`tmp/workflows/review-v1/logs/r1-tests-2-without-drop-outermost.log`); `src/__tests__/tree-model.spec.ts`: ACC-NESTED-77-OUTERMOST drops each path below another selected path passed, make test Jest 21 of 21, `tmp/workflows/review-v1/logs/r1-tests-2-make-test.log`"; reason: the round 1 check found Cut, the drop loop and the own-row drop untested; the new tests cover them and fail with each change removed
+- [x] `ACC-NESTED-82-DUPLICATE` **Duplicate puts each copy beside its original** - MEDIUM; with unfolding on, Duplicate on files selected in several folders copies each file into its own folder, not into the current folder
+  - evidence: `ui-tests/tests/nested-actions.spec.ts`: ACC-NESTED-82-DUPLICATE Duplicate puts each copy beside its original passed, with ACC-NESTED-38-MULTI, `tmp/workflows/review-v1/logs/o1-duplicate-after.log`; it failed on the build without the change, a/x-Copy1.txt missing (`tmp/workflows/review-v1/logs/o1-duplicate-before.log`)
+  - test: `ui-tests/tests/nested-actions.spec.ts`: unfold a and b, click a/x.txt, Ctrl-click b/y.txt, Duplicate; assert a/x-Copy1.txt and b/y-Copy1.txt exist and b/x-Copy1.txt does not
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-06T20:09:47Z @kj with unfolding on, duplicate() copies each selected file into PathExt.dirname of its own path; folders are skipped as in stock
+  - log: 2026-11-06T20:09:47Z @kj added
+  - log: 2026-11-06T20:11:25Z @kj closed: ACC-NESTED-82-DUPLICATE Duplicate puts each copy beside its original passed
 
 ## Unix Style Sorting `SORT`
 

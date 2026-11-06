@@ -286,3 +286,27 @@ test('ACC-NESTED-77-OUTERMOST a drop moves a folder selected with its own rows o
   expect(moves).toEqual([`${tmpPath}/a`]);
   await expect(page.locator('.jp-Dialog')).toHaveCount(0);
 });
+
+test('ACC-NESTED-82-DUPLICATE Duplicate puts each copy beside its original', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/x.txt', 'b/', 'b/y.txt']);
+  await unfold(page, `${tmpPath}/a`);
+  await unfold(page, `${tmpPath}/b`);
+  await (await rowLocator(page, `${tmpPath}/a/x.txt`)).click();
+  await (
+    await rowLocator(page, `${tmpPath}/b/y.txt`)
+  ).click({ modifiers: ['ControlOrMeta'] });
+  await expect
+    .poll(() => selectedPaths(page))
+    .toEqual([`${tmpPath}/a/x.txt`, `${tmpPath}/b/y.txt`]);
+
+  await run(page, 'filebrowser:duplicate');
+
+  expect(await page.contents.fileExists(`${tmpPath}/a/x-Copy1.txt`)).toBe(true);
+  expect(await page.contents.fileExists(`${tmpPath}/b/y-Copy1.txt`)).toBe(true);
+  expect(await page.contents.fileExists(`${tmpPath}/b/x-Copy1.txt`)).toBe(
+    false
+  );
+});
