@@ -1,5 +1,6 @@
 import { JupyterFrontEnd } from '@jupyterlab/application';
 import { showErrorMessage } from '@jupyterlab/apputils';
+import { PageConfig } from '@jupyterlab/coreutils';
 import { FileBrowser } from '@jupyterlab/filebrowser';
 import { ITranslator } from '@jupyterlab/translation';
 import { terminalIcon } from '@jupyterlab/ui-components';
@@ -43,10 +44,21 @@ export function addOpenInTerminal(
     execute: async () => {
       // The right-click's mousedown has already made the clicked file's folder
       // (or the top folder on the empty area) the model's current folder
+      const cwd = browser.model.path;
       try {
-        await app.commands.execute('terminal:create-new', {
-          cwd: browser.model.path
-        });
+        if (cwd) {
+          await app.commands.execute('terminal:create-new', { cwd });
+        } else {
+          // terminal:create-new sends no cwd for the root, and the server then
+          // starts the shell in its process folder; the server extension gives
+          // the root's absolute path
+          const terminal = await app.serviceManager.terminals.startNew({
+            cwd: PageConfig.getOption('advancedFileBrowserServerRoot')
+          });
+          // The widget opens its own connection; the terminal keeps running
+          terminal.dispose();
+          await app.commands.execute('terminal:open', { name: terminal.name });
+        }
       } catch (error) {
         await showErrorMessage(
           trans.__('Failed to open new terminal'),

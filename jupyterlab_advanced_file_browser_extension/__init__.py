@@ -32,5 +32,9 @@ def _load_jupyter_server_extension(server_app):
         JupyterLab application instance
     """
     setup_route_handlers(server_app.web_app)
+    # Open in Terminal at the server root needs its absolute path: the terminal API
+    # resolves a missing or relative cwd against the server's process folder
+    page_config = server_app.web_app.settings.setdefault("page_config_data", {})
+    page_config["advancedFileBrowserServerRoot"] = server_app.root_dir
     name = "jupyterlab_advanced_file_browser_extension"
     server_app.log.info(f"Registered {name} server extension")

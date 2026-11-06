@@ -35,3 +35,31 @@
 .jp-DirListing-item.jp-mod-selected .jp-AdvancedFileBrowser-toggle {
   color: inherit;
 }
+
+/*
+ * Unfolding on (the rows carry the indent): a row mousedown changes the current
+ * folder and so the breadcrumbs. A wrap there would move the rows under the
+ * pointer within one double-click or right-click, so the breadcrumbs keep one
+ * line and a long folder name ends in an ellipsis; its title keeps the path.
+ */
+.jp-FileBrowser:has(.jp-AdvancedFileBrowser-indent)
+  .jp-FileBrowser-crumbs:not(.jp-mod-editMode) {
+  white-space: nowrap;
+}
+
+.jp-FileBrowser:has(.jp-AdvancedFileBrowser-indent)
+  .jp-FileBrowser-crumbs:not(.jp-mod-editMode)
+  .jp-BreadCrumbs-content {
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+  vertical-align: top;
+}
+
+.jp-FileBrowser:has(.jp-AdvancedFileBrowser-indent)
+  .jp-BreadCrumbs-content
+  > .jp-BreadCrumbs-item {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

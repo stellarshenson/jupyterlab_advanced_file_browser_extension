@@ -42,7 +42,7 @@ Sources: JupyterLab 4.6.5 (`@jupyterlab/filebrowser` `listing.ts`, `model.ts`, `
 - `withPath(path, fn)`: `path` returns the given folder while `fn` runs, without a signal; the listing's rename uses it
 - `depth(path)`: segments below the top folder, 0 for a row in the top folder (ACC-UNFOLD-8)
 - Paths: the set and the current folder hold global item paths (`item.path`); ancestry and depth compare `contents.localPath()` values, so a drive prefix (the zip extension's drive) shifts nothing
-- Breadcrumbs: the stock `BreadCrumbs` re-reads `model.path` on `refreshed`, so it shows the current folder; a segment click runs `model.cd('/<segment path>')`, a navigation (ACC-FOLDER-76); no breadcrumb code here
+- Breadcrumbs: the stock `BreadCrumbs` re-reads `model.path` on `refreshed`, so it shows the current folder; a segment click runs `model.cd('/<segment path>')`, a navigation (ACC-FOLDER-76); no breadcrumb code here. While the rows carry the indent, `style/base.css` keeps the breadcrumbs on one line and shortens a long segment with an ellipsis: a wrap change on the row `mousedown` would move the rows under the pointer within one double-click or right-click (DEF-FOLDER-1-CRUMB-SHIFT)
 - Filter: the stock `FilenameSearcher` calls `setFilter`, which refreshes; `clearFilterOnNavigation` still acts on `pathChanged`, which only navigation emits
 
 ## 3. Listing - `TreeDirListing` and `TreeFileBrowser` (`src/listing.ts`)
@@ -114,7 +114,7 @@ Design-system values: children indent 16px per level; the caret is a text glyph 
 - Menu: `app.contextMenu.addItem({ command, selector: '.jp-DirListing-content', rank: 3 })`, registered in code so it follows the terminals check
 - Visible: `app.contextMenuHitTest(node => node.classList.contains('jp-DirListing-item'))`; no row (the empty area) → visible; a row with `data-isdir="true"` → hidden, since core's `terminal:open-folder-in-terminal` (rank 2, selector `.jp-DirListing-item[data-isdir="true"]`) covers folders; a file row → visible
 - Target folder: `browser.model.path` when the command runs. Unfolding on: the right-click's `mousedown` has made it the file's folder at any depth, also inside a multi-selection, or the top folder on the empty area. Unfolding off: the listing's folder, which holds every file row. A file at the server root gives `''`, the server root
-- Execute: `commands.execute('terminal:create-new', { cwd })`; a rejection → `showErrorMessage(trans.__('Failed to open new terminal'), error)`
+- Execute: `commands.execute('terminal:create-new', { cwd })`; for `''` it sends no cwd and the server starts the shell in its process folder, so the root goes through `serviceManager.terminals.startNew({ cwd })` with the absolute `PageConfig` option `advancedFileBrowserServerRoot`, which the server extension sets to `root_dir`, then `terminal:open` with the new name (DEF-TERM-2-ROOT-CWD); a rejection → `showErrorMessage(trans.__('Failed to open new terminal'), error)`
 - `app.serviceManager.terminals.isAvailable()` false → neither the command nor the menu item is registered
 - `browser`: the `IDefaultFileBrowser`, as in the replaced extension
 

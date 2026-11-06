@@ -19,9 +19,16 @@ c.LabApp.user_settings_dir = mkdtemp(prefix="galata-settings-")
 # exported-but-empty JUPYTER_TEST_PORT must fall back here too (playwright.config.js)
 c.ServerApp.port = int(os.environ.get("JUPYTER_TEST_PORT") or "8888")
 
+# Show Hidden Files needs it (ACC-UNFOLD-19); without it the server neither creates nor lists dot files
+c.ContentsManager.allow_hidden = True
+
 # The GalaxaHub message-of-the-day tab keeps the Launcher inactive and hangs every test in
 # page.goto(); traitlets ignores the line where that extension is not installed, as on CI
 c.GalaxaHubMotd.open_on_start = False
+
+# A workstation config roots /files/ at ~/workspace instead of the server root, so every
+# download answers 404 (ACC-NESTED-40); this is FileContentsManager's own default, as on CI
+c.ContentsManager.files_handler_params = {"path": c.ServerApp.root_dir}
 
 # Uncomment to set server log level to debug level
 # c.ServerApp.log_level = "DEBUG"

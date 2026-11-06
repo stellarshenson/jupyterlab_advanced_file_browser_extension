@@ -1,0 +1,1 @@
+- 2026-11-06T16:18:53Z @kj defects.md fc2e5afa sha256:90832331fd27f460f8b50474de3b97611b5b8e4f44846d8b92b65f3a887464e3: wrap the path `__init__.py` in backticks on one log line of DEF-TERM-2-ROOT-CWD: prettier, run by lint:check, reads the underscores as bold and fails the file; pm-tools does not edit a log line
