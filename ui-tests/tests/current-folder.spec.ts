@@ -722,9 +722,21 @@ test('ACC-FOLDER-87-SKIPMSG a folder skipped from Paste is reported', async ({
   await run('filebrowser:paste');
   await dismissSkipDialog(page, 'a');
 
+  // With unfolding on an entered copied folder is reported too, not copied beside it
+  await cd(tmpPath);
+  await clickRow(page, `${tmpPath}/a`);
+  await run('filebrowser:copy');
+  await cd(`${tmpPath}/a`);
+  await expectCurrent(page, `${tmpPath}/a`);
+  await run('filebrowser:paste');
+  await dismissSkipDialog(page, 'a');
+
   expect(moves).toEqual([]);
+  expect(copies).toEqual([]);
   expect(await page.contents.directoryExists(`${tmpPath}/a`)).toBe(true);
   expect(await page.contents.directoryExists(`${tmpPath}/a/b/a`)).toBe(false);
+  expect(await page.contents.directoryExists(`${tmpPath}/a/a`)).toBe(false);
+  expect(await page.contents.directoryExists(`${tmpPath}/a-Copy1`)).toBe(false);
 });
 
 test('ACC-FOLDER-35-STOCK unfolding off keeps the folder on click', async ({

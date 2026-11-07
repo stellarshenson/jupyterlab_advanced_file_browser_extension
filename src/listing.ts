@@ -194,7 +194,10 @@ export class TreeDirListing extends DirListing {
     const internals = this._internals;
     const isCut = internals._isCut;
     const beside =
-      this.model.unfolding && !isCut && internals._clipboard.includes(base);
+      this.model.unfolding &&
+      !isCut &&
+      base !== this.model.topPath &&
+      internals._clipboard.includes(base);
     const dropped = internals._clipboard.filter(
       path => path === base || isBelow(base, path)
     );
@@ -202,7 +205,7 @@ export class TreeDirListing extends DirListing {
       path => !dropped.includes(path)
     );
     // With unfolding on, no message for the current folder when it is copied beside or cut while
-    // selected (pasted onto itself); stock showed Paste Error for a cut folder that was entered.
+    // selected (pasted onto itself); stock showed Paste Error for a folder that was entered.
     const skipped = dropped.filter(
       path =>
         path !== base ||
@@ -229,7 +232,8 @@ export class TreeDirListing extends DirListing {
     if (!beside) {
       return pasted;
     }
-    // A copied folder that is the current folder lands beside it, as the stock a-Copy1.
+    // A copied folder that is the selected current folder (not the entered one) lands beside it,
+    // as the stock a-Copy1.
     const revision = internals._clipboardRevision;
     const copied = this.model.manager.copy(base, PathExt.dirname(base)).then(
       () => undefined,
