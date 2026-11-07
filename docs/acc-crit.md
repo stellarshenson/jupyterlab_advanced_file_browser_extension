@@ -323,6 +323,12 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-07T12:40:54Z @kj added
   - log: 2026-11-07T12:40:55Z @kj Star Colonel decided 2026-11-07: fix DEF-FOLDER-20-STOCK-INTOSELF in this extension
   - log: 2026-11-07T12:47:58Z @kj closed: ACC-FOLDER-86-STOCKPASTE unfolding off: a folder pasted inside itself stays passed
+- [ ] `ACC-FOLDER-87-SKIPMSG` **A folder skipped from Paste is reported** - MEDIUM; in both modes, when Paste skips a copied or cut folder because the current folder is that folder or below it, one stock Paste Error dialog names the folder; other items still paste; the ACC-FOLDER-81-SELFPASTE beside copy and a cut folder pasted onto itself stay silent, as stock
+  - test: ui-tests/tests/current-folder.spec.ts: unfolding off; Cut folder a, enter a/b, Paste; assert one Paste Error dialog naming a and no move request; same with unfolding on and a/b current
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-07T13:01:49Z @kj paste() keeps the paths the into-itself filter drops and, after the stock paste, calls showErrorMessage once with the Paste Error title
+  - log: 2026-11-07T13:01:49Z @kj added
+  - log: 2026-11-07T13:01:49Z @kj Star Colonel decided 2026-11-07: fix DEF-FOLDER-21-SILENT-SKIP
 
 ## Actions on nested rows `NESTED`
 
