@@ -192,21 +192,44 @@ export class TreeDirListing extends DirListing {
     // The one rule that applies with unfolding off as well.
     const base = this.model.path;
     const internals = this._internals;
-    const beside = !internals._isCut && internals._clipboard.includes(base);
-    internals._clipboard = internals._clipboard.filter(
-      path => path !== base && !isBelow(base, path)
+    const isCut = internals._isCut;
+    const beside =
+      this.model.unfolding && !isCut && internals._clipboard.includes(base);
+    const dropped = internals._clipboard.filter(
+      path => path === base || isBelow(base, path)
     );
-    if (!this.model.unfolding) {
-      return super.paste();
+    internals._clipboard = internals._clipboard.filter(
+      path => !dropped.includes(path)
+    );
+    // With unfolding on, no message for the current folder when it is copied beside or cut while
+    // selected (pasted onto itself); stock showed Paste Error for a cut folder that was entered.
+    const skipped = dropped.filter(
+      path =>
+        path !== base ||
+        !(
+          this.model.unfolding &&
+          (beside || (isCut && base !== this.model.topPath))
+        )
+    );
+    if (this.model.unfolding) {
+      // The stock paste of an emptied clipboard clears the cut state without a render.
+      this.update();
     }
-    // The stock paste of an emptied clipboard clears the cut state without a render.
-    this.update();
     const pasted = super.paste();
+    const trans = this.translator.load('jupyterlab');
+    if (skipped.length) {
+      void showErrorMessage(
+        trans._p('showErrorMessage', 'Paste Error'),
+        trans.__(
+          'Cannot paste %1 into itself or a folder inside it',
+          skipped.map(path => `"${PathExt.basename(path)}"`).join(', ')
+        )
+      );
+    }
     if (!beside) {
       return pasted;
     }
     // A copied folder that is the current folder lands beside it, as the stock a-Copy1.
-    const trans = this.translator.load('jupyterlab');
     const revision = internals._clipboardRevision;
     const copied = this.model.manager.copy(base, PathExt.dirname(base)).then(
       () => undefined,

@@ -50,6 +50,21 @@ async function expectCurrent(
     .toBe(path);
 }
 
+/** Expect one Paste Error dialog naming the skipped folder `name`, then dismiss it. */
+async function dismissSkipDialog(
+  page: IJupyterLabPageFixture,
+  name: string
+): Promise<void> {
+  const dialog = page.locator('.jp-Dialog');
+  await expect(dialog).toHaveCount(1);
+  await expect(dialog).toContainText('Paste Error');
+  await expect(dialog).toContainText(
+    `Cannot paste "${name}" into itself or a folder inside it`
+  );
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toHaveCount(0);
+}
+
 /** Wait until the server holds the file `path`. */
 async function expectFile(
   page: IJupyterLabPageFixture,
@@ -544,6 +559,7 @@ test('ACC-FOLDER-81-SELFPASTE a folder pasted inside itself stays', async ({
   expect(writes).toEqual([`copy ${tmpPath}/x.txt`]);
   expect(await page.contents.fileExists(`${tmpPath}/a/b/x.txt`)).toBe(true);
   expect(await page.contents.directoryExists(`${tmpPath}/a/b/a`)).toBe(false);
+  await dismissSkipDialog(page, 'a');
 
   await clickRow(page, `${tmpPath}/a`);
   await expectCurrent(page, `${tmpPath}/a`);
@@ -629,6 +645,85 @@ test('ACC-FOLDER-86-STOCKPASTE unfolding off: a folder pasted inside itself stay
 
   expect(copies).toEqual([`${tmpPath}/x.txt`]);
   expect(await page.contents.fileExists(`${tmpPath}/a/b/x.txt`)).toBe(true);
+  expect(await page.contents.directoryExists(`${tmpPath}/a/b/a`)).toBe(false);
+  await dismissSkipDialog(page, 'a');
+});
+
+test('ACC-FOLDER-87-SKIPMSG a folder skipped from Paste is reported', async ({
+  page,
+  tmpPath
+}) => {
+  await setup(page, tmpPath, false);
+  // A move is a PATCH on the old path; a copy request names its source in `copy_from`
+  const moves: string[] = [];
+  const copies: string[] = [];
+  page.on('request', request => {
+    const { pathname } = new URL(request.url());
+    if (request.method() === 'PATCH') {
+      moves.push(decodeURIComponent(pathname));
+    } else if (
+      request.method() === 'POST' &&
+      pathname.includes('/api/contents/')
+    ) {
+      copies.push(request.postDataJSON()?.copy_from);
+    }
+  });
+  const run = (command: string) =>
+    page.evaluate(id => window.jupyterapp.commands.execute(id), command);
+  const browser = await browserHandle(page);
+  const cd = (path: string) =>
+    browser.evaluate((b, path) => b.model.cd(`/${path}`), path);
+
+  await clickRow(page, `${tmpPath}/a`);
+  await run('filebrowser:cut');
+  await cd(`${tmpPath}/a/b`);
+  await expectCurrent(page, `${tmpPath}/a/b`);
+  await run('filebrowser:paste');
+  await dismissSkipDialog(page, 'a');
+
+  // With unfolding off a copied current folder is skipped, not copied beside it
+  await cd(tmpPath);
+  await clickRow(page, `${tmpPath}/a`);
+  await run('filebrowser:copy');
+  await cd(`${tmpPath}/a`);
+  await expectCurrent(page, `${tmpPath}/a`);
+  await run('filebrowser:paste');
+  await dismissSkipDialog(page, 'a');
+  expect(copies).toEqual([]);
+  expect(await page.contents.directoryExists(`${tmpPath}/a/a`)).toBe(false);
+  expect(await page.contents.directoryExists(`${tmpPath}/a-Copy1`)).toBe(false);
+
+  // With unfolding off a cut current folder is reported too; stock showed Paste Error
+  await cd(tmpPath);
+  await clickRow(page, `${tmpPath}/a`);
+  await run('filebrowser:cut');
+  await cd(`${tmpPath}/a`);
+  await expectCurrent(page, `${tmpPath}/a`);
+  await run('filebrowser:paste');
+  await dismissSkipDialog(page, 'a');
+  expect(moves).toEqual([]);
+  expect(await page.contents.directoryExists(`${tmpPath}/a`)).toBe(true);
+
+  await cd(tmpPath);
+  await setUnfolding(page, true);
+  await unfold(page, `${tmpPath}/a`);
+  await clickRow(page, `${tmpPath}/a`);
+  await run('filebrowser:cut');
+  await clickRow(page, `${tmpPath}/a/b`);
+  await expectCurrent(page, `${tmpPath}/a/b`);
+  await run('filebrowser:paste');
+  await dismissSkipDialog(page, 'a');
+
+  // With unfolding on an entered folder is the top folder, not a selected one, so stock applies
+  await clickRow(page, `${tmpPath}/a`);
+  await run('filebrowser:cut');
+  await cd(`${tmpPath}/a`);
+  await expectCurrent(page, `${tmpPath}/a`);
+  await run('filebrowser:paste');
+  await dismissSkipDialog(page, 'a');
+
+  expect(moves).toEqual([]);
+  expect(await page.contents.directoryExists(`${tmpPath}/a`)).toBe(true);
   expect(await page.contents.directoryExists(`${tmpPath}/a/b/a`)).toBe(false);
 });
 
