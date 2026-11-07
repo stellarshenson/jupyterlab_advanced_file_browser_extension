@@ -132,6 +132,13 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-07T12:40:54Z @kj Star Colonel decided 2026-11-07: fix in this extension, an exception to unfolding off = stock
   - log: 2026-11-07T12:47:57Z @kj edited test-tags "MANUAL" -> "FUNCTIONAL"
   - log: 2026-11-07T12:47:58Z @kj closed: fixed: TreeDirListing.paste drops from the stock clipboard each path that model.path equals or lies below in both modes, then with unfolding off runs the stock paste; `src/listing.ts`
+- [ ] `DEF-FOLDER-21-SILENT-SKIP` **Paste skipped as into-itself shows no message** - MINOR; a copied or cut folder dropped from Paste by the into-itself filter (ACC-FOLDER-81-SELFPASTE, ACC-FOLDER-86-STOCKPASTE) gives no feedback: nothing happens and the clipboard is empty; with unfolding off the stock browser showed Paste Error for the cut case; mixed clipboards paste the other items with no word on the skipped folder
+  - repro: unfolding off; select folder a, Cut, enter a/b, Paste: nothing happens, no dialog
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-07T12:59:46Z @kj added
+  - log: 2026-11-07T12:59:46Z @kj found by review round 7 (ux-designer, material MINOR); caused by the DEF-FOLDER-20 and DEF-FOLDER-6 filters
+  - log: 2026-11-07T12:59:55Z @kj edited text "a copied or cut folder dropped from Paste by the into-itself filter (ACC-FOLDER-81, ACC-FOLDER-86) gives no feedback: nothing happens and the clipboard is empty; with unfolding off the stock browser showed Paste Error for the cut case; mixed clipboards paste the other items with no word on the skipped folder" -> "a copied or cut folder dropped from Paste by the into-itself filter (ACC-FOLDER-81-SELFPASTE, ACC-FOLDER-86-STOCKPASTE) gives no feedback: nothing happens and the clipboard is empty; with unfolding off the stock browser showed Paste Error for the cut case; mixed clipboards paste the other items with no word on the skipped folder"
+  - log: 2026-11-07T13:01:43Z @kj Star Colonel decided 2026-11-07: show the stock Paste Error once, naming the folder
 
 ## Open in Terminal `TERM`
 
