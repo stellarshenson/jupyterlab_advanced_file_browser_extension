@@ -1,3 +1,4 @@
+import * as dialog from '@jupyterlab/apputils/lib/dialog';
 import { PathExt } from '@jupyterlab/coreutils';
 import { DocumentManager } from '@jupyterlab/docmanager';
 import { DocumentRegistry } from '@jupyterlab/docregistry';
@@ -220,6 +221,42 @@ describe('TreeFileBrowserModel', () => {
 
     finish(row('a-Copy1', 'directory'));
     await pasted;
+  });
+
+  it('DEF-FOLDER-23-FILEROW Paste of the current folder from a file row inside it reports Paste Error', async () => {
+    await model.toggle('a');
+    listing.sort(listing.sortState);
+    const internals = listing as unknown as {
+      selection: Record<string, boolean>;
+    };
+    const copy = jest
+      .spyOn(model.manager, 'copy')
+      .mockResolvedValue(row('a-Copy1', 'directory'));
+    const rename = jest.spyOn(model.manager, 'rename');
+    const showError = jest
+      .spyOn(dialog, 'showErrorMessage')
+      .mockResolvedValue(undefined);
+    const message = [
+      'Paste Error',
+      'Cannot paste "a" into itself or a folder inside it'
+    ];
+
+    for (const take of [() => listing.copy(), () => listing.cut()]) {
+      showError.mockClear();
+      listing.clearSelectedItems();
+      internals.selection['a'] = true;
+      take();
+      listing.clearSelectedItems();
+      internals.selection['a/x.txt'] = true;
+      model.setCurrentFolder('a');
+
+      await listing.paste();
+
+      expect(copy).not.toHaveBeenCalled();
+      expect(rename).not.toHaveBeenCalled();
+      expect(showError.mock.calls).toEqual([message]);
+    }
+    showError.mockRestore();
   });
 
   it('DEF-FOLDER-19-CLIPBOARD-RETRY a failed Paste beside puts the folder back on the clipboard', async () => {

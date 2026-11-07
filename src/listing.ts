@@ -196,7 +196,7 @@ export class TreeDirListing extends DirListing {
     const beside =
       this.model.unfolding &&
       !isCut &&
-      base !== this.model.topPath &&
+      !!this.selection[base] &&
       internals._clipboard.includes(base);
     const dropped = internals._clipboard.filter(
       path => path === base || isBelow(base, path)
@@ -209,10 +209,7 @@ export class TreeDirListing extends DirListing {
     const skipped = dropped.filter(
       path =>
         path !== base ||
-        !(
-          this.model.unfolding &&
-          (beside || (isCut && base !== this.model.topPath))
-        )
+        !(this.model.unfolding && (beside || (isCut && !!this.selection[base])))
     );
     if (this.model.unfolding) {
       // The stock paste of an emptied clipboard clears the cut state without a render.

@@ -153,6 +153,15 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-07T14:22:23Z @kj added
   - log: 2026-11-07T14:22:29Z @kj found by review round 8 (three lenses, material MINOR); the round 7 delta applied the selected-vs-entered rule to Cut only
   - log: 2026-11-07T14:23:15Z @kj closed; reason: names the passing step, the kept selected case and the failing run
+- [x] `DEF-FOLDER-23-FILEROW` **Paste from a file row inside the copied folder copies it beside itself** - MINOR; with unfolding on, Copy folder a, click a/x.txt, Paste creates a-Copy1 beside a and gives no message, while the same steps from row a/b open Paste Error; Cut a, click a/x.txt, Paste sends nothing and gives no message; `src/listing.ts`
+  - evidence: `src/__tests__/tree-model.spec.ts`: DEF-FOLDER-23-FILEROW passed, Jest 25 of 25 (`tmp/workflows/review-v1/logs/r9-make-test.log`): Copy a and Cut a, select a/x.txt, Paste: no copy or move, one Paste Error naming a; on HEAD listing.ts it failed with copy call a into the top folder (`tmp/workflows/review-v1/logs/r9-make-test-before.log`); current-folder spec 18 of 18 (`tmp/workflows/review-v1/logs/r9-current-folder.log`)
+  - related: ACC-FOLDER-81-SELFPASTE, ACC-FOLDER-87-SKIPMSG, DEF-FOLDER-22-ENTERED-COPY - the owner's 2026-11-07 rule: only a selected folder pastes beside itself
+  - repro: unfolding on; unfold a, click a, Copy, click a/x.txt, Paste: a-Copy1 appears beside a, no dialog
+  - test-tags: UNIT
+  - root-cause: 2026-11-07T16:46:15Z @kj TreeDirListing.paste used the round-8 test base !== model.topPath for a selected folder; it is also true when a click on a file row inside a made a current, so a copied a is copied beside itself and a cut a is skipped without Paste Error
+  - log: 2026-11-07T16:46:15Z @kj added
+  - log: 2026-11-07T16:46:18Z @kj found by review round 9 (MINOR); the owner's 2026-11-07 rule already decides it
+  - log: 2026-11-07T16:49:42Z @kj closed: Jest test passes with the fix and fails on HEAD listing.ts
 
 ## Open in Terminal `TERM`
 
