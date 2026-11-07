@@ -113,6 +113,11 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T22:53:28Z @kj added
   - log: 2026-11-06T22:53:28Z @kj found by review round 3 (ux-designer lens); adjudicator round 3: the empty area is the area below the last row, as ACC-FOLDER-31-CLICKEMPTY states
   - log: 2026-11-06T22:58:12Z @kj closed: fixed: with unfolding on, the empty area is the area below the last row; a press in a gap between rows or on a scrollbar beside them changes nothing, as in stock; `src/listing.ts` _setCurrentFolder
+- [ ] `DEF-FOLDER-19-CLIPBOARD-RETRY` **Failed beside copy does not put the folder back on the clipboard** - MINOR; with unfolding on, when the server copy of a copied current folder into its parent fails, the folder is not put back on the clipboard, so a second Paste does nothing; stock paste puts failed paths back unless a newer Copy or Cut ran (_clipboardRevision)
+  - repro: unfolding on; click folder a, Copy, Paste with the parent not writable: Paste Error; Paste again: nothing happens
+  - test-tags: UNIT
+  - log: 2026-11-07T07:30:53Z @kj added
+  - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
 
 ## Open in Terminal `TERM`
 
@@ -129,6 +134,11 @@ Migrated from jupyterlab_open_in_terminal_extension: Open in Terminal on a file 
   - log: 2026-11-06T16:03:07Z @kj added
   - log: 2026-11-06T16:18:19Z @kj closed: fixed: at the root the command starts the terminal with the absolute root_dir, given by the server extension as page config advancedFileBrowserServerRoot, then runs terminal:open; src/openInTerminal.ts, `jupyterlab_advanced_file_browser_extension/__init__.py`
   - log: 2026-11-06T16:18:31Z @kj amended text "Open in Terminal on a file at the server root, or on the empty area there, starts the terminal in the server's process folder instead of the server root, when the server starts outside its root_dir; cause under investigation" -> "Open in Terminal on a file at the server root, or on the empty area there, starts the terminal in the server's process folder instead of the server root, when the server starts outside its root_dir; fix: absolute root from the server extension; `src/openInTerminal.ts`"
+- [ ] `DEF-TERM-17-GAP-COMMENT` **Open in Terminal comment says the empty area always resets the folder** - MINOR; openInTerminal.ts execute comment says the right-click mousedown made the top folder current on the empty area; since DEF-FOLDER-16-ROW-GAP a right-click in the 3 px gap between rows keeps the current folder, so the terminal opens there; the comment is false, the behaviour stays
+  - repro: read src/openInTerminal.ts execute comment against TreeDirListing._setCurrentFolder: a gap press is not the empty area
+  - test-tags: MANUAL
+  - log: 2026-11-07T07:30:53Z @kj added
+  - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
 
 ## Actions on nested rows `NESTED`
 
@@ -188,3 +198,8 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-06T20:28:54Z @kj edited repro "unfolding on; click 4 px above the centre of the triangle on folder a: a is selected and not unfolded" -> "unfolding on; click 2 px below the top edge of folder a's row, in the triangle's column: a is selected and not unfolded; a click 4 px above the triangle's centre still lands on the 13 px glyph box"
   - log: 2026-11-06T20:33:16Z @kj amended text "a click just above or below the triangle selects the folder, and a double-click there enters it, instead of folding or unfolding it" -> "a click just above or below the triangle selects the folder, and a double-click there enters it, instead of folding or unfolding it; fix: the triangle spans the row's height; `style/base.css`"
   - log: 2026-11-06T20:33:16Z @kj closed: fixed: the triangle stretches to the row's full height; style/base.css
+- [ ] `DEF-UNFOLD-18-DROP-HIGHLIGHT` **Own subfolder lights up as a drop target, then the drop does nothing** - MINOR; with unfolding on, dragging folder a over its own subfolder a/b highlights a/b and shows a move cursor; the drop is skipped by the DEF-UNFOLD-5-INTOSELF guard with no message; stock never shows a dragged folder's children
+  - repro: unfolding on; unfold a holding folder b, drag a over a/b: a/b is highlighted; release: nothing happens
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-07T07:30:53Z @kj added
+  - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
