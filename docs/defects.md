@@ -121,6 +121,12 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-07T07:30:53Z @kj added
   - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
   - log: 2026-11-07T07:40:46Z @kj closed: fixed: with unfolding on, a failed beside copy puts the folder back on the clipboard after the stock paste ends, unless a Copy or Cut ran since, the stock _clipboardRevision rule; `src/listing.ts` paste()
+- [ ] `DEF-FOLDER-20-STOCK-INTOSELF` **With unfolding off, stock Paste copies a folder into its own subfolder** - MAJOR; with unfolding off the extension leaves the stock paste; Copy a, enter a/b, Paste: stock paste sends a copy of a into a/b and jupyter_server 2.21.1 copytree has no into-itself check, so it recurses until the path is too long; with unfolding on DEF-FOLDER-6-PASTE-INTOSELF blocks it
+  - repro: unfolding off; select folder a, Copy, double-click a, double-click b, Paste: a/b/a/b/a... appears
+  - test-tags: MANUAL
+  - log: 2026-11-07T12:06:09Z @kj added
+  - log: 2026-11-07T12:06:09Z @kj deferred by the review adjudicator in rounds 1, 5 and 6 as an upstream jupyter_server matter; not put to the Star Colonel until now
+  - log: 2026-11-07T12:40:54Z @kj Star Colonel decided 2026-11-07: fix in this extension, an exception to unfolding off = stock
 
 ## Open in Terminal `TERM`
 

@@ -315,6 +315,12 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - mechanism: 2026-11-06T20:12:23Z @kj with unfolding on, upload() runs the stock upload with _items reading only the rows whose folder is the target, so the stock name check sees the target folder alone
   - log: 2026-11-06T20:12:23Z @kj added
   - log: 2026-11-06T20:16:44Z @kj closed: ACC-FOLDER-83-OVERWRITE upload asks to overwrite only for a file in the target folder passed
+- [ ] `ACC-FOLDER-86-STOCKPASTE` **Unfolding off: no paste of a folder into itself** - HIGH; with unfolding off, Paste of a copied or cut folder while the current folder is that folder or a folder below it sends no copy or move request for that folder; the other clipboard items paste normally; the only exception to unfolding off = stock
+  - test: ui-tests/tests/current-folder.spec.ts: unfolding off; copy folder a and x.txt, enter a/b, Paste; assert one copy request, for x.txt, and no a/b/a
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-07T12:40:54Z @kj the paste override drops the into-itself paths from the stock clipboard in both modes; with unfolding off it then runs the stock paste
+  - log: 2026-11-07T12:40:54Z @kj added
+  - log: 2026-11-07T12:40:55Z @kj Star Colonel decided 2026-11-07: fix DEF-FOLDER-20-STOCK-INTOSELF in this extension
 
 ## Actions on nested rows `NESTED`
 
