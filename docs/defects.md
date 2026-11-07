@@ -113,11 +113,14 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-06T22:53:28Z @kj added
   - log: 2026-11-06T22:53:28Z @kj found by review round 3 (ux-designer lens); adjudicator round 3: the empty area is the area below the last row, as ACC-FOLDER-31-CLICKEMPTY states
   - log: 2026-11-06T22:58:12Z @kj closed: fixed: with unfolding on, the empty area is the area below the last row; a press in a gap between rows or on a scrollbar beside them changes nothing, as in stock; `src/listing.ts` _setCurrentFolder
-- [ ] `DEF-FOLDER-19-CLIPBOARD-RETRY` **Failed beside copy does not put the folder back on the clipboard** - MINOR; with unfolding on, when the server copy of a copied current folder into its parent fails, the folder is not put back on the clipboard, so a second Paste does nothing; stock paste puts failed paths back unless a newer Copy or Cut ran (_clipboardRevision)
+- [x] `DEF-FOLDER-19-CLIPBOARD-RETRY` **Failed beside copy does not put the folder back on the clipboard** - MINOR; with unfolding on, when the server copy of a copied current folder into its parent fails, the folder is not put back on the clipboard, so a second Paste does nothing; stock paste puts failed paths back unless a newer Copy or Cut ran (_clipboardRevision)
+  - evidence: `src/__tests__/tree-model.spec.ts`: DEF-FOLDER-19-CLIPBOARD-RETRY a failed Paste beside puts the folder back on the clipboard passed, make test Jest 24 of 24, `tmp/workflows/review-v1/logs/o4-clipretry-after.log`; it failed without the change, the clipboard was empty (`tmp/workflows/review-v1/logs/o4-clipretry-before.log`)
+  - root-cause: 2026-11-07T07:39:23Z @kj TreeDirListing.paste removes base from _clipboard before the stock paste, then copies it with a direct manager.copy; the rejection handler only shows Paste Error, so base never returns to the clipboard, where the stock paste puts every failed path back unless _clipboardRevision moved
   - repro: unfolding on; click folder a, Copy, Paste with the parent not writable: Paste Error; Paste again: nothing happens
   - test-tags: UNIT
   - log: 2026-11-07T07:30:53Z @kj added
   - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
+  - log: 2026-11-07T07:40:46Z @kj closed: fixed: with unfolding on, a failed beside copy puts the folder back on the clipboard after the stock paste ends, unless a Copy or Cut ran since, the stock _clipboardRevision rule; `src/listing.ts` paste()
 
 ## Open in Terminal `TERM`
 
@@ -134,11 +137,14 @@ Migrated from jupyterlab_open_in_terminal_extension: Open in Terminal on a file 
   - log: 2026-11-06T16:03:07Z @kj added
   - log: 2026-11-06T16:18:19Z @kj closed: fixed: at the root the command starts the terminal with the absolute root_dir, given by the server extension as page config advancedFileBrowserServerRoot, then runs terminal:open; src/openInTerminal.ts, `jupyterlab_advanced_file_browser_extension/__init__.py`
   - log: 2026-11-06T16:18:31Z @kj amended text "Open in Terminal on a file at the server root, or on the empty area there, starts the terminal in the server's process folder instead of the server root, when the server starts outside its root_dir; cause under investigation" -> "Open in Terminal on a file at the server root, or on the empty area there, starts the terminal in the server's process folder instead of the server root, when the server starts outside its root_dir; fix: absolute root from the server extension; `src/openInTerminal.ts`"
-- [ ] `DEF-TERM-17-GAP-COMMENT` **Open in Terminal comment says the empty area always resets the folder** - MINOR; openInTerminal.ts execute comment says the right-click mousedown made the top folder current on the empty area; since DEF-FOLDER-16-ROW-GAP a right-click in the 3 px gap between rows keeps the current folder, so the terminal opens there; the comment is false, the behaviour stays
+- [x] `DEF-TERM-17-GAP-COMMENT` **Open in Terminal comment says the empty area always resets the folder** - MINOR; openInTerminal.ts execute comment says the right-click mousedown made the top folder current on the empty area; since DEF-FOLDER-16-ROW-GAP a right-click in the 3 px gap between rows keeps the current folder, so the terminal opens there; the comment is false, the behaviour stays
+  - evidence: comment corrected, `tmp/workflows/review-v1/patches/o4-TERMCOMMENT.patch`
+  - root-cause: 2026-11-07T07:40:53Z @kj the execute comment in `src/openInTerminal.ts` predates DEF-FOLDER-16-ROW-GAP, which narrowed the empty area of TreeDirListing._setCurrentFolder to a press below the last row; the comment still says every press outside a row makes the top folder current
   - repro: read src/openInTerminal.ts execute comment against TreeDirListing._setCurrentFolder: a gap press is not the empty area
   - test-tags: MANUAL
   - log: 2026-11-07T07:30:53Z @kj added
   - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
+  - log: 2026-11-07T07:41:02Z @kj closed: fixed: the execute comment in `src/openInTerminal.ts` names the gap between rows, which keeps the current folder; no behaviour change
 
 ## Actions on nested rows `NESTED`
 
@@ -198,8 +204,11 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-06T20:28:54Z @kj edited repro "unfolding on; click 4 px above the centre of the triangle on folder a: a is selected and not unfolded" -> "unfolding on; click 2 px below the top edge of folder a's row, in the triangle's column: a is selected and not unfolded; a click 4 px above the triangle's centre still lands on the 13 px glyph box"
   - log: 2026-11-06T20:33:16Z @kj amended text "a click just above or below the triangle selects the folder, and a double-click there enters it, instead of folding or unfolding it" -> "a click just above or below the triangle selects the folder, and a double-click there enters it, instead of folding or unfolding it; fix: the triangle spans the row's height; `style/base.css`"
   - log: 2026-11-06T20:33:16Z @kj closed: fixed: the triangle stretches to the row's full height; style/base.css
-- [ ] `DEF-UNFOLD-18-DROP-HIGHLIGHT` **Own subfolder lights up as a drop target, then the drop does nothing** - MINOR; with unfolding on, dragging folder a over its own subfolder a/b highlights a/b and shows a move cursor; the drop is skipped by the DEF-UNFOLD-5-INTOSELF guard with no message; stock never shows a dragged folder's children
+- [x] `DEF-UNFOLD-18-DROP-HIGHLIGHT` **Own subfolder lights up as a drop target, then the drop does nothing** - MINOR; with unfolding on, dragging folder a over its own subfolder a/b highlights a/b and shows a move cursor; the drop is skipped by the DEF-UNFOLD-5-INTOSELF guard with no message; stock never shows a dragged folder's children
+  - evidence: `ui-tests/tests/unfold.spec.ts`: DEF-UNFOLD-18-DROP-HIGHLIGHT a dragged folder does not highlight its own subfolder passed with ACC-UNFOLD-16-DROP and ACC-UNFOLD-78-SELFDROP, 3 of 3, `tmp/workflows/review-v1/logs/o4-drophl-after.log`; it failed on the build without the change, a/b carried jp-mod-dropTarget (`tmp/workflows/review-v1/logs/o4-drophl-before.log`)
+  - root-cause: 2026-11-07T07:36:50Z @kj stock evtDragEnter refuses only file rows and selected rows, so an unfolded row of a dragged folder, or its own row after a Ctrl press deselects it, accepts the drag and gets jp-mod-dropTarget; the TreeDirListing evtDrop loop then skips a path dropped into itself, so the accepted drop does nothing
   - repro: unfolding on; unfold a holding folder b, drag a over a/b: a/b is highlighted; release: nothing happens
   - test-tags: FUNCTIONAL
   - log: 2026-11-07T07:30:53Z @kj added
   - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
+  - log: 2026-11-07T07:39:15Z @kj closed: fixed: with unfolding on, a row whose path is a dragged path or lies below one refuses the drag at lm-dragenter, so it shows no drop highlight and takes no drop; `src/listing.ts` evtDragEnter

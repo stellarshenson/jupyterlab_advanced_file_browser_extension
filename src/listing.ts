@@ -94,6 +94,7 @@ interface IListingInternals {
   _sortedItems: Contents.IModel[];
   _items: HTMLElement[];
   _clipboard: string[];
+  _clipboardRevision: number;
   _isCut: boolean;
   _focusIndex: number;
   _selectTimer: number;
@@ -205,9 +206,16 @@ export class TreeDirListing extends DirListing {
     }
     // A copied folder that is the current folder lands beside it, as the stock a-Copy1.
     const trans = this.translator.load('jupyterlab');
+    const revision = internals._clipboardRevision;
     const copied = this.model.manager.copy(base, PathExt.dirname(base)).then(
       () => undefined,
-      error => {
+      async error => {
+        // As in the stock paste, the failed path goes back unless a Copy or Cut ran since;
+        // it waits for the stock paste, which replaces the clipboard when it ends.
+        await pasted;
+        if (internals._clipboardRevision === revision) {
+          internals._clipboard.push(base);
+        }
         void showErrorMessage(
           trans._p('showErrorMessage', 'Paste Error'),
           error
@@ -283,7 +291,8 @@ export class TreeDirListing extends DirListing {
       const target = event.target as HTMLElement;
       const internals = this._internals;
       const { _items, _sortedItems } = internals;
-      const item = _sortedItems[_items.findIndex(row => row.contains(target))];
+      const index = _items.findIndex(row => row.contains(target));
+      const item = _sortedItems[index];
       if (
         item &&
         target.classList.contains(ITEM_TEXT_CLASS) &&
@@ -292,20 +301,26 @@ export class TreeDirListing extends DirListing {
       ) {
         const isFolder = item.type === 'directory';
         const unfolded = isFolder && this.model.isUnfolded(item.path);
-        // Left that does not fold the row goes to the row's folder, when that folder is a row.
-        const parent =
-          key === 'ArrowLeft' && !unfolded
-            ? _sortedItems.findIndex(
-                row => row.path === PathExt.dirname(item.path)
-              )
-            : -1;
-        if (isFolder || parent !== -1) {
+        const child = _sortedItems[index + 1];
+        // Left that does not fold the row goes to the row's folder, when that folder is a row;
+        // Right on an unfolded folder goes to its first child.
+        const next =
+          key === 'ArrowLeft'
+            ? unfolded
+              ? -1
+              : _sortedItems.findIndex(
+                  row => row.path === PathExt.dirname(item.path)
+                )
+            : unfolded && child && isBelow(child.path, item.path)
+              ? index + 1
+              : -1;
+        if (isFolder || next !== -1) {
           event.preventDefault();
           event.stopPropagation();
-          if (parent !== -1) {
-            internals._selectItem(parent, false);
-            ElementExt.scrollIntoViewIfNeeded(this.contentNode, _items[parent]);
-            this._makeCurrent(_sortedItems[parent]);
+          if (next !== -1) {
+            internals._selectItem(next, false);
+            ElementExt.scrollIntoViewIfNeeded(this.contentNode, _items[next]);
+            this._makeCurrent(_sortedItems[next]);
           } else if ((key === 'ArrowRight') !== unfolded) {
             void this.model.toggle(item.path);
           }
@@ -324,6 +339,27 @@ export class TreeDirListing extends DirListing {
       const { _sortedItems, _focusIndex } = this._internals;
       this._makeCurrent(_sortedItems[_focusIndex]);
     }
+  }
+
+  protected evtDragEnter(event: Drag.Event): void {
+    if (this.model.unfolding && event.mimeData.hasData(CONTENTS_MIME)) {
+      const { _items, _sortedItems } = this._internals;
+      const item =
+        _sortedItems[
+          _items.findIndex(row =>
+            ElementExt.hitTest(row, event.clientX, event.clientY)
+          )
+        ];
+      const dragged = event.mimeData.getData(CONTENTS_MIME) as string[];
+      // A dragged folder's own row and rows take no drop, as stock file rows do.
+      if (
+        item &&
+        dragged.some(path => item.path === path || isBelow(item.path, path))
+      ) {
+        return;
+      }
+    }
+    super.evtDragEnter(event);
   }
 
   protected evtDrop(event: Drag.Event): void {

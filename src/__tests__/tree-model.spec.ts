@@ -222,6 +222,38 @@ describe('TreeFileBrowserModel', () => {
     await pasted;
   });
 
+  it('DEF-FOLDER-19-CLIPBOARD-RETRY a failed Paste beside puts the folder back on the clipboard', async () => {
+    await model.toggle('a');
+    listing.sort(listing.sortState);
+    const internals = listing as unknown as {
+      selection: Record<string, boolean>;
+      _clipboard: string[];
+    };
+    internals.selection['a'] = true;
+    listing.copy();
+    model.setCurrentFolder('a');
+    let fail: (error: Error) => void = () => undefined;
+    jest
+      .spyOn(model.manager, 'copy')
+      .mockImplementation(() => new Promise((_, reject) => (fail = reject)));
+
+    let pasted = listing.paste();
+    fail(new Error('Permission denied'));
+    await pasted;
+
+    expect(internals._clipboard).toEqual(['a']);
+
+    // A Copy between the paste and the failure keeps the newer clipboard.
+    pasted = listing.paste();
+    listing.clearSelectedItems();
+    internals.selection['b.txt'] = true;
+    listing.copy();
+    fail(new Error('Permission denied'));
+    await pasted;
+
+    expect(internals._clipboard).toEqual(['b.txt']);
+  });
+
   it('ACC-UNFOLD-21-FILTER items keeps each folder on the path to a match', async () => {
     await model.toggle('a');
     model.setFilter(item => (item.name.startsWith('x') ? {} : null));

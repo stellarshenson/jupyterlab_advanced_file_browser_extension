@@ -172,12 +172,14 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-06T20:28:54Z @kj added
   - log: 2026-11-06T20:33:16Z @kj amended text "with unfolding on, a click in the triangle's column of a folder row, anywhere from the row's top edge to its bottom edge, folds or unfolds the folder and does not select it; a double-click there does not enter the folder" -> "with unfolding on, a click in the triangle's column of a folder row, from the row's top edge to its bottom edge, folds or unfolds the folder without selecting it, and a double-click there does not enter it; with file checkboxes shown, 1.5 px at each edge stay the row's"
   - log: 2026-11-06T20:33:16Z @kj closed: ACC-UNFOLD-84-HITAREA triangle reacts on the full row height passed
-- [ ] `ACC-UNFOLD-85-RIGHTKEY` **Right key goes to the first child** - MEDIUM; with unfolding on, Right on a selected unfolded folder that has children selects its first child and makes that row's folder current; on an unfolded empty folder it does nothing
+- [x] `ACC-UNFOLD-85-RIGHTKEY` **Right key goes to the first child** - MEDIUM; with unfolding on, Right on a selected unfolded folder that has children selects its first child and makes that row's folder current; on an unfolded empty folder it does nothing
+  - evidence: `ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-85-RIGHTKEY Right goes to the first child of an unfolded folder passed with ACC-UNFOLD-80-LEFTKEY, 2 of 2, `tmp/workflows/review-v1/logs/o4-rightkey-after.log`; it failed at the first Right on the build without the change, a stayed selected (`tmp/workflows/review-v1/logs/o4-rightkey-before.log`)
   - test: ui-tests/tests/unfold.spec.ts: unfold a holding x.txt, click a, press Right; assert a/x.txt selected and model.path a
   - test-tags: FUNCTIONAL
   - mechanism: 2026-11-07T07:30:53Z @kj the ArrowRight arm of the evtKeydown tree branch selects the next row when it lies below the unfolded folder, as the Left arm selects the parent
   - log: 2026-11-07T07:30:53Z @kj added
   - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
+  - log: 2026-11-07T07:36:39Z @kj closed: ACC-UNFOLD-85-RIGHTKEY Right goes to the first child of an unfolded folder passed
 
 ## Unfolding switch `SWITCH`
 

@@ -43,7 +43,8 @@ export function addOpenInTerminal(
     },
     execute: async () => {
       // The right-click's mousedown has already made the clicked file's folder
-      // (or the top folder on the empty area) the model's current folder
+      // current, or the top folder when the press is below the last row; a
+      // press in a gap between rows keeps the current folder
       const cwd = browser.model.path;
       try {
         if (cwd) {

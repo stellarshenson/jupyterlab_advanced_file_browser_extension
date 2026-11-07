@@ -3,6 +3,7 @@
  * Galata gives every test fresh in-memory settings and state, kept across a page reload.
  */
 import { expect, IJupyterLabPageFixture, test } from '@jupyterlab/galata';
+import type { Locator } from '@playwright/test';
 
 import {
   browserHandle,
@@ -466,6 +467,33 @@ test('ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays', async 
   await expect(page.locator('.jp-Dialog')).toHaveCount(0);
 });
 
+test('DEF-UNFOLD-18-DROP-HIGHLIGHT a dragged folder does not highlight its own subfolder', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/b/', 'c/']);
+  await unfold(page, `${tmpPath}/a`);
+  const rowB = await rowLocator(page, `${tmpPath}/a/b`);
+  const rowC = await rowLocator(page, `${tmpPath}/c`);
+  const centre = async (row: Locator) => {
+    const box = (await row.locator(TEXT).boundingBox())!;
+    return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+  };
+  const start = await centre(await rowLocator(page, `${tmpPath}/a`));
+  const sub = await centre(rowB);
+  const other = await centre(rowC);
+
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  // Past the listing's 5 px drag threshold, then onto c, a folder that takes the drop
+  await page.mouse.move(start.x + 10, start.y + 10, { steps: 5 });
+  await page.mouse.move(other.x, other.y, { steps: 10 });
+  await expect(rowC).toHaveClass(/jp-mod-dropTarget/);
+  await page.mouse.move(sub.x, sub.y, { steps: 10 });
+  await expect(rowB).not.toHaveClass(/jp-mod-dropTarget/);
+  await page.mouse.up();
+});
+
 test('ACC-UNFOLD-80-LEFTKEY Left goes to the parent folder, then folds it', async ({
   page,
   tmpPath
@@ -491,6 +519,33 @@ test('ACC-UNFOLD-80-LEFTKEY Left goes to the parent folder, then folds it', asyn
   await expect
     .poll(() => paths(page, tmpPath))
     .toEqual(['a', 'a/x.txt', 'b.txt']);
+});
+
+test('ACC-UNFOLD-85-RIGHTKEY Right goes to the first child of an unfolded folder', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/x.txt', 'e/', 'b.txt']);
+  await unfold(page, `${tmpPath}/a`);
+  await unfold(page, `${tmpPath}/e`);
+  await (await rowLocator(page, `${tmpPath}/a`)).click();
+  const selected = async () =>
+    (await rows(page, tmpPath)).filter(r => r.selected).map(r => r.path);
+
+  await page.keyboard.press('ArrowRight');
+  await expect.poll(selected).toEqual(['a/x.txt']);
+  expect((await browserPaths(page)).path).toBe(`${tmpPath}/a`);
+
+  // The focus moved with the selection, so Left on the child goes back to a.
+  await page.keyboard.press('ArrowLeft');
+  await expect.poll(selected).toEqual(['a']);
+
+  // An unfolded empty folder has no first child.
+  await (await rowLocator(page, `${tmpPath}/e`)).click();
+  await page.keyboard.press('ArrowRight');
+  expect(await selected()).toEqual(['e']);
+  expect(await paths(page, tmpPath)).toEqual(['a', 'a/x.txt', 'e', 'b.txt']);
+  expect((await browserPaths(page)).path).toBe(`${tmpPath}/e`);
 });
 
 test('ACC-UNFOLD-84-HITAREA triangle reacts on the full row height', async ({
