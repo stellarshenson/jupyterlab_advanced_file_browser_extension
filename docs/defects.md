@@ -121,12 +121,17 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-07T07:30:53Z @kj added
   - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
   - log: 2026-11-07T07:40:46Z @kj closed: fixed: with unfolding on, a failed beside copy puts the folder back on the clipboard after the stock paste ends, unless a Copy or Cut ran since, the stock _clipboardRevision rule; `src/listing.ts` paste()
-- [ ] `DEF-FOLDER-20-STOCK-INTOSELF` **With unfolding off, stock Paste copies a folder into its own subfolder** - MAJOR; with unfolding off the extension leaves the stock paste; Copy a, enter a/b, Paste: stock paste sends a copy of a into a/b and jupyter_server 2.21.1 copytree has no into-itself check, so it recurses until the path is too long; with unfolding on DEF-FOLDER-6-PASTE-INTOSELF blocks it
+- [x] `DEF-FOLDER-20-STOCK-INTOSELF` **With unfolding off, stock Paste copies a folder into its own subfolder** - MAJOR; with unfolding off the extension leaves the stock paste; Copy a, enter a/b, Paste: stock paste sends a copy of a into a/b and jupyter_server 2.21.1 copytree has no into-itself check, so it recurses until the path is too long; with unfolding on DEF-FOLDER-6-PASTE-INTOSELF blocks it
+  - evidence: `ui-tests/tests/current-folder.spec.ts`: ACC-FOLDER-86-STOCKPASTE unfolding off: a folder pasted inside itself stays passed, `tmp/workflows/review-v1/logs/o5-stockpaste-after.log`; it failed on the build without the change, `tmp/workflows/review-v1/logs/o5-stockpaste-before.log`
+  - related: ACC-FOLDER-86-STOCKPASTE
+  - root-cause: 2026-11-07T12:43:30Z @kj with unfolding off TreeDirListing.paste ran the stock paste at once; stock DirListing.paste copies each clipboard path into model.path with no check that model.path is that path or below it, and jupyter_server 2.21.1 copytree has no into-itself check, so it copies the new copy again until the path is too long
   - repro: unfolding off; select folder a, Copy, double-click a, double-click b, Paste: a/b/a/b/a... appears
-  - test-tags: MANUAL
+  - test-tags: FUNCTIONAL
   - log: 2026-11-07T12:06:09Z @kj added
   - log: 2026-11-07T12:06:09Z @kj deferred by the review adjudicator in rounds 1, 5 and 6 as an upstream jupyter_server matter; not put to the Star Colonel until now
   - log: 2026-11-07T12:40:54Z @kj Star Colonel decided 2026-11-07: fix in this extension, an exception to unfolding off = stock
+  - log: 2026-11-07T12:47:57Z @kj edited test-tags "MANUAL" -> "FUNCTIONAL"
+  - log: 2026-11-07T12:47:58Z @kj closed: fixed: TreeDirListing.paste drops from the stock clipboard each path that model.path equals or lies below in both modes, then with unfolding off runs the stock paste; `src/listing.ts`
 
 ## Open in Terminal `TERM`
 

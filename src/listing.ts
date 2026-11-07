@@ -188,16 +188,17 @@ export class TreeDirListing extends DirListing {
   }
 
   paste(): Promise<void> {
-    if (!this.model.unfolding) {
-      return super.paste();
-    }
     // A folder copied into itself or below makes copytree recurse; a move there fails.
+    // The one rule that applies with unfolding off as well.
     const base = this.model.path;
     const internals = this._internals;
     const beside = !internals._isCut && internals._clipboard.includes(base);
     internals._clipboard = internals._clipboard.filter(
       path => path !== base && !isBelow(base, path)
     );
+    if (!this.model.unfolding) {
+      return super.paste();
+    }
     // The stock paste of an emptied clipboard clears the cut state without a render.
     this.update();
     const pasted = super.paste();

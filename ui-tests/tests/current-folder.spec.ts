@@ -593,6 +593,45 @@ test('DEF-FOLDER-13-CUT-DIMMED a cut folder pasted onto itself loses the cut sty
   expect(await row.getAttribute('class')).not.toContain('jp-mod-cut');
 });
 
+test('ACC-FOLDER-86-STOCKPASTE unfolding off: a folder pasted inside itself stays', async ({
+  page,
+  tmpPath
+}) => {
+  await setup(page, tmpPath, false);
+  // Each copy request names its source in `copy_from`; the copy of a is aborted, so a
+  // failing run leaves no a/b/a/b/... chain on the server
+  const copies: string[] = [];
+  await page.route('**/api/contents/**', route => {
+    const request = route.request();
+    const from =
+      request.method() === 'POST'
+        ? request.postDataJSON()?.copy_from
+        : undefined;
+    if (from) {
+      copies.push(from);
+    }
+    return from === `${tmpPath}/a` ? route.abort() : route.continue();
+  });
+
+  await clickRow(page, `${tmpPath}/a`);
+  await (
+    await rowLocator(page, `${tmpPath}/x.txt`)
+  ).click({ modifiers: ['ControlOrMeta'] });
+  await page.evaluate(() =>
+    window.jupyterapp.commands.execute('filebrowser:copy')
+  );
+  const browser = await browserHandle(page);
+  await browser.evaluate((b, path) => b.model.cd(`/${path}`), `${tmpPath}/a/b`);
+  await expectCurrent(page, `${tmpPath}/a/b`);
+  await page.evaluate(() =>
+    window.jupyterapp.commands.execute('filebrowser:paste')
+  );
+
+  expect(copies).toEqual([`${tmpPath}/x.txt`]);
+  expect(await page.contents.fileExists(`${tmpPath}/a/b/x.txt`)).toBe(true);
+  expect(await page.contents.directoryExists(`${tmpPath}/a/b/a`)).toBe(false);
+});
+
 test('ACC-FOLDER-35-STOCK unfolding off keeps the folder on click', async ({
   page,
   tmpPath
