@@ -1,6 +1,6 @@
 {
     "name": "@stellarshenson/jupyterlab-advanced-file-browser-extension",
-    "version": "0.8.4",
+    "version": "0.8.5",
     "description": "Folders that unfold in place as a tree, Unix Style Sorting and Open in Terminal for the JupyterLab file browser",
     "keywords": [
         "jupyter",
