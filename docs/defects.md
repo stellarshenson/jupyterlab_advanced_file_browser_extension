@@ -162,6 +162,22 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-07T16:46:15Z @kj added
   - log: 2026-11-07T16:46:18Z @kj found by review round 9 (MINOR); the owner's 2026-11-07 rule already decides it
   - log: 2026-11-07T16:49:42Z @kj closed: Jest test passes with the fix and fails on HEAD listing.ts
+- [x] `DEF-FOLDER-24-CLIPBOARD-SKIP` **After the into-itself Paste Error the skipped folder is gone from the clipboard** - MINOR; in both modes, a Paste that skips a copied or cut folder because the current folder is that folder or below it empties the clipboard of it, so a second Paste elsewhere does nothing, while stock keeps a failed cut item for a retry
+  - evidence: `src/__tests__/tree-model.spec.ts`: ACC-FOLDER-88-CLIPRETAIN passed, Jest 26 of 26 (`tmp/workflows/review-v1/logs/o7-make-test.log`): Copy a and Cut a pasted in a give one Paste Error and no request and leave a on the clipboard, then a Paste in c copies or moves a once; on HEAD listing.ts the first paste left the clipboard empty (`tmp/workflows/review-v1/logs/o7-make-test-before.log`)
+  - repro: unfolding off; select folder a, Cut, double-click a, Paste: Paste Error naming a; go up one level, Paste: nothing happens, no request and no dialog
+  - test-tags: UNIT
+  - root-cause: 2026-11-08T22:47:02Z @kj TreeDirListing.paste removes each dropped path from internals._clipboard before super.paste(); the stock paste rebuilds the clipboard only from its own pathsToPaste, so the skipped folder never returns, while stock puts a failed cut item back under its _clipboardRevision rule
+  - log: 2026-11-08T22:47:02Z @kj added
+  - log: 2026-11-08T22:47:07Z @kj found by review round 10 (ux-designer lens, material MINOR); Star Colonel decided 2026-11-08: keep the skipped folder on the clipboard, as stock keeps a failed cut item, so a second Paste in another folder retries it
+  - log: 2026-11-08T22:50:06Z @kj closed
+- [x] `DEF-FOLDER-25-CLIPBOARD-EPOCH` **A newer Copy or Cut is overwritten when a pending Paste restores the clipboard** - MINOR; with unfolding on, the restore guard reads `internals._clipboardRevision`, a dev 4.6.6 field absent from shipped 4.6.5 (0 occurrences in its static bundles); undefined === undefined at runtime, so a skipped path or a failed beside copy returns after a newer Copy or Cut; `src/listing.ts`
+  - evidence: `src/__tests__/tree-model.spec.ts`: DEF-FOLDER-25-CLIPBOARD-EPOCH passed, Jest 27 of 27 (`tmp/workflows/review-v1/logs/o8-clipepoch-after.log`): Copy b.txt during the pending skipped Paste of a leaves the clipboard [b.txt] and no cut state; the same test failed on the index listing.ts, where the restore appended a (`tmp/workflows/review-v1/logs/o8-clipepoch-before.log`)
+  - repro: unfolding on; Copy a, enter a, Paste, then Copy b.txt while the stock paste is pending: after the Paste Error the clipboard holds a and b.txt instead of only b.txt
+  - test-tags: UNIT
+  - root-cause: 2026-11-08T23:16:48Z @kj TreeDirListing.paste copied the guard from the node_modules dev dependency 4.6.6, where every Copy and Cut increments `_clipboardRevision`; shipped JupyterLab 4.6.5 has no such field, so `internals._clipboardRevision` is undefined at the paste and at the check, the comparison always passes and the restore replaces a newer clipboard
+  - log: 2026-11-08T23:16:48Z @kj added
+  - log: 2026-11-08T23:16:52Z @kj found by review round 11 (wf_0127a192-f76), MINOR; Star Colonel instruction 2026-11-09: continue until the goal clears; remedy: an own epoch counter
+  - log: 2026-11-08T23:19:13Z @kj closed: fixed: the listing counts its own `_clipboardEpoch` in copy and cut; both restore guards compare it
 
 ## Open in Terminal `TERM`
 

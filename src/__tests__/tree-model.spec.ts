@@ -291,6 +291,92 @@ describe('TreeFileBrowserModel', () => {
     expect(internals._clipboard).toEqual(['b.txt']);
   });
 
+  it('ACC-FOLDER-88-CLIPRETAIN a folder skipped from Paste stays on the clipboard', async () => {
+    await model.toggle('a');
+    listing.sort(listing.sortState);
+    await model.manager.services.contents.save('c', { type: 'directory' });
+    await model.refresh();
+    const internals = listing as unknown as {
+      selection: Record<string, boolean>;
+      _clipboard: string[];
+      _isCut: boolean;
+    };
+    const copy = jest
+      .spyOn(model.manager, 'copy')
+      .mockResolvedValue(row('c/a', 'directory'));
+    const rename = jest
+      .spyOn(model.manager, 'rename')
+      .mockResolvedValue(row('c/a', 'directory'));
+    const showError = jest
+      .spyOn(dialog, 'showErrorMessage')
+      .mockResolvedValue(undefined);
+    const message = [
+      'Paste Error',
+      'Cannot paste "a" into itself or a folder inside it'
+    ];
+
+    for (const isCut of [false, true]) {
+      showError.mockClear();
+      copy.mockClear();
+      rename.mockClear();
+      listing.clearSelectedItems();
+      internals.selection['a'] = true;
+      if (isCut) {
+        listing.cut();
+      } else {
+        listing.copy();
+      }
+      listing.clearSelectedItems();
+      model.setCurrentFolder('a');
+
+      await listing.paste();
+
+      expect(copy).not.toHaveBeenCalled();
+      expect(rename).not.toHaveBeenCalled();
+      expect(showError.mock.calls).toEqual([message]);
+      expect(internals._clipboard).toEqual(['a']);
+      expect(internals._isCut).toBe(isCut);
+
+      model.setCurrentFolder('c');
+      await listing.paste();
+
+      expect(copy.mock.calls).toEqual(isCut ? [] : [['a', 'c']]);
+      expect(rename.mock.calls).toEqual(isCut ? [['a', 'c/a']] : []);
+    }
+    showError.mockRestore();
+  });
+
+  it('DEF-FOLDER-25-CLIPBOARD-EPOCH a Copy during a pending Paste keeps the newer clipboard', async () => {
+    await model.toggle('a');
+    listing.sort(listing.sortState);
+    const internals = listing as unknown as {
+      selection: Record<string, boolean>;
+      _clipboard: string[];
+      _isCut: boolean;
+      _clipboardRevision?: number;
+    };
+    const showError = jest
+      .spyOn(dialog, 'showErrorMessage')
+      .mockResolvedValue(undefined);
+    internals.selection['a'] = true;
+    listing.copy();
+    listing.clearSelectedItems();
+    model.setCurrentFolder('a');
+    // Shipped JupyterLab 4.6.5 has no stock _clipboardRevision.
+    internals._clipboardRevision = undefined;
+
+    const pasted = listing.paste();
+    internals.selection['b.txt'] = true;
+    listing.copy();
+    // 4.6.6's _copy() increments the absent field to NaN; 4.6.5 leaves it absent.
+    internals._clipboardRevision = undefined;
+    await pasted;
+
+    expect(internals._clipboard).toEqual(['b.txt']);
+    expect(internals._isCut).toBe(false);
+    showError.mockRestore();
+  });
+
   it('ACC-UNFOLD-21-FILTER items keeps each folder on the path to a match', async () => {
     await model.toggle('a');
     model.setFilter(item => (item.name.startsWith('x') ? {} : null));

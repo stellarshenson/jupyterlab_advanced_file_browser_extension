@@ -94,7 +94,6 @@ interface IListingInternals {
   _sortedItems: Contents.IModel[];
   _items: HTMLElement[];
   _clipboard: string[];
-  _clipboardRevision: number;
   _isCut: boolean;
   _focusIndex: number;
   _selectTimer: number;
@@ -175,11 +174,13 @@ export class TreeDirListing extends DirListing {
   copy(): void {
     this._selectOutermost();
     super.copy();
+    this._clipboardEpoch++;
   }
 
   cut(): void {
     this._selectOutermost();
     super.cut();
+    this._clipboardEpoch++;
   }
 
   delete(): Promise<void> {
@@ -193,6 +194,7 @@ export class TreeDirListing extends DirListing {
     const base = this.model.path;
     const internals = this._internals;
     const isCut = internals._isCut;
+    const revision = this._clipboardEpoch;
     const beside =
       this.model.unfolding &&
       !isCut &&
@@ -215,7 +217,15 @@ export class TreeDirListing extends DirListing {
       // The stock paste of an emptied clipboard clears the cut state without a render.
       this.update();
     }
-    const pasted = super.paste();
+    const pasted = super.paste().then(() => {
+      // A folder skipped as into-itself goes back once the stock paste ends, unless a Copy or
+      // Cut ran since, as stock puts a failed cut item back for a retry.
+      if (skipped.length && this._clipboardEpoch === revision) {
+        internals._clipboard.push(...skipped);
+        internals._isCut = isCut;
+        this.update();
+      }
+    });
     const trans = this.translator.load('jupyterlab');
     if (skipped.length) {
       void showErrorMessage(
@@ -231,14 +241,13 @@ export class TreeDirListing extends DirListing {
     }
     // A copied folder that is the selected current folder (not the entered one) lands beside it,
     // as the stock a-Copy1.
-    const revision = internals._clipboardRevision;
     const copied = this.model.manager.copy(base, PathExt.dirname(base)).then(
       () => undefined,
       async error => {
         // As in the stock paste, the failed path goes back unless a Copy or Cut ran since;
         // it waits for the stock paste, which replaces the clipboard when it ends.
         await pasted;
-        if (internals._clipboardRevision === revision) {
+        if (this._clipboardEpoch === revision) {
           internals._clipboard.push(base);
         }
         void showErrorMessage(
@@ -679,6 +688,8 @@ export class TreeDirListing extends DirListing {
     }
   }
 
+  // Stock's _clipboardRevision exists in 4.6.6 only; the shipped 4.6.5 bundle has no such field.
+  private _clipboardEpoch = 0;
   private _itemOrder: ItemOrder | null = null;
   private _keepOrder = false;
   private _icons = new WeakMap<
