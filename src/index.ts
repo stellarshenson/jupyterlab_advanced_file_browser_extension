@@ -14,8 +14,7 @@ import { ISettingRegistry } from '@jupyterlab/settingregistry';
 import { IStateDB } from '@jupyterlab/statedb';
 import { ITranslator } from '@jupyterlab/translation';
 
-import { ItemOrder, TreeFileBrowser } from './listing';
-import { TreeFileBrowserModel } from './model';
+import type { ItemOrder, TreeFileBrowser } from './listing';
 import { addOpenInTerminal } from './openInTerminal';
 import { requestAPI } from './request';
 import { sortItems } from './sort';
@@ -75,6 +74,9 @@ const plugin: JupyterFrontEndPlugin<IFileBrowserFactory> = {
     }
     const value = (key: SettingKey): boolean =>
       (settings?.get(key).composite as boolean | undefined) ?? DEFAULTS[key];
+
+    const { TreeFileBrowser } = await import('./listing');
+    const { TreeFileBrowserModel } = await import('./model');
 
     const apply = (browser: TreeFileBrowser): void => {
       browser.model.unfolding = value('folderUnfolding');
