@@ -519,6 +519,16 @@ test('ACC-UNFOLD-80-LEFTKEY Left goes to the parent folder, then folds it', asyn
   await expect
     .poll(() => paths(page, tmpPath))
     .toEqual(['a', 'a/x.txt', 'b.txt']);
+
+  // A held Left folds once: the auto-repeat keydown must not cancel the fold.
+  await page.keyboard.down('ArrowLeft');
+  await page.keyboard.down('ArrowLeft');
+  await page.keyboard.up('ArrowLeft');
+  await page.waitForTimeout(300);
+  expect(await paths(page, tmpPath)).toEqual(['a', 'b.txt']);
+  expect((await rows(page, tmpPath)).find(r => r.path === 'a')?.expanded).toBe(
+    false
+  );
 });
 
 test('ACC-UNFOLD-85-RIGHTKEY Right goes to the first child of an unfolded folder', async ({
@@ -706,6 +716,111 @@ test('ACC-UNFOLD-20-COLUMNS nested rows show the columns of top rows', async ({
   }
 });
 
+test('DEF-UNFOLD-26-TOGGLE one press toggles the pressed folder and keeps its row in place', async ({
+  page,
+  tmpPath
+}) => {
+  // A live lab also holds the replaced sorting extension; run it with --venv /opt/conda
+  await seedTree(page, tmpPath, [
+    'alpha/',
+    'beta/',
+    'zeta/',
+    'zeta/aaa/',
+    'x.txt'
+  ]);
+  await expect
+    .poll(() => paths(page, tmpPath))
+    .toEqual(['alpha', 'beta', 'zeta', 'x.txt']);
+
+  const row = await rowLocator(page, `${tmpPath}/zeta`);
+  const point = await row.evaluate((element, selector) => {
+    const toggle = element.querySelector(selector)!;
+    const box = toggle.getBoundingClientRect();
+    return {
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2,
+      top: element.getBoundingClientRect().top
+    };
+  }, TOGGLE);
+
+  await page.mouse.click(point.x, point.y);
+  await expect
+    .poll(async () => (await rows(page, tmpPath)).map(r => [r.path, r.depth]))
+    .toEqual([
+      ['alpha', 0],
+      ['beta', 0],
+      ['zeta', 0],
+      ['zeta/aaa', 1],
+      ['x.txt', 0]
+    ]);
+  expect(
+    (await rows(page, tmpPath)).find(r => r.path === 'zeta')?.expanded
+  ).toBe(true);
+  const top = await (
+    await rowLocator(page, `${tmpPath}/zeta`)
+  ).evaluate(element => element.getBoundingClientRect().top);
+  expect(top).toBeCloseTo(point.top, 0);
+
+  // The point still hits zeta's triangle: the second press folds zeta, beta stays folded
+  await page.mouse.click(point.x, point.y);
+  await expect
+    .poll(async () =>
+      (await rows(page, tmpPath)).map(r => [r.path, r.expanded])
+    )
+    .toEqual([
+      ['alpha', false],
+      ['beta', false],
+      ['zeta', false],
+      ['x.txt', null]
+    ]);
+});
+
+test('DEF-UNFOLD-27-KEEPPOS unfolding near the bottom keeps the row and the scroll offset', async ({
+  page,
+  tmpPath
+}) => {
+  // A live lab also holds the replaced sorting extension; run it with --venv /opt/conda
+  const folders = Array.from(
+    { length: 40 },
+    (_, index) => `m${String(index).padStart(2, '0')}/`
+  );
+  await seedTree(page, tmpPath, [...folders, 'zeta/', 'zeta/aaa/']);
+  await expect
+    .poll(() => paths(page, tmpPath))
+    .toEqual([...folders.map(folder => folder.slice(0, -1)), 'zeta']);
+
+  const content = page.locator('#filebrowser .jp-DirListing-content');
+  await content.evaluate(element => {
+    element.scrollTop = element.scrollHeight;
+  });
+
+  const row = await rowLocator(page, `${tmpPath}/zeta`);
+  const before = await row.evaluate((element, selector) => {
+    const toggle = element.querySelector(selector)!;
+    const box = toggle.getBoundingClientRect();
+    return {
+      top: element.getBoundingClientRect().top,
+      x: box.x + box.width / 2,
+      y: box.y + box.height / 2
+    };
+  }, TOGGLE);
+  const scrollTop = await content.evaluate(element => element.scrollTop);
+
+  await page.mouse.click(before.x, before.y);
+  await expect
+    .poll(
+      async () =>
+        (await rows(page, tmpPath)).find(r => r.path === 'zeta')?.expanded
+    )
+    .toBe(true);
+
+  const top = await (
+    await rowLocator(page, `${tmpPath}/zeta`)
+  ).evaluate(element => element.getBoundingClientRect().top);
+  expect(top).toBeCloseTo(before.top, 0);
+  expect(await content.evaluate(element => element.scrollTop)).toBe(scrollTop);
+});
+
 test('ACC-UNFOLD-21-FILTER filter keeps matches and their folders at every depth', async ({
   page,
   tmpPath
@@ -726,4 +841,362 @@ test('ACC-UNFOLD-21-FILTER filter keeps matches and their folders at every depth
   await expect
     .poll(() => paths(page, tmpPath), { timeout: SERVER_TIMEOUT })
     .toEqual(['a', 'a/b', 'a/b/x.txt']);
+});
+
+test('DEF-UNFOLD-28-NOEXTRA unfolding a folded folder leaves the folders below it folded', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, [
+    'a/',
+    'a/b/',
+    'a/b/c/',
+    'a/b/c/x.txt',
+    'a/b/y.txt',
+    'a/z.txt',
+    'd.txt'
+  ]);
+  await unfold(page, `${tmpPath}/a/b`);
+  await expect
+    .poll(() => paths(page, tmpPath))
+    .toEqual(['a', 'a/b', 'a/b/c', 'a/b/y.txt', 'a/z.txt', 'd.txt']);
+
+  // Folding a drops its rows; nothing below it stays unfolded
+  await clickTriangle(page, `${tmpPath}/a`);
+  await expect.poll(() => paths(page, tmpPath)).toEqual(['a', 'd.txt']);
+
+  await clickTriangle(page, `${tmpPath}/a`);
+  await expect
+    .poll(async () =>
+      (await rows(page, tmpPath)).map(r => [r.path, r.expanded])
+    )
+    .toEqual([
+      ['a', true],
+      ['a/b', false],
+      ['a/z.txt', null],
+      ['d.txt', null]
+    ]);
+});
+
+interface IRowState {
+  height: number;
+  top: number;
+  animations: { duration: number; playState: string }[];
+}
+
+interface IFrame {
+  time: number;
+  rows: { path: string | null; animations: IRowState['animations'] }[];
+}
+
+/** Read one listing row's layout and animations, paired by index to sortedItems(). */
+async function installRowState(page: IJupyterLabPageFixture): Promise<void> {
+  await page.evaluate(() => {
+    const state = window as any;
+    state.__rowState = (path: string): IRowState | null => {
+      const browser = Array.from(state.jupyterapp.shell.widgets('left')).find(
+        (widget: any) => widget.id === 'filebrowser'
+      ) as any;
+      const items: any[] = browser
+        ? Array.from(browser.listing.sortedItems())
+        : [];
+      const nodes: HTMLElement[] = browser
+        ? Array.from(
+            browser.listing.contentNode.querySelectorAll(
+              ':scope > .jp-DirListing-item'
+            )
+          )
+        : [];
+      if (nodes.length !== items.length) {
+        return null;
+      }
+      const index = items.findIndex((item: any) => item.path === path);
+      const node = nodes[index];
+      if (index === -1 || !node) {
+        return null;
+      }
+      const rect = node.getBoundingClientRect();
+      return {
+        height: rect.height,
+        top: rect.top,
+        animations: node.getAnimations().map((animation: any) => ({
+          duration: animation.effect.getTiming().duration as number,
+          playState: animation.playState as string
+        }))
+      };
+    };
+  });
+}
+
+const rowState = (page: IJupyterLabPageFixture, path: string) =>
+  page.evaluate(
+    target => (window as any).__rowState(target) as IRowState | null,
+    path
+  );
+
+/** Record every listing row once per animation frame until stopFrames. */
+async function startFrames(page: IJupyterLabPageFixture): Promise<void> {
+  await page.evaluate(() => {
+    const state = window as any;
+    state.__frames = [];
+    state.__framesStopped = false;
+    const tick = (): void => {
+      if (state.__framesStopped || state.__frames.length > 1200) {
+        return;
+      }
+      const browser = Array.from(state.jupyterapp.shell.widgets('left')).find(
+        (widget: any) => widget.id === 'filebrowser'
+      ) as any;
+      const items: any[] = browser
+        ? Array.from(browser.listing.sortedItems())
+        : [];
+      const nodes: HTMLElement[] = browser
+        ? Array.from(
+            browser.listing.contentNode.querySelectorAll(
+              ':scope > .jp-DirListing-item'
+            )
+          )
+        : [];
+      // A render between two rows: the pairings would be wrong, so skip that frame.
+      if (nodes.length === items.length) {
+        state.__frames.push({
+          time: performance.now(),
+          rows: nodes.map((node, index) => ({
+            path: items[index]?.path ?? null,
+            animations: node.getAnimations().map((animation: any) => ({
+              duration: animation.effect.getTiming().duration,
+              playState: animation.playState
+            }))
+          }))
+        });
+      }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  });
+}
+
+async function stopFrames(page: IJupyterLabPageFixture): Promise<IFrame[]> {
+  return page.evaluate(() => {
+    const state = window as any;
+    state.__framesStopped = true;
+    return state.__frames as IFrame[];
+  });
+}
+
+test('ACC-UNFOLD-89-ANIMATE folding and unfolding animate the rows', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/x.txt']);
+  await expect.poll(() => paths(page, tmpPath)).toEqual(['a']);
+  const folder = `${tmpPath}/a`;
+  const child = `${tmpPath}/a/x.txt`;
+  await installRowState(page);
+  const before = (await rowState(page, folder))!;
+
+  // Unfold: the child row runs one 160 ms animation, sampled on its own frames.
+  await startFrames(page);
+  await clickTriangle(page, folder);
+  const expand = (await (
+    await page.waitForFunction(
+      ({ folder, child }) => {
+        const state = window as any;
+        const folderRow = state.__rowState(folder) as IRowState | null;
+        const childRow = state.__rowState(child) as IRowState | null;
+        if (!folderRow || !childRow) {
+          return null;
+        }
+        const running = childRow.animations.some(
+          animation =>
+            animation.playState === 'running' && animation.duration === 160
+        );
+        if (
+          !running ||
+          childRow.height <= 0.5 ||
+          childRow.height >= folderRow.height - 0.5
+        ) {
+          return null;
+        }
+        return {
+          top: folderRow.top,
+          height: childRow.height,
+          settled: folderRow.height
+        };
+      },
+      { folder, child },
+      { polling: 'raf', timeout: SERVER_TIMEOUT }
+    )
+  ).jsonValue()) as { top: number; height: number; settled: number };
+  // The folder's own row does not move while its children open below it.
+  expect(expand.top).toBeCloseTo(before.top, 0);
+  const frames = await stopFrames(page);
+  expect(
+    frames.some(frame =>
+      frame.rows.some(row => row.path === child && row.animations.length > 0)
+    )
+  ).toBe(true);
+
+  // Settled after 250 ms: the natural height, no animation still running.
+  await page.waitForTimeout(250);
+  const settled = (await rowState(page, child))!;
+  expect(settled.height).toBeGreaterThan(expand.height);
+  expect(settled.height).toBeCloseTo(expand.settled, 1);
+  expect(
+    settled.animations.filter(animation => animation.playState === 'running')
+  ).toEqual([]);
+
+  // Fold: one 120 ms animation on the rows below, then they are gone.
+  await clickTriangle(page, folder);
+  const folding = (await (
+    await page.waitForFunction(
+      child => {
+        const state = window as any;
+        const row = state.__rowState(child) as IRowState | null;
+        return (
+          row?.animations.some(
+            animation =>
+              animation.playState === 'running' && animation.duration === 120
+          ) ?? false
+        );
+      },
+      child,
+      { polling: 'raf', timeout: SERVER_TIMEOUT }
+    )
+  ).jsonValue()) as boolean;
+  expect(folding).toBe(true);
+  await page.waitForTimeout(250);
+  expect(await paths(page, tmpPath)).toEqual(['a']);
+
+  // The motion runs under the operating system's reduced-motion setting.
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  expect(
+    await page.evaluate(
+      () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    )
+  ).toBe(true);
+  await clickTriangle(page, folder);
+  const reduced = (await (
+    await page.waitForFunction(
+      child => {
+        const state = window as any;
+        const row = state.__rowState(child) as IRowState | null;
+        return (
+          row?.animations.some(
+            animation =>
+              animation.playState === 'running' && animation.duration === 160
+          ) ?? false
+        );
+      },
+      child,
+      { polling: 'raf', timeout: SERVER_TIMEOUT }
+    )
+  ).jsonValue()) as boolean;
+  expect(reduced).toBe(true);
+  await page.waitForTimeout(250);
+
+  // A fold cancelled mid-flight reverses from the collapse's live values, not from rest.
+  const cancelOpacity = await page.evaluate(
+    async ({ folder, child }) => {
+      const state = window as any;
+      const browser = Array.from(state.jupyterapp.shell.widgets('left')).find(
+        (widget: any) => widget.id === 'filebrowser'
+      ) as any;
+      const nodes = (): HTMLElement[] =>
+        Array.from(
+          browser.listing.contentNode.querySelectorAll(
+            ':scope > .jp-DirListing-item'
+          )
+        );
+      const index = (path: string): number =>
+        Array.from(
+          browser.listing.sortedItems(),
+          (item: any) => item.path
+        ).indexOf(path);
+      const toggle = nodes()[index(folder)].querySelector(
+        '.jp-AdvancedFileBrowser-toggle'
+      ) as HTMLElement;
+      const box = toggle.getBoundingClientRect();
+      // Two presses 60 ms apart: the second cancels the 120 ms fold.
+      const press = (): void => {
+        toggle.dispatchEvent(
+          new MouseEvent('mousedown', {
+            bubbles: true,
+            cancelable: true,
+            button: 0,
+            clientX: box.x + box.width / 2,
+            clientY: box.y + box.height / 2
+          })
+        );
+      };
+      press();
+      await new Promise(resolve => setTimeout(resolve, 60));
+      press();
+      const back = nodes()
+        [index(child)].getAnimations()
+        .find(
+          (animation: any) =>
+            animation.playState === 'running' &&
+            animation.effect.getTiming().duration === 120
+        );
+      const frames = back?.effect.getKeyframes() ?? [];
+      return frames.length ? Number(frames[0].opacity) : -1;
+    },
+    { folder, child }
+  );
+  expect(cancelOpacity).toBeLessThan(0.9);
+  // Let the reversal finish before the refresh's no-animation window.
+  await page.waitForTimeout(250);
+
+  // A refresh repaints the rows without any animation.
+  await startFrames(page);
+  await page.filebrowser.refresh();
+  await page.evaluate(
+    () =>
+      new Promise(resolve =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve))
+      )
+  );
+  await page.waitForTimeout(150);
+  const refreshed = await stopFrames(page);
+  expect(
+    refreshed.flatMap(frame =>
+      frame.rows.flatMap(row =>
+        row.animations.filter(animation => animation.playState === 'running')
+      )
+    )
+  ).toEqual([]);
+});
+
+test('DEF-UNFOLD-29-NOTOPCASCADE unfolding a folded top folder leaves the folders below it folded', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, [
+    'top/',
+    'top/one/',
+    'top/one/file.txt',
+    'top/two/',
+    'top/two/file.txt',
+    'x.txt'
+  ]);
+  await unfold(page, `${tmpPath}/top/one`);
+  await expect
+    .poll(() => paths(page, tmpPath))
+    .toEqual(['top', 'top/one', 'top/one/file.txt', 'top/two', 'x.txt']);
+
+  await clickTriangle(page, `${tmpPath}/top`);
+  await expect.poll(() => paths(page, tmpPath)).toEqual(['top', 'x.txt']);
+
+  await clickTriangle(page, `${tmpPath}/top`);
+  await expect
+    .poll(async () =>
+      (await rows(page, tmpPath)).map(r => [r.path, r.expanded])
+    )
+    .toEqual([
+      ['top', true],
+      ['top/one', false],
+      ['top/two', false],
+      ['x.txt', null]
+    ]);
 });

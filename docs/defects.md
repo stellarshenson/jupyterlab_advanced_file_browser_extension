@@ -269,3 +269,51 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-07T07:30:53Z @kj added
   - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
   - log: 2026-11-07T07:39:15Z @kj closed: fixed: with unfolding on, a row whose path is a dragged path or lies below one refuses the drag at lm-dragenter, so it shows no drop highlight and takes no drop; `src/listing.ts` evtDragEnter
+- [x] `DEF-UNFOLD-26-TOGGLE-WRONG` **Clicking a folder toggles a different folder** - MAJOR; Clicking a folder row's triangle often folds or unfolds another folder than the one clicked; which folder toggles varies with how many folders are open and where the list is scrolled.
+  - evidence: `ui-tests/tests/unfold.spec.ts`: DEF-UNFOLD-26-TOGGLE one press toggles the pressed folder and keeps its row in place passed on the fixed build with the live extension set (`tmp/workflows/tree-ux-v1/logs/postfix-26-27-live.log`); pre-fix the flat order put zeta/aaa above its parent (`tmp/workflows/tree-ux-v1/logs/prefix-26-27-live.log`)
+  - root-cause: 2026-11-09T08:13:00Z @kj The replaced jupyterlab-file-browser-sorting-extension still installed in the live lab replaces each listing instance's sort at app restore, so TreeDirListing.sort and _reorder never run and _sortedItems stays a flat sort across depths; unfolding inserts a child above its parent, moves the row under the pointer, and the next press toggles another folder.
+  - repro: Unfold several folders, click one folder's triangle, watch a different row fold or unfold.
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-09T07:35:52Z @kj added
+  - log: 2026-11-09T08:13:00Z @kj root-cause recorded; reason: root cause established by the tree UX investigation
+  - log: 2026-11-09T08:23:16Z @kj closed
+- [x] `DEF-UNFOLD-27-SCROLL-JUMP` **Unfolding a folder moves it out of view** - MEDIUM; Unfolding a folder shifts the scroll position, so the folder that was unfolded and its row leave their place on screen.
+  - evidence: `ui-tests/tests/unfold.spec.ts`: DEF-UNFOLD-27-KEEPPOS unfolding near the bottom keeps the row and the scroll offset passed on the fixed build with the live extension set (`tmp/workflows/tree-ux-v1/logs/postfix-26-27-live.log`); pre-fix the row top moved 716 -> 743.5 (`tmp/workflows/tree-ux-v1/logs/prefix-26-27-live.log`)
+  - root-cause: 2026-11-09T08:13:00Z @kj The same single cause: the replaced sorting extension's instance-level sort override bypasses TreeDirListing.sort and _reorder, so _sortedItems is a flat name sort across all depths and an unfolded child folder lands at its name position, above the unfolded folder, so its row moves on screen while scrollTop stays.
+  - repro: Unfold a folder low in a long listing; the list jumps and the unfolded folder moves.
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-09T07:35:52Z @kj added
+  - log: 2026-11-09T08:13:00Z @kj root-cause recorded; reason: root cause established by the tree UX investigation
+  - log: 2026-11-09T08:23:16Z @kj closed
+- [x] `DEF-UNFOLD-28-EXTRA-UNFOLD` **Unfolding one folder opens other folders** - MAJOR; Unfolding a folder also unfolds folders that were not clicked, for example a folder inside the open one, although those folders were closed.
+  - evidence: `ui-tests/tests/unfold.spec.ts`: DEF-UNFOLD-28-NOEXTRA unfold a/b, fold a, unfold a failed on the pre-fix build with a/b expanded and a/b/c, a/b/y.txt listed (tmp/workflows/tree-ux-v1/logs/owner9-change1-prefix-28-29.log), and passed on the fixed build (tmp/workflows/tree-ux-v1/logs/owner9-change1-postfix-28-29.log)
+  - root-cause: 2026-11-09T08:29:13Z @kj TreeFileBrowserModel.toggle's fold branch deleted only the pressed path from _unfolded and saved the set (src/model.ts:91-97), so descendants kept their entries. _visibleUnfolded (src/model.ts:364-390) and items() (src/model.ts:164, 170-184) list every unfolded path whose ancestors are unfolded, so unfolding the parent again showed b expanded with its rows listed. The documented choice 'Folding keeps the state of the folders below' (docs/design.md:35) is the defect. The fix deletes every path below the folded path with the existing isBelow and _local, then _save persists the pruned set.
+  - repro: Close every folder, unfold one folder, see other folders also open.
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-09T07:35:52Z @kj added
+  - log: 2026-11-09T08:29:13Z @kj root-cause recorded; reason: root cause established by the tree UX investigation
+  - log: 2026-11-09T08:29:19Z @kj closed
+- [x] `DEF-UNFOLD-29-TOP-UNFOLD` **Unfolding a top folder unfolds the folders below it** - MEDIUM; Unfolding a top-level folder unfolds the folders nested inside it; they should appear closed until each is unfolded.
+  - evidence: `ui-tests/tests/unfold.spec.ts`: DEF-UNFOLD-29-NOTOPCASCADE unfold top/one, fold top, unfold top failed on the pre-fix build with top/one expanded and top/one/file.txt listed (tmp/workflows/tree-ux-v1/logs/owner9-change1-prefix-28-29.log), and passed on the fixed build (tmp/workflows/tree-ux-v1/logs/owner9-change1-postfix-28-29.log)
+  - root-cause: 2026-11-09T08:29:15Z @kj The same cause as DEF-28 at the top-folder level: toggle's fold branch removed only the pressed path from _unfolded (src/model.ts:91-97), so top/one stayed in the set. Unfolding top again re-listed top/one expanded through _visibleUnfolded (src/model.ts:364-390) and items() (src/model.ts:164, 170-184). One edit in the fold branch prunes every descendant path, closing both defects.
+  - repro: With every folder closed, unfold a top folder; the folders inside it appear already unfolded.
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-09T07:35:58Z @kj added
+  - log: 2026-11-09T08:29:15Z @kj root-cause recorded; reason: root cause established by the tree UX investigation
+  - log: 2026-11-09T08:29:19Z @kj closed
+- [x] `DEF-UNFOLD-30-ARROW-REPEAT` **Holding ArrowLeft alternates fold and unfold** - MAJOR; With unfolding on, holding ArrowLeft on a selected unfolded folder folds it and the next auto-repeat keydown cancels the fold, so the folder flickers and can stay open; `src/listing.ts` evtKeydown
+  - evidence: `ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-80-LEFTKEY Left goes to the parent folder, then folds it passed with the held-ArrowLeft step, 1 of 1; it failed on the pre-fix build with a/x.txt still listed, logs tmp/workflows/tree-ux-v1/logs/owner10-prefix-arrow.log and owner10-postfix-arrow.log
+  - root-cause: 2026-11-09T09:41:42Z @kj TreeDirListing.evtKeydown treats every ArrowLeft or ArrowRight keydown on a selected row as one press; held-key auto-repeat sends further keydowns with event.repeat true, and the second one reaches _toggle while the model still reports the folder unfolded during the 120 ms fold, so it calls _stopFold(false) and cancels the fold
+  - repro: Unfolding on; unfold folder a holding a child, click row a, hold ArrowLeft: a folds, then the fold cancels and the child stays listed
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-09T09:41:30Z @kj added
+  - log: 2026-11-09T09:41:42Z @kj root-cause recorded; reason: root cause established by review round 13
+  - log: 2026-11-09T09:50:36Z @kj closed
+- [x] `DEF-UNFOLD-31-CANCEL-OPACITY` **Cancelling a fold snaps the rows to full opacity** - MINOR; With unfolding on, pressing the triangle to fold and pressing it again mid-collapse reopens the rows at full opacity first, so the reversal flashes; the cancel path reads padding and opacity after animation.cancel(); `src/listing.ts` _stopFold
+  - evidence: `ui-tests/tests/unfold.spec.ts`: ACC-UNFOLD-89-ANIMATE folding and unfolding animate the rows passed with the cancel assertion; the first keyframe opacity was below 0.9 on the fixed build and 1 on the pre-fix build, logs tmp/workflows/tree-ux-v1/logs/owner10-prefix-cancel.log and owner10-postfix-cancel.log
+  - root-cause: 2026-11-09T09:41:42Z @kj _stopFold builds the reverse animation keyframes after animation.cancel(); getComputedStyle returns a live declaration, so style.paddingTop, style.paddingBottom and style.opacity read the rest values 4px, 4px and 1 after the cancel drops the fill-forwards effect, while only height was measured into a local before it
+  - repro: Unfolding on; unfold a folder, press its triangle, press it again about 60 ms later: the rows sit at full opacity before they reopen
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-09T09:41:32Z @kj added
+  - log: 2026-11-09T09:41:42Z @kj root-cause recorded; reason: root cause established by review round 13
+  - log: 2026-11-09T09:50:36Z @kj closed

@@ -180,6 +180,14 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-07T07:30:53Z @kj added
   - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
   - log: 2026-11-07T07:36:39Z @kj closed: ACC-UNFOLD-85-RIGHTKEY Right goes to the first child of an unfolded folder passed
+- [x] `ACC-UNFOLD-89-ANIMATE` **Fold and unfold animate** - MEDIUM; Folding and unfolding animates the rows open or closed over a short interval instead of swapping at once; the animation runs even when the operating system prefers reduced motion.
+  - evidence: ui-tests/tests/unfold.spec.ts: ACC-UNFOLD-89-ANIMATE folding and unfolding animate the rows passed on the fixed build (tmp/workflows/tree-ux-v1/logs/owner9-change2-postfix-89.log); it failed without the change on the pre-fix build (owner9-change2-prefix-89.log, timeout on the 160 ms expand animation); full default Galata suite 85 passed (owner9-change2-suite.log).
+  - mechanism: 2026-11-09T08:51:40Z @kj One private _toggle(path) serves the triangle and the ArrowLeft/ArrowRight presses: unfold records a pending reveal and calls model.toggle, then updateNodes animates the rows below the folder (down to the next row at its depth or less) from the collapsed layout to the measured layout with the Web Animations API (height plus computed padding plus opacity, 160 ms); fold measures that block, animates it to the collapsed layout over 120 ms and then calls model.toggle, and a second press reverses it; one base.css rule hides overflow through jp-AdvancedFileBrowser-animating; prefers-reduced-motion is never read
+  - test: Galata: unfold a folder and observe intermediate frames, so rows that appear at once fail the test.
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-09T07:35:58Z @kj added
+  - log: 2026-11-09T08:51:40Z @kj mechanism recorded; reason: mechanism recorded with the tree UX animation change
+  - log: 2026-11-09T08:51:42Z @kj closed
 
 ## Unfolding switch `SWITCH`
 

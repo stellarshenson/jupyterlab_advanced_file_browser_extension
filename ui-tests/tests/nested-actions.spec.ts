@@ -99,6 +99,9 @@ test('ACC-NESTED-36-RENAME rename inside an unfolded folder', async ({
   for (const row of rows.slice(parent + 1, renamed)) {
     expect(row.path.startsWith(`${tmpPath}/a/`)).toBe(true);
   }
+
+  // The post-rename selection reads the tree order the DOM shows, not a flat list
+  await expect.poll(() => selectedRows(page)).toEqual([`${tmpPath}/a/z.txt`]);
 });
 
 test('ACC-NESTED-37-DELETE delete removes only the nested item', async ({

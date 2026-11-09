@@ -90,6 +90,11 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
 
   async toggle(path: string): Promise<void> {
     if (this._unfolded.delete(path)) {
+      for (const other of Array.from(this._unfolded)) {
+        if (isBelow(this._local(other), this._local(path))) {
+          this._unfolded.delete(other);
+        }
+      }
       this._save();
       this._checkCurrent();
       this._emitRefreshed();

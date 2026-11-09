@@ -12,7 +12,7 @@ Adds features to the JupyterLab file browser: folders that unfold in place as a 
 
 ## Features
 
-- **Folder unfolding** - A triangle on each folder row folds or unfolds the folder in place, as a tree; a double-click on a folder still enters it. Based on [jupyterlab-unfold](https://github.com/jupyterlab-contrib/jupyterlab-unfold)
+- **Folder unfolding** - A triangle on each folder row folds or unfolds the folder in place, as a tree; folding and unfolding animate over a short interval; a double-click on a folder still enters it. Based on [jupyterlab-unfold](https://github.com/jupyterlab-contrib/jupyterlab-unfold)
 - **Unfolding switch** - Right-click the column header of the file browser to turn unfolding on or off, beside Show Last Modified Column and the other column items
 - **Unix Style Sorting** - Names sorted in `LC_COLLATE=C` byte order (dot files, digits, capitals, underscore, lower case), folders first, also inside unfolded folders; switched in the column-header menu
 - **Open in Terminal** - On a file or on the empty area of the file browser, opens a terminal in that file's folder, also for a file inside an unfolded folder

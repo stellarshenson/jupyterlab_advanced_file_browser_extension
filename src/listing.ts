@@ -27,6 +27,11 @@ const GUIDE_CLASS = 'jp-AdvancedFileBrowser-guide';
 const TOGGLE_CLASS = 'jp-AdvancedFileBrowser-toggle';
 const SPACER_CLASS = 'jp-AdvancedFileBrowser-toggleSpacer';
 const EXPANDED_CLASS = 'jp-mod-expanded';
+const ANIMATING_CLASS = 'jp-AdvancedFileBrowser-animating';
+/** The motion runs under every system setting; no prefers-reduced-motion query is read. */
+const EXPAND_MS = 160;
+const COLLAPSE_MS = 120;
+const EASING = 'cubic-bezier(0.2, 0, 0, 1)';
 const ITEM_NAME_CLASS = 'jp-DirListing-itemName';
 const ITEM_ICON_CLASS = 'jp-DirListing-itemIcon';
 const ITEM_TEXT_CLASS = 'jp-DirListing-itemText';
@@ -104,6 +109,13 @@ interface IListingInternals {
     focus?: boolean,
     force?: boolean
   ): Promise<void>;
+}
+
+/** A row's measured layout, the end a collapse animation returns from. */
+interface INaturalRow {
+  height: number;
+  paddingTop: string;
+  paddingBottom: string;
 }
 
 /**
@@ -282,6 +294,11 @@ export class TreeDirListing extends DirListing {
       });
   }
 
+  dispose(): void {
+    this._stopFold(true);
+    super.dispose();
+  }
+
   handleEvent(event: Event): void {
     if (this.model.unfolding) {
       const onToggle =
@@ -293,7 +310,7 @@ export class TreeDirListing extends DirListing {
           if (onToggle && mouse.button === 0) {
             const item = this.modelForClick(mouse);
             if (item) {
-              void this.model.toggle(item.path);
+              this._toggle(item.path);
             }
             return;
           }
@@ -355,8 +372,8 @@ export class TreeDirListing extends DirListing {
             internals._selectItem(next, false);
             ElementExt.scrollIntoViewIfNeeded(this.contentNode, _items[next]);
             this._makeCurrent(_sortedItems[next]);
-          } else if ((key === 'ArrowRight') !== unfolded) {
-            void this.model.toggle(item.path);
+          } else if (!event.repeat && (key === 'ArrowRight') !== unfolded) {
+            this._toggle(item.path);
           }
           return;
         }
@@ -466,6 +483,9 @@ export class TreeDirListing extends DirListing {
     nodes: HTMLElement[],
     sizeOnly = false
   ): void {
+    // Another owner of sort() may have replaced _sortedItems since the render was scheduled.
+    this._ensureOrder();
+    items = this._internals._sortedItems;
     super.updateNodes(items, nodes, sizeOnly);
     if (sizeOnly) {
       return;
@@ -492,6 +512,7 @@ export class TreeDirListing extends DirListing {
       // Queued after the renderer's own icon frame, so the open icon is painted last.
       requestAnimationFrame(() => this._paintIcons(repaint));
     }
+    this._consume();
   }
 
   private get _internals(): IListingInternals {
@@ -515,6 +536,14 @@ export class TreeDirListing extends DirListing {
       );
     }
     internals._sortedItems = items;
+    this._orderedItems = items;
+  }
+
+  /** Re-run the order pipeline when another sort owner replaced `_sortedItems`. */
+  private _ensureOrder(): void {
+    if (this._internals._sortedItems !== this._orderedItems) {
+      this._reorder();
+    }
   }
 
   /**
@@ -534,6 +563,7 @@ export class TreeDirListing extends DirListing {
       throw new Error('File browser is disposed.');
     }
     const internals = this._internals;
+    this._ensureOrder();
     const index = internals._sortedItems.findIndex(item => item.path === path);
     if (index === -1) {
       throw new Error('Item does not exist.');
@@ -645,13 +675,223 @@ export class TreeDirListing extends DirListing {
       indent.after(marker);
     }
     const isFolder = item.type === 'directory';
-    const expanded = isFolder && this.model.isUnfolded(item.path);
+    // A folder under a pending fold reads folded, so a render does not flip its glyph back.
+    const expanded =
+      isFolder &&
+      this.model.isUnfolded(item.path) &&
+      item.path !== this._pendingFold;
     marker.className = isFolder ? TOGGLE_CLASS : SPACER_CLASS;
     marker.classList.toggle(EXPANDED_CLASS, expanded);
     const glyph = isFolder ? (expanded ? '▾' : '▸') : '';
     if (marker.textContent !== glyph) {
       marker.textContent = glyph;
     }
+  }
+
+  /**
+   * Fold or unfold a folder from a user press. A fold animates the rows below the
+   * folder shut before the model changes; an unfold marks the folder for the render
+   * that lists its rows to animate them open.
+   */
+  private _toggle(path: string): void {
+    if (this._pendingFold !== null) {
+      if (this._pendingFold === path) {
+        // A second press on the folding folder: the rows animate back open.
+        this._stopFold(false);
+        const row = this._row(path);
+        if (row) {
+          this._decorate(row.node, row.item, true);
+        }
+        return;
+      }
+      this._stopFold(true);
+    }
+    const row = this._row(path);
+    if (!row || row.item.type !== 'directory') {
+      return;
+    }
+    if (!this.model.isUnfolded(path)) {
+      this._pendingReveal = path;
+      void this.model.toggle(path);
+      return;
+    }
+    const rows = this._block(row.index, this.model.depth(path));
+    if (!rows.length) {
+      void this.model.toggle(path);
+      return;
+    }
+    this._pendingFold = path;
+    this._foldAnimations = rows.map(node => {
+      const { animation, natural } = this._collapse(node);
+      return { animation, node, natural };
+    });
+    // The triangle turns at the press; _decorate reads the pending fold.
+    this._decorate(row.node, row.item, true);
+    Promise.all(
+      this._foldAnimations.map(({ animation }) => animation.finished)
+    ).then(
+      () => {
+        if (this._pendingFold !== path) {
+          return;
+        }
+        this._pendingFold = null;
+        void this.model.toggle(path);
+      },
+      () => undefined
+    );
+  }
+
+  /**
+   * End a pending fold: apply it at once, or animate its rows back to their
+   * natural layout when the same folder is pressed again.
+   */
+  private _stopFold(apply: boolean): void {
+    const path = this._pendingFold;
+    const entries = this._foldAnimations;
+    this._pendingFold = null;
+    this._foldAnimations = [];
+    for (const { animation, node, natural } of entries) {
+      if (apply) {
+        animation.cancel();
+        node.classList.remove(ANIMATING_CLASS);
+        continue;
+      }
+      // Measure the row while the collapse still applies, then animate it back.
+      const { paddingTop, paddingBottom, opacity } = getComputedStyle(node);
+      const height = node.getBoundingClientRect().height;
+      animation.cancel();
+      const back = node.animate(
+        [
+          {
+            height: `${height}px`,
+            paddingTop,
+            paddingBottom,
+            opacity
+          },
+          {
+            height: `${natural.height}px`,
+            paddingTop: natural.paddingTop,
+            paddingBottom: natural.paddingBottom,
+            opacity: 1
+          }
+        ],
+        { duration: COLLAPSE_MS, easing: EASING }
+      );
+      const done = (): void => node.classList.remove(ANIMATING_CLASS);
+      back.finished.then(done, done);
+    }
+    if (apply && path !== null) {
+      void this.model.toggle(path);
+    }
+  }
+
+  /** Consume the pending fold and reveal against the rows just painted. */
+  private _consume(): void {
+    if (this._pendingFold !== null && !this._row(this._pendingFold)) {
+      // The folder left the listing (a navigation, a filter, a deletion): fold now.
+      this._stopFold(true);
+    } else if (this._pendingFold === null && this._foldAnimations.length) {
+      // The applied fold's render: the collapsed rows are gone or reused for others.
+      this._stopFold(true);
+    }
+    const reveal = this._pendingReveal;
+    if (reveal === null) {
+      return;
+    }
+    const row = this._row(reveal);
+    if (!row) {
+      // Keep it for the render that follows the folder's fetch.
+      return;
+    }
+    this._pendingReveal = null;
+    if (this.model.isUnfolded(reveal)) {
+      for (const node of this._block(row.index, this.model.depth(reveal))) {
+        this._expand(node);
+      }
+    }
+  }
+
+  /** The row of `path` in the painted order. */
+  private _row(path: string): {
+    item: Contents.IModel;
+    node: HTMLElement;
+    index: number;
+  } | null {
+    const { _items, _sortedItems } = this._internals;
+    const index = _sortedItems.findIndex(item => item.path === path);
+    const node = _items[index];
+    return index === -1 || !node
+      ? null
+      : { item: _sortedItems[index], node, index };
+  }
+
+  /** The painted rows below `index` until the next row at `depth` or less. */
+  private _block(index: number, depth: number): HTMLElement[] {
+    const { _items, _sortedItems } = this._internals;
+    const rows: HTMLElement[] = [];
+    for (let i = index + 1; i < _sortedItems.length; i++) {
+      if (this.model.depth(_sortedItems[i].path) <= depth) {
+        break;
+      }
+      if (_items[i]) {
+        rows.push(_items[i]);
+      }
+    }
+    return rows;
+  }
+
+  private _natural(node: HTMLElement): INaturalRow {
+    const style = getComputedStyle(node);
+    return {
+      height: node.getBoundingClientRect().height,
+      paddingTop: style.paddingTop,
+      paddingBottom: style.paddingBottom
+    };
+  }
+
+  /**
+   * Collapse a row to no height and no opacity; the effect holds that layout
+   * until the model's render removes the row.
+   */
+  private _collapse(node: HTMLElement): {
+    animation: Animation;
+    natural: INaturalRow;
+  } {
+    const natural = this._natural(node);
+    node.classList.add(ANIMATING_CLASS);
+    const animation = node.animate(
+      [
+        {
+          height: `${natural.height}px`,
+          paddingTop: natural.paddingTop,
+          paddingBottom: natural.paddingBottom,
+          opacity: 1
+        },
+        { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0 }
+      ],
+      { duration: COLLAPSE_MS, easing: EASING, fill: 'forwards' }
+    );
+    return { animation, natural };
+  }
+
+  /** Animate a revealed row from the collapsed layout to its measured layout. */
+  private _expand(node: HTMLElement): void {
+    const natural = this._natural(node);
+    node.classList.add(ANIMATING_CLASS);
+    const animation = node.animate(
+      [
+        { height: '0px', paddingTop: '0px', paddingBottom: '0px', opacity: 0 },
+        {
+          height: `${natural.height}px`,
+          paddingTop: natural.paddingTop,
+          paddingBottom: natural.paddingBottom,
+          opacity: 1
+        }
+      ],
+      { duration: EXPAND_MS, easing: EASING }
+    );
+    const done = (): void => node.classList.remove(ANIMATING_CLASS);
+    animation.finished.then(done, done);
   }
 
   /**
@@ -692,6 +932,14 @@ export class TreeDirListing extends DirListing {
   private _clipboardEpoch = 0;
   private _itemOrder: ItemOrder | null = null;
   private _keepOrder = false;
+  private _orderedItems: Contents.IModel[] | null = null;
+  private _pendingFold: string | null = null;
+  private _pendingReveal: string | null = null;
+  private _foldAnimations: {
+    animation: Animation;
+    node: HTMLElement;
+    natural: INaturalRow;
+  }[] = [];
   private _icons = new WeakMap<
     HTMLElement,
     { item: Contents.IModel; open: boolean }

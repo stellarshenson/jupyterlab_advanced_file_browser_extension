@@ -41,6 +41,11 @@
   color: inherit;
 }
 
+/* A row mid fold or unfold: the row's box shrinks, so its content must not overflow */
+.jp-AdvancedFileBrowser-animating {
+  overflow: hidden;
+}
+
 /*
  * Unfolding on (the rows carry the indent): a row mousedown changes the current
  * folder and so the breadcrumbs. A wrap there would move the rows under the

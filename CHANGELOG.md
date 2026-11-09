@@ -2,6 +2,26 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [0.8.5] - 2026-11-09
+
+### Added
+
+- Fold and unfold animate over a short interval; the motion runs regardless of the operating system reduced-motion setting
+
+### Changed
+
+- With unfolding on, a folder's children always render directly below it, so unfolding keeps the folder and every row under the pointer in place, even while the replaced sorting extension is still installed
+- Folding a folder clears the expansion state of the folders below it, so unfolding the folder again shows them closed
+- Holding ArrowLeft folds the focused folder once instead of alternating fold and cancel
+- A fold cancelled mid-animation reverses from its live padding and opacity instead of snapping
+
+### Fixed
+
+- Clicking a folder triangle toggled a different folder than the clicked one (DEF-UNFOLD-26-TOGGLE-WRONG)
+- Unfolding a folder moved it out of view (DEF-UNFOLD-27-SCROLL-JUMP)
+- Unfolding one folder opened folders that were not clicked (DEF-UNFOLD-28-EXTRA-UNFOLD)
+- Unfolding a top folder unfolded the folders below it (DEF-UNFOLD-29-TOP-UNFOLD)
+
 ## [0.1.2] - 2026-11-09
 
 ### Added
