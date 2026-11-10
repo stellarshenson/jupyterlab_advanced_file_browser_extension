@@ -2,6 +2,12 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.3] - 2026-11-10
+
+### Changed
+
+- The version moves to the 1.x line; no functional change since 0.8.6
+
 ## [0.8.6] - 2026-11-10
 
 ### Changed
