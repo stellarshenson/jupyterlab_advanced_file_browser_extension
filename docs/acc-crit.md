@@ -188,6 +188,13 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-09T07:35:58Z @kj added
   - log: 2026-11-09T08:51:40Z @kj mechanism recorded; reason: mechanism recorded with the tree UX animation change
   - log: 2026-11-09T08:51:42Z @kj closed
+- [x] `ACC-UNFOLD-90-LEFT-SPACING` **Tree rows have half the left spacing** - LOW; With unfolding on, a row's left padding is half the stock --jp-dirlisting-padding-width; the indent, not the padding, shows depth; unfolding off keeps the stock padding.
+  - evidence: ui-tests/tests/unfold.spec.ts: ACC-UNFOLD-90-LEFT-SPACING tree rows halve the stock left padding passed with 6px left padding unfolding on and 12px off (tmp/workflows/tree-ux-v1/logs/spacing-after.log); the same step failed at 12px before the rule (spacing-before.log)
+  - test: Galata: read a row's computed padding-left with unfolding on and off; on is half the stock value, off is stock.
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-10T15:30:01Z @kj style/base.css sets padding-left to calc(var(--jp-dirlisting-padding-width) / 2) on the rows of a listing that holds the tree indent.
+  - log: 2026-11-10T15:30:01Z @kj added
+  - log: 2026-11-10T15:36:58Z @kj closed
 
 ## Unfolding switch `SWITCH`
 

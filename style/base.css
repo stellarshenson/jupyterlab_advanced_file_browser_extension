@@ -11,6 +11,13 @@
   margin-block: -4px;
 }
 
+/* Tree rows: half the stock left padding; unfolding off keeps the stock one (ACC-UNFOLD-90) */
+.jp-FileBrowser:has(.jp-AdvancedFileBrowser-indent)
+  .jp-DirListing-content
+  > .jp-DirListing-item {
+  padding-left: calc(var(--jp-dirlisting-padding-width) / 2);
+}
+
 .jp-AdvancedFileBrowser-guide {
   flex: 0 0 16px;
   background: linear-gradient(var(--jp-border-color2), var(--jp-border-color2))

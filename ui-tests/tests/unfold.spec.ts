@@ -233,6 +233,40 @@ test('ACC-UNFOLD-8-INDENT guide lines and indent follow the depth', async ({
   expect(two.text - one.text).toBeCloseTo(one.indent, 0);
 });
 
+test('ACC-UNFOLD-90-LEFT-SPACING tree rows halve the stock left padding', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'b.txt']);
+  const padding = async (): Promise<{ left: number; stock: number }> => {
+    const row = await rowLocator(page, `${tmpPath}/a`);
+    return row.evaluate(element => {
+      const style = getComputedStyle(element);
+      return {
+        left: parseFloat(style.paddingLeft),
+        stock: parseFloat(
+          style.getPropertyValue('--jp-dirlisting-padding-width')
+        )
+      };
+    });
+  };
+
+  // Unfolding on: the tree row sits at half the stock padding.
+  const on = await padding();
+  expect(on.stock).toBeGreaterThan(0);
+  expect(on.left).toBeCloseTo(on.stock / 2, 1);
+
+  // Unfolding off: the stock listing keeps the stock padding.
+  await setUnfolding(page, false);
+  await expect
+    .poll(async () =>
+      (await rowLocator(page, `${tmpPath}/a`)).locator(INDENT).count()
+    )
+    .toBe(0);
+  const off = await padding();
+  expect(off.left).toBeCloseTo(off.stock, 1);
+});
+
 test('ACC-UNFOLD-9-OPENICON open-folder icon on unfolded folders only', async ({
   page,
   tmpPath
