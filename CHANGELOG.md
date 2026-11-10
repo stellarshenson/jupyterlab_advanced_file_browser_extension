@@ -2,6 +2,12 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [0.8.6] - 2026-11-10
+
+### Changed
+
+- With unfolding on, the file browser's rows use half the stock left padding, so the tree shows its depth with less empty space at the left edge; unfolding off keeps the stock spacing
+
 ## [0.8.5] - 2026-11-09
 
 ### Added
