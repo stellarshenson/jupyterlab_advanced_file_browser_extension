@@ -1,6 +1,6 @@
 {
     "name": "@stellarshenson/jupyterlab-advanced-file-browser-extension",
-    "version": "1.0.3",
+    "version": "1.0.4",
     "description": "Folders that unfold in place as a tree, Unix Style Sorting and Open in Terminal for the JupyterLab file browser",
     "keywords": [
         "jupyter",
@@ -59,14 +59,19 @@
     "dependencies": {
         "@jupyterlab/application": "^4.6.0",
         "@jupyterlab/apputils": "^4.7.0",
+        "@jupyterlab/codeeditor": "^4.6.5",
         "@jupyterlab/coreutils": "^6.6.0",
         "@jupyterlab/docmanager": "^4.6.0",
         "@jupyterlab/filebrowser": "^4.6.0",
+        "@jupyterlab/fileeditor": "^4.6.5",
+        "@jupyterlab/notebook": "^4.6.5",
         "@jupyterlab/services": "^7.6.0",
         "@jupyterlab/settingregistry": "^4.6.0",
         "@jupyterlab/statedb": "^4.6.0",
+        "@jupyterlab/terminal": "^4.6.5",
         "@jupyterlab/translation": "^4.6.0",
         "@jupyterlab/ui-components": "^4.6.0",
+        "@lumino/coreutils": "^2.2.3",
         "@lumino/domutils": "^2.0.0",
         "@lumino/dragdrop": "^2.1.0",
         "@lumino/messaging": "^2.0.0",
