@@ -202,6 +202,13 @@ Migrated from jupyterlab_open_in_terminal_extension: Open in Terminal on a file 
   - log: 2026-11-07T07:30:53Z @kj added
   - log: 2026-11-07T07:30:53Z @kj found by review round 5; Star Colonel decided 2026-11-07: fix
   - log: 2026-11-07T07:41:02Z @kj closed: fixed: the execute comment in `src/openInTerminal.ts` names the gap between rows, which keeps the current folder; no behaviour change
+- [-] `DEF-TERM-32-EMPTY-DUP` **Open in Terminal shows twice on the empty area** - MEDIUM; with jupyterlab_open_in_terminal_extension installed beside this one, right-click below the last row shows two Open in Terminal items; both extensions add one at rank 3 on .jp-DirListing-content and neither hides when the hit test finds no row
+  - related: ACC-COMPAT-91-EMPTY-ONE
+  - repro: with jupyterlab_open_in_terminal_extension installed beside this one, right-click below the last row: two Open in Terminal items
+  - test-tags: FUNCTIONAL
+  - root-cause: 2026-11-11T22:03:34Z @kj jupyterlab_open_in_terminal_extension adds an item at rank 3 on .jp-DirListing-content in its src/index.ts and this extension adds one at the same rank and selector in src/openInTerminal.ts; on the empty area both hit tests find no row, so both stay visible
+  - log: 2026-11-11T22:03:34Z @kj added
+  - log: 2026-11-11T22:09:39Z @kj rejected: the replaced jupyterlab_open_in_terminal_extension is retired and was uninstalled from the lab on 2026-11-11; with it gone only this extension registers the item; Star Colonel decided 2026-11-11: reject rather than guard
 
 ## Actions on nested rows `NESTED`
 

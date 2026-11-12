@@ -369,6 +369,42 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-08T22:47:08Z @kj added; reason: the owner's 2026-11-08 decision on the round 10 finding
   - log: 2026-11-08T22:50:06Z @kj closed
   - log: 2026-11-08T23:20:50Z @kj mechanism updated "2026-11-08T23:17:00Z @kj the restore after the Paste Error compares the listing own `_clipboardEpoch`, incremented by every Copy and Cut, because shipped JupyterLab 4.6.5 has no stock `_clipboardRevision`; a newer Copy or Cut therefore keeps its clipboard (DEF-FOLDER-25-CLIPBOARD-EPOCH)" -> "the restore after the Paste Error compares the listing's own `_clipboardEpoch`, incremented by every Copy and Cut, because shipped JupyterLab 4.6.5 has no stock `_clipboardRevision`; a newer Copy or Cut therefore keeps its clipboard (DEF-FOLDER-25-CLIPBOARD-EPOCH)"
+- [x] `ACC-FOLDER-92-CRUMB-MENU` **Menu on a breadcrumb folder** - HIGH; right-click on a folder name in the breadcrumbs shows a context menu with Open in Terminal, Copy Path, Open and Add to Favourite
+  - evidence: ui-tests/tests/crumbs-menu.spec.ts ACC-FOLDER-92-CRUMB-MENU passed in both full suites (four labels beside favorites, three without); logs tmp/workflows/menus-v1/logs/final-default.log and tmp/workflows/menus-v1/logs/final-venv.log
+  - test: ui-tests/tests/crumbs-menu.spec.ts: inside a/b, right-click the crumb of a; assert the four labels
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-11T22:03:30Z @kj added
+  - log: 2026-11-11T23:23:51Z @kj closed
+- [x] `ACC-FOLDER-93-CRUMB-TERM` **Open in Terminal on a breadcrumb** - HIGH; Open in Terminal on a crumb opens a terminal in that crumb's folder, not in the current folder
+  - evidence: ui-tests/tests/crumbs-menu.spec.ts ACC-FOLDER-93-CRUMB-TERM passed in both full suites, terminal CWD is <tmpPath>/a; logs tmp/workflows/menus-v1/logs/final-default.log and tmp/workflows/menus-v1/logs/final-venv.log
+  - test: ui-tests/tests/crumbs-menu.spec.ts: inside a/b, right-click the crumb of a, choose Open in Terminal, run pwd; assert it ends in a
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-11T22:03:30Z @kj added
+  - log: 2026-11-11T23:23:51Z @kj closed
+- [x] `ACC-FOLDER-94-CRUMB-COPY` **Copy Path on a breadcrumb** - HIGH; Copy Path on a crumb puts that folder's server path on the clipboard
+  - evidence: ui-tests/tests/crumbs-menu.spec.ts ACC-FOLDER-94-CRUMB-COPY passed in both full suites, clipboard reads <tmpPath>/a; logs tmp/workflows/menus-v1/logs/final-default.log and tmp/workflows/menus-v1/logs/final-venv.log
+  - test: ui-tests/tests/crumbs-menu.spec.ts: inside a/b, right-click the crumb of a, choose Copy Path; read the clipboard; assert a
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-11T22:03:30Z @kj added
+  - log: 2026-11-11T23:23:51Z @kj closed
+- [x] `ACC-FOLDER-95-CRUMB-OPEN` **Open on a breadcrumb** - MEDIUM; Open on a crumb enters that folder, as a left click on the crumb does
+  - evidence: ui-tests/tests/crumbs-menu.spec.ts ACC-FOLDER-95-CRUMB-OPEN passed in both full suites, topPath <tmpPath>/a with its children as rows; logs tmp/workflows/menus-v1/logs/final-default.log and tmp/workflows/menus-v1/logs/final-venv.log
+  - test: ui-tests/tests/crumbs-menu.spec.ts: inside a/b, right-click the crumb of a, choose Open; assert the top rows are a's children
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-11T22:03:30Z @kj added
+  - log: 2026-11-11T23:23:51Z @kj closed
+- [x] `ACC-FOLDER-96-CRUMB-FAV` **Add to Favourite on a breadcrumb** - MEDIUM; Add to Favourite on a crumb adds that folder to the favourites list the star shows, without entering the folder or changing the selection
+  - evidence: ui-tests/tests/crumbs-menu.spec.ts ACC-FOLDER-96-CRUMB-FAV passed in the venv full suite where favorites is present, .jp-Favorites-item[data-path=<tmpPath>/a] visible and browserPaths unchanged; log tmp/workflows/menus-v1/logs/final-venv.log
+  - test: ui-tests/tests/crumbs-menu.spec.ts with the favourites extension installed: inside a/b, right-click the crumb of a, choose Add to Favourite; assert a is listed and the current folder is still a/b
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-11T22:03:31Z @kj added
+  - log: 2026-11-11T23:23:51Z @kj closed
+- [x] `ACC-FOLDER-97-FAV-ABSENT` **No Add to Favourite without the favourites extension** - LOW; without @jlab-enhanced/favorites active, the crumb menu omits Add to Favourite
+  - evidence: ui-tests/tests/crumbs-menu.spec.ts ACC-FOLDER-97-FAV-ABSENT passed in the default full suite on retry #1 where favorites is absent, Add to Favourite hidden and exactly the three other labels shown; log tmp/workflows/menus-v1/logs/final-default.log
+  - test: ui-tests/tests/crumbs-menu.spec.ts in the default venv: right-click a crumb; assert Add to Favourite absent
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-11T22:03:31Z @kj added
+  - log: 2026-11-11T23:23:51Z @kj closed
 
 ## Actions on nested rows `NESTED`
 
@@ -652,3 +688,9 @@ What the thirteen separate extensions rely on keeps working beside this one (doc
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T13:53:23Z @kj added
   - log: 2026-11-06T16:28:05Z @kj closed: ACC-COMPAT-75-REPLACED no activation error beside the replaced extensions passed
+- [-] `ACC-COMPAT-91-EMPTY-ONE` **One Open in Terminal beside the replaced extension** - HIGH; with jupyterlab_open_in_terminal_extension installed beside this one, right-click on the empty area shows exactly one Open in Terminal
+  - test: ui-tests/tests/compat.spec.ts in a venv holding both extensions: right-click below the last row; assert exactly one item
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-11T22:03:30Z @kj when the replaced extension's filebrowser:open-in-terminal command is already registered, only one of the two items is added
+  - log: 2026-11-11T22:03:30Z @kj added
+  - log: 2026-11-11T22:09:39Z @kj rejected: the replaced extension is retired and uninstalled, so coexistence with it is no longer required; Star Colonel decided 2026-11-11: reject

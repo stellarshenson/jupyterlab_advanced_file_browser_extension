@@ -305,6 +305,11 @@ test('DEF-FOLDER-14-OVERLAY-SCROLLBAR a press on an overlay scrollbar keeps the 
   await clickRow(page, `${tmpPath}/a/b`);
   await expectCurrent(page, `${tmpPath}/a/b`);
 
+  // The venv lab's core patch sets the rows to display: flex, which removes the line gap
+  // between them; pin core's inline-grid so the gap below the first row exists
+  await page.addStyleTag({
+    content: '.jp-DirListing-item { display: inline-grid !important; }'
+  });
   // Headless Chromium hides scrollbars, so they take no width, as an overlay scrollbar does.
   // The press goes 8 px left of the right edge, in the 3 px line gap below the first row,
   // where a press on the scrollbar reaches the content node and hits no row
@@ -346,6 +351,11 @@ test('DEF-FOLDER-16-ROW-GAP a press between two rows keeps the folder and the se
   await clickRow(page, `${tmpPath}/a/b`);
   await expectCurrent(page, `${tmpPath}/a/b`);
 
+  // The venv lab's core patch sets the rows to display: flex, which removes the line gap
+  // between them; pin core's inline-grid so the gap between the first two rows exists
+  await page.addStyleTag({
+    content: '.jp-DirListing-item { display: inline-grid !important; }'
+  });
   // Rows are inline-grid, so a 3 px line gap below each row hits no row and targets the content node
   const browser = await browserHandle(page);
   const point = await browser.evaluate(b => {

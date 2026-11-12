@@ -23,6 +23,10 @@ export const COMMAND = {
   toggleUnfolding: 'advanced-file-browser:toggle-folder-unfolding',
   toggleUnixSorting: 'advanced-file-browser:toggle-unix-sorting',
   openInTerminal: 'advanced-file-browser:open-in-terminal',
+  crumbOpenInTerminal: 'advanced-file-browser:crumb-open-in-terminal',
+  crumbCopyPath: 'advanced-file-browser:crumb-copy-path',
+  crumbOpen: 'advanced-file-browser:crumb-open',
+  crumbAddToFavourite: 'advanced-file-browser:crumb-add-to-favourite',
   coreOpenFolderInTerminal: 'terminal:open-folder-in-terminal'
 } as const;
 

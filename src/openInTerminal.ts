@@ -13,6 +13,37 @@ export const OPEN_IN_TERMINAL_COMMAND =
   'advanced-file-browser:open-in-terminal';
 
 /**
+ * Open a terminal at `cwd`, a folder relative to the server root ('' for the root).
+ */
+export async function openTerminalAt(
+  app: JupyterFrontEnd,
+  translator: ITranslator,
+  cwd: string
+): Promise<void> {
+  try {
+    if (cwd) {
+      await app.commands.execute('terminal:create-new', { cwd });
+    } else {
+      // terminal:create-new sends no cwd for the root, and the server then
+      // starts the shell in its process folder; the server extension gives
+      // the root's absolute path
+      const terminal = await app.serviceManager.terminals.startNew({
+        cwd: PageConfig.getOption('advancedFileBrowserServerRoot')
+      });
+      // The widget opens its own connection; the terminal keeps running
+      terminal.dispose();
+      await app.commands.execute('terminal:open', { name: terminal.name });
+    }
+  } catch (error) {
+    const trans = translator.load('jupyterlab');
+    await showErrorMessage(
+      trans.__('Failed to open new terminal'),
+      error as Error
+    );
+  }
+}
+
+/**
  * Register the command and its file browser context-menu item.
  */
 export function addOpenInTerminal(
@@ -45,27 +76,7 @@ export function addOpenInTerminal(
       // The right-click's mousedown has already made the clicked file's folder
       // current, or the top folder when the press is below the last row; a
       // press in a gap between rows keeps the current folder
-      const cwd = browser.model.path;
-      try {
-        if (cwd) {
-          await app.commands.execute('terminal:create-new', { cwd });
-        } else {
-          // terminal:create-new sends no cwd for the root, and the server then
-          // starts the shell in its process folder; the server extension gives
-          // the root's absolute path
-          const terminal = await app.serviceManager.terminals.startNew({
-            cwd: PageConfig.getOption('advancedFileBrowserServerRoot')
-          });
-          // The widget opens its own connection; the terminal keeps running
-          terminal.dispose();
-          await app.commands.execute('terminal:open', { name: terminal.name });
-        }
-      } catch (error) {
-        await showErrorMessage(
-          trans.__('Failed to open new terminal'),
-          error as Error
-        );
-      }
+      await openTerminalAt(app, translator, browser.model.path);
     }
   });
 

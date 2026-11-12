@@ -15,6 +15,9 @@ import { IStateDB } from '@jupyterlab/statedb';
 import { ITranslator } from '@jupyterlab/translation';
 
 import type { ItemOrder, TreeFileBrowser } from './listing';
+// Activation registers the four commands at once, so it needs the module now
+// eslint-disable-next-line jupyter/prefer-lazy-imports
+import { addCrumbsMenu } from './crumbsMenu';
 import { addOpenInTerminal } from './openInTerminal';
 import { requestAPI } from './request';
 import { sortItems } from './sort';
@@ -161,4 +164,21 @@ const openInTerminal: JupyterFrontEndPlugin<void> = {
   ) => addOpenInTerminal(app, browser, translator)
 };
 
-export default [plugin, openInTerminal];
+/**
+ * The context menu of the folder names in the file browser breadcrumbs.
+ */
+const crumbsMenu: JupyterFrontEndPlugin<void> = {
+  id: '@stellarshenson/jupyterlab-advanced-file-browser-extension:crumbs-menu',
+  description:
+    'Adds Open in Terminal, Copy Path, Open and Add to Favourite to the breadcrumb folder names',
+  autoStart: true,
+  requires: [IDefaultFileBrowser, ITranslator, ISettingRegistry],
+  activate: (
+    app: JupyterFrontEnd,
+    browser: FileBrowser,
+    translator: ITranslator,
+    settingRegistry: ISettingRegistry
+  ) => addCrumbsMenu(app, translator, settingRegistry)
+};
+
+export default [plugin, openInTerminal, crumbsMenu];
