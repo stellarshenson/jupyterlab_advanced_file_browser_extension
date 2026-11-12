@@ -1,6 +1,6 @@
 # jupyterlab_advanced_file_browser_extension
 
-This extension adds features to the JupyterLab file browser. It takes over two extensions this workspace already has, so that each of them can be retired. It also adds folder unfolding, modelled on jupyterlab-unfold.
+This extension adds features to the JupyterLab file browser. It takes over three extensions this workspace already has, so that each of them can be retired. It also adds folder unfolding, modelled on jupyterlab-unfold.
 
 ## Requirements
 
@@ -9,14 +9,15 @@ This extension adds features to the JupyterLab file browser. It takes over two e
   - a double-click on a folder still enters the folder, as in the standard browser
   - it is an option: the user switches it on or off from the context menu of the file browser column header (right-click on the header). The option sits beside the items already in that menu: Show Last Modified Column, Show Date Created Column, Show File Size Column, Show File Checkboxes, Sort Notebooks Above Files, Unix Style Sorting
   - code ported from jupyterlab-unfold keeps its upstream licence notice
-- It contains the features of the two extensions under "Extensions to migrate", so that those extensions can be retired
+- It contains the features of the three extensions under "Extensions to migrate", so that those extensions can be retired
 
 ## Extensions to migrate
 
-The Star Colonel decided this list on 2026-11-06. Do not edit or retire the other extensions from this project; record in `docs/migration.md` which ones this extension replaces.
+The Star Colonel decided this list on 2026-11-06, and added jupyterlab_drag_and_drop_path_extension on 2026-11-12. Do not edit or retire the other extensions from this project; record in `docs/migration.md` which ones this extension replaces.
 
 - jupyterlab_file_browser_sorting_extension - Unix Style Sorting in the column-header context menu
 - jupyterlab_open_in_terminal_extension - Open in Terminal for files and for the empty area of the file browser
+- jupyterlab_drag_and_drop_path_extension - drag-and-drop path insertion into terminals, Python files, notebooks and other open files, with the breadcrumbs as a drag source
 
 These stay separate extensions and are not migrated:
 

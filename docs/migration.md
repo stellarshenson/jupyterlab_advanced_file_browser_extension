@@ -1,12 +1,14 @@
 # Migration
 
-This extension replaces two extensions of the workspace. The Star Colonel decided the list on
-2026-11-06 (`INTENT.md`, section "Extensions to migrate"). The other thirteen extensions found by
+This extension replaces three extensions of the workspace. The Star Colonel decided the list on
+2026-11-06 (`INTENT.md`, section "Extensions to migrate"), and added
+`jupyterlab_drag_and_drop_path_extension` on 2026-11-12. The other thirteen extensions found by
 the grep for `@jupyterlab/filebrowser` and `IFileBrowserFactory` stay separate. Nothing in this
 project edits or retires any of them.
 
-The facts below come from a read of each extension's `src/`, `schema/` and Python package on
-2026-11-06. Paths are relative to the root of the extension named.
+The facts below come from a read of each extension's `src/`, `schema/` and Python package: the
+first two on 2026-11-06, `jupyterlab_drag_and_drop_path_extension` on 2026-11-12. Paths are
+relative to the root of the extension named.
 
 ## Replaced
 
@@ -38,6 +40,42 @@ The facts below come from a read of each extension's `src/`, `schema/` and Pytho
   (`src/index.ts:79-84`), on the assumption that a listing shows only its own folder
 - **What changes here** - a file inside an unfolded folder opens the terminal in that file's
   folder, not in `model.path`; the command takes an id under this extension's prefix
+
+### jupyterlab_drag_and_drop_path_extension
+
+- **Features** - drag a file or folder from the file browser and drop it onto a target to insert
+  its path:
+  - a terminal receives the path escaped for the shell, or single-quoted with
+    `terminalQuotePaths` on; several dragged items arrive in one send, separated by a space or a
+    newline; the dropped-on terminal comes to the foreground
+  - a Python file or a Python notebook code cell receives a quoted string literal, or a
+    `pathlib.Path(...) / 'child'` expression with `pythonPathStyle: pathlib`, built with the
+    configured `pathlibConstructor`
+  - any other open file or code cell receives the bare path
+  - the breadcrumbs above the listing are a drag source; a crumb that is clicked rather than
+    dragged still navigates, and the listing and the other crumbs decline a crumb drag
+  - a drag holding several items is taken by a terminal only; an editor and a notebook decline it
+- **Settings** - six keys in `schema/plugin.json`: `enabled` (default `true`), `pathType`
+  (`relative`), `pythonPathStyle` (`posix`), `pathlibConstructor` (`pathlib.Path`),
+  `terminalSeparator` (`space`), `terminalQuotePaths` (`false`)
+- **Routes** - under `api/drag-and-drop-path/`, each with `@tornado.web.authenticated`:
+  `server-info` returns the absolute server root (`ServerInfoHandler`, `handlers.py:32-47`);
+  `terminal-cwd/<name>` returns the working directory of a named terminal (`TerminalCwdHandler`,
+  `handlers.py:50-120`), reading the pty process and its children through `/proc` on Linux and
+  `lsof` on macOS, and answering an unknown name with 404 without creating a terminal
+- **Browser targets** - the terminal (single and multiple items), the file editor (single item),
+  the notebook code cell under the pointer (single item), and the breadcrumbs as drag source
+  (`src/index.ts:53-102` drop target, `157-221` terminal, `232-256` editor, `287-342` notebook,
+  `417-427` breadcrumbs; `src/crumbs.ts:67` crumb drag source)
+- **What changes here** - `server-info` is not ported: the server root comes from the page config
+  `advancedFileBrowserServerRoot`, set in `__init__.py` to
+  `os.path.realpath(os.path.expanduser(root_dir))`, so the frontend makes no request for it.
+  `terminal-cwd/<name>` is ported under this extension's namespace
+  `jupyterlab-advanced-file-browser-extension/`. The six settings move into this extension's
+  `schema/plugin.json` on the Advanced File Browser settings page; `enabled` is renamed
+  `dragDropPathEnabled`, the other five keys keep their names, and saved values from the old
+  settings page are not migrated. The frontend plugin takes the id
+  `@stellarshenson/jupyterlab-advanced-file-browser-extension:drag-and-drop-path`.
 
 ## Stay separate
 

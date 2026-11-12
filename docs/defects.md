@@ -324,3 +324,18 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-09T09:41:32Z @kj added
   - log: 2026-11-09T09:41:42Z @kj root-cause recorded; reason: root cause established by review round 13
   - log: 2026-11-09T09:50:36Z @kj closed
+
+## Drag and drop paths `DRAG`
+
+Dragging a file, folder or breadcrumb onto a terminal, editor or notebook inserts its path
+
+- log: 2026-11-12T10:41:59Z @kj category created
+
+- [-] `DEF-DRAG-33-CWD-SHELL` **Relative terminal drop follows a background shell's directory** - MAJOR; The terminal cwd route picks the deepest shell, so a background job-control or build shell that changed directory wins; a relative drop then inserts a valid-looking path to a different file
+  - test-tags: FUNCTIONAL
+  - repro: In a terminal run bash -c 'cd /tmp/other && sleep 120; :' &, then drag a file from the browser onto that terminal with pathType relative; the inserted path is measured from /tmp/other
+  - root-cause: 2026-11-12T10:41:59Z @kj The process-tree sort ranks shells then depth; a background shell is deeper and leads its own group, so neither key tells it from the shell the user types in; a terminal-side cwd signal (OSC 7 or the pty foreground group) would be needed
+  - log: 2026-11-12T10:41:59Z @kj added
+  - log: 2026-11-12T10:42:02Z @kj rejected: owner accepted the ported deepest-shell behaviour on 2026-11-12: relative terminal paths follow the deepest shell, as in the retired extension; a correct fix needs a terminal-side cwd signal and is out of this campaign
+  - log: 2026-11-12T10:42:06Z @kj edited test-tags added "FUNCTIONAL"
+

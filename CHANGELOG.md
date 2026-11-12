@@ -2,6 +2,18 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.4] - 2026-11-12
+
+### Added
+
+- Drag a file, folder or breadcrumb from the file browser onto a terminal, Python file, other editor or notebook to insert its path; terminal paths are shell-escaped or single-quoted, Python targets receive a string literal or a `pathlib` expression, and a notebook drop lands in the cell under the pointer
+- Six settings under Advanced File Browser: the master switch, relative or absolute paths, the Python style and constructor, the terminal separator and quoting
+- The authenticated `terminal-cwd` route reports a terminal's working directory for relative paths
+
+### Changed
+
+- The extension replaces three extensions; `jupyterlab_drag_and_drop_path_extension` joins the two retired earlier, and folder unfolding, Unix Style Sorting and Open in Terminal now share one package with drag-and-drop path insertion
+
 ## [1.0.3] - 2026-11-10
 
 ### Changed

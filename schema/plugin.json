@@ -31,6 +31,46 @@
       "title": "Unix style sorting",
       "description": "Sort names in LC_COLLATE=C byte order, folders first, at every level of the tree.",
       "default": true
+    },
+    "dragDropPathEnabled": {
+      "title": "Enable drag-and-drop path insertion",
+      "description": "Master switch. When off, dragging a file or folder onto a terminal, editor or notebook does nothing, and the file browser breadcrumbs are not draggable.",
+      "type": "boolean",
+      "default": true
+    },
+    "pathType": {
+      "title": "Path type",
+      "description": "Insert paths relative to the terminal's working directory or to the open document's folder. Absolute paths need the server root that the server extension provides, and terminal drops need it in both modes; where it is unavailable nothing is inserted rather than a wrong path.",
+      "type": "string",
+      "enum": ["absolute", "relative"],
+      "default": "relative"
+    },
+    "pythonPathStyle": {
+      "title": "Python path style",
+      "description": "How a path is inserted into a Python file or notebook code cell: 'posix' inserts a quoted path string, 'pathlib' inserts a pathlib constructor expression.",
+      "type": "string",
+      "enum": ["posix", "pathlib"],
+      "default": "posix"
+    },
+    "pathlibConstructor": {
+      "title": "Pathlib constructor",
+      "description": "The constructor used when Python path style is pathlib. Choose Path only in files that already do `from pathlib import Path` - the extension inserts the expression, never the import.",
+      "type": "string",
+      "enum": ["pathlib.Path", "Path"],
+      "default": "pathlib.Path"
+    },
+    "terminalSeparator": {
+      "title": "Terminal separator for several paths",
+      "description": "What separates several dropped paths in a terminal. 'space' puts them on one line, as arguments to whatever is already typed. 'newline' gives each path a line of its own, ending every line but the last with a backslash so the shell reads it as a continuation: nothing runs until you press Enter. Type the command before you drop - in bash only the last line can still be edited after a newline drop, so a command typed at the front of it runs the first dropped path instead; zsh keeps the whole buffer editable.",
+      "type": "string",
+      "enum": ["space", "newline"],
+      "default": "space"
+    },
+    "terminalQuotePaths": {
+      "title": "Quote paths in the terminal",
+      "description": "Wrap each terminal path in single quotes instead of backslash-escaping the characters that need it. Both forms reach the shell as one argument per path, and quoting is the easier of the two to edit by hand afterwards.",
+      "type": "boolean",
+      "default": false
     }
   },
   "additionalProperties": false

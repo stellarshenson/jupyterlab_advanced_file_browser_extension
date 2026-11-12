@@ -380,3 +380,499 @@ export async function terminalCwd(
   }
   return cwd.startsWith(`${root}/`) ? cwd.slice(root.length + 1) : cwd;
 }
+
+/*
+ * Drag-and-drop path fixtures (docs/acc-crit.md, category DRAG).
+ *
+ * The file browser drag itself is Lumino's, not this extension's, so the drop drivers
+ * below dispatch the same `lm-dragenter`, `lm-dragover` and `lm-drop` events onto the
+ * widget node, carrying the `application/x-jupyter-icontents` payload the file browser
+ * sets. Everything below the event is the extension's own code running in a real
+ * JupyterLab.
+ */
+
+/** Fixture the drags point at. */
+export const PLAIN_FILE = 'dropme.csv';
+/** Carries a space and parentheses, so shell escaping is exercised. */
+export const SPACED_FILE = 'my data (1).csv';
+
+/**
+ * Payload type the file browser sets on a drag. Duplicated from src/dragPaths.ts by
+ * necessity: JupyterLab declares it as a module-private const in
+ * filebrowser/lib/listing.js and exports it from no type declaration.
+ */
+export const CONTENTS_MIME = 'application/x-jupyter-icontents';
+
+/** The plugin wiring the drop targets; the settings live in PLUGIN_ID's schema. */
+export const DRAG_PLUGIN_ID =
+  '@stellarshenson/jupyterlab-advanced-file-browser-extension:drag-and-drop-path';
+
+/**
+ * The absolute server root the page config carries. Unlike the extension this was
+ * ported from, no route reports it: the server extension writes it into the page.
+ */
+export async function serverRoot(
+  page: IJupyterLabPageFixture
+): Promise<string> {
+  return page.evaluate(
+    () =>
+      JSON.parse(document.getElementById('jupyter-config-data')!.textContent!)
+        .advancedFileBrowserServerRoot
+  );
+}
+
+/**
+ * Dispatch a sequence of Lumino drag events onto the active main-area widget
+ * and return the `dropAction` the last one carried.
+ *
+ * `'move'` means the extension accepted the drag, `'none'` that it declined.
+ */
+async function dispatchDrag(
+  page: IJupyterLabPageFixture,
+  types: string[],
+  paths: string[],
+  coords?: { x: number; y: number }
+): Promise<string> {
+  return page.evaluate(
+    ({ types, paths, coords, mime }) => {
+      const node: HTMLElement = (window as any).jupyterapp.shell.currentWidget
+        .node;
+      let last: any = null;
+      for (const type of types) {
+        const event: any = new Event(type, {
+          bubbles: true,
+          cancelable: true
+        });
+        event.mimeData = {
+          getData: (requested: string) =>
+            requested === mime ? paths : undefined
+        };
+        event.proposedAction = 'move';
+        event.dropAction = 'none';
+        event.clientX = coords ? coords.x : 0;
+        event.clientY = coords ? coords.y : 0;
+        node.dispatchEvent(event);
+        last = event;
+      }
+      return last ? last.dropAction : 'none';
+    },
+    { types, paths, coords, mime: CONTENTS_MIME }
+  );
+}
+
+/** Dispatch the full drag sequence onto the active main-area widget. */
+export async function dropOnCurrentWidget(
+  page: IJupyterLabPageFixture,
+  paths: string[],
+  coords?: { x: number; y: number }
+): Promise<void> {
+  await dispatchDrag(
+    page,
+    ['lm-dragenter', 'lm-dragover', 'lm-drop'],
+    paths,
+    coords
+  );
+}
+
+/** Dispatch only `lm-dragover` and report the resulting `dropAction`. */
+export async function dragOverCurrentWidget(
+  page: IJupyterLabPageFixture,
+  paths: string[]
+): Promise<string> {
+  return dispatchDrag(page, ['lm-dragover'], paths);
+}
+
+/**
+ * Drop onto a widget named by id, leaving focus wherever it currently is.
+ *
+ * The active-widget test needs this: it must drop on a background terminal
+ * while the file browser holds focus, which `dropOnCurrentWidget` cannot do.
+ */
+export async function dropOnWidgetById(
+  page: IJupyterLabPageFixture,
+  widgetId: string,
+  paths: string[]
+): Promise<void> {
+  await page.evaluate(
+    ({ widgetId, paths, mime }) => {
+      const node = document.getElementById(widgetId);
+      if (!node) {
+        throw new Error(`widget not found: ${widgetId}`);
+      }
+      const event: any = new Event('lm-drop', {
+        bubbles: true,
+        cancelable: true
+      });
+      event.mimeData = {
+        getData: (requested: string) => (requested === mime ? paths : undefined)
+      };
+      event.proposedAction = 'move';
+      event.dropAction = 'none';
+      event.clientX = 0;
+      event.clientY = 0;
+      node.dispatchEvent(event);
+    },
+    { widgetId, paths, mime: CONTENTS_MIME }
+  );
+}
+
+/** Source text of the active file editor. */
+export async function editorSource(
+  page: IJupyterLabPageFixture
+): Promise<string> {
+  return page.evaluate(() => {
+    const widget = (window as any).jupyterapp.shell.currentWidget;
+    return widget.content.editor.model.sharedModel.getSource();
+  });
+}
+
+/** Source text of the notebook's active cell. */
+export async function activeCellSource(
+  page: IJupyterLabPageFixture
+): Promise<string> {
+  return page.evaluate(() => {
+    const widget = (window as any).jupyterapp.shell.currentWidget;
+    return widget.content.activeCell.model.sharedModel.getSource();
+  });
+}
+
+/** Every cell's source, in order. */
+export async function allCellSources(
+  page: IJupyterLabPageFixture
+): Promise<string[]> {
+  return page.evaluate(() => {
+    const model = (window as any).jupyterapp.shell.currentWidget.content.model;
+    const out: string[] = [];
+    for (let i = 0; i < model.cells.length; i++) {
+      out.push(model.cells.get(i).sharedModel.getSource());
+    }
+    return out;
+  });
+}
+
+/** Open a path through the document manager, bypassing the menus. */
+export async function openDocument(
+  page: IJupyterLabPageFixture,
+  path: string,
+  factory: string
+): Promise<void> {
+  await page.evaluate(
+    async ({ path, factory }) => {
+      await (window as any).jupyterapp.commands.execute('docmanager:open', {
+        path,
+        factory
+      });
+    },
+    { path, factory }
+  );
+  // Wait on the document context actually being ready, not on a fixed delay.
+  // A notebook dropped into before its context loads has neither a kernel
+  // mimetype nor language metadata, so the drop would legitimately insert an
+  // unquoted path and the test would be measuring its own race.
+  await page.waitForFunction(
+    path => {
+      const widget = (window as any).jupyterapp.shell.currentWidget;
+      return (
+        !!widget &&
+        widget.context &&
+        widget.context.path === path &&
+        widget.context.isReady === true
+      );
+    },
+    path,
+    { timeout: 30000 }
+  );
+}
+
+/** Open a path in the plain file editor. */
+export async function openEditor(
+  page: IJupyterLabPageFixture,
+  path: string
+): Promise<void> {
+  await openDocument(page, path, 'Editor');
+}
+
+/**
+ * A notebook carrying a python kernelspec, so opening it never raises the
+ * kernel-selection dialog.
+ */
+export function notebookFixture(cells: any[]): string {
+  return JSON.stringify({
+    cells,
+    metadata: {
+      kernelspec: {
+        display_name: 'Python 3',
+        language: 'python',
+        name: 'python3'
+      },
+      language_info: { name: 'python' }
+    },
+    nbformat: 4,
+    nbformat_minor: 5
+  });
+}
+
+export function codeCell(source: string): any {
+  return {
+    cell_type: 'code',
+    execution_count: null,
+    metadata: {},
+    outputs: [],
+    source
+  };
+}
+
+export function markdownCell(source: string): any {
+  return { cell_type: 'markdown', metadata: {}, source };
+}
+
+/**
+ * Open a terminal and record everything the extension sends to its session.
+ *
+ * xterm renders to a canvas, so the rendered screen carries no readable text.
+ * The session payload is the real boundary between this extension and the
+ * terminal, and the spy forwards to the original, so the send still happens.
+ */
+export async function openTerminalAndCaptureSends(
+  page: IJupyterLabPageFixture
+): Promise<void> {
+  await page.evaluate(async () => {
+    await (window as any).jupyterapp.commands.execute('terminal:create-new');
+  });
+  await page.waitForSelector('.jp-Terminal');
+  await page.waitForTimeout(1500);
+  await page.evaluate(() => {
+    const session = (window as any).jupyterapp.shell.currentWidget.content
+      .session;
+    (window as any).__sent = [];
+    const original = session.send.bind(session);
+    session.send = (message: any) => {
+      (window as any).__sent.push(message);
+      return original(message);
+    };
+  });
+}
+
+/** The stdin strings the extension sent, in order. */
+export async function sentStdin(
+  page: IJupyterLabPageFixture
+): Promise<string[]> {
+  return page.evaluate(() =>
+    ((window as any).__sent ?? [])
+      .filter((message: any) => message.type === 'stdin')
+      .flatMap((message: any) => message.content)
+  );
+}
+
+/** GET a path under the extension's API namespace from page context. */
+export async function apiGet(
+  page: IJupyterLabPageFixture,
+  path: string
+): Promise<{ status: number; body: any }> {
+  return page.evaluate(async (path: string) => {
+    const base =
+      (window as any).jupyterapp.serviceManager.serverSettings.baseUrl ?? '/';
+    const response = await fetch(
+      `${base}jupyterlab-advanced-file-browser-extension/${path}`
+    );
+    let body: any = null;
+    try {
+      body = await response.json();
+    } catch {
+      body = null;
+    }
+    return { status: response.status, body };
+  }, path);
+}
+
+/** Names of the terminals the server currently holds. */
+export async function runningTerminalNames(
+  page: IJupyterLabPageFixture
+): Promise<string[]> {
+  return page.evaluate(async () => {
+    const base =
+      (window as any).jupyterapp.serviceManager.serverSettings.baseUrl ?? '/';
+    const response = await fetch(`${base}api/terminals`);
+    const list = await response.json();
+    return list.map((entry: any) => entry.name).sort();
+  });
+}
+
+/**
+ * Write the plugin's settings and reload, so activation reads them exactly as
+ * it would for a user who changed them in the settings editor.
+ */
+export async function setPluginSettings(
+  page: IJupyterLabPageFixture,
+  values: Record<string, unknown>
+): Promise<void> {
+  const status = await page.evaluate(
+    async ({ id, raw }) => {
+      const xsrf = document.cookie.match(/_xsrf=([^;]+)/);
+      const base =
+        (window as any).jupyterapp.serviceManager.serverSettings.baseUrl ?? '/';
+      const response = await fetch(`${base}api/settings/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(xsrf ? { 'X-XSRFToken': decodeURIComponent(xsrf[1]) } : {})
+        },
+        body: JSON.stringify({ raw })
+      });
+      return response.status;
+    },
+    { id: PLUGIN_ID, raw: JSON.stringify(values) }
+  );
+  // A silent failure here would make every settings test pass by accident.
+  expect([200, 204]).toContain(status);
+  await page.reload();
+  // Wait on the extension actually being back, not on a fixed delay: an
+  // absence assertion after a reload would otherwise pass just as well if the
+  // plugin never activated at all.
+  await waitForExtension(page);
+}
+
+/**
+ * Change the plugin's settings through the live registry, without reloading.
+ *
+ * A raw REST write updates the server's copy only - the registry inside the
+ * page never hears of it, so the plugin's `changed` handler never runs and a
+ * test built on it would be measuring the reload, not the change. Galata
+ * hands out the registry singleton, and `set` on any Settings object for a
+ * plugin emits `pluginChanged`, which every Settings object for that plugin
+ * re-emits as `changed` - the extension's own included.
+ */
+export async function setPluginSettingsLive(
+  page: IJupyterLabPageFixture,
+  values: Record<string, unknown>
+): Promise<void> {
+  await page.evaluate(
+    async ({ id, values }) => {
+      const registry = await (window as any).galata.getPlugin(
+        '@jupyterlab/apputils-extension:settings'
+      );
+      if (!registry) {
+        throw new Error('settings registry not reachable from the page');
+      }
+      const settings = await registry.load(id);
+      for (const [key, value] of Object.entries(values)) {
+        await settings.set(key, value);
+      }
+    },
+    { id: PLUGIN_ID, values }
+  );
+}
+
+/**
+ * Mark the current page, so a later check can prove it was never reloaded.
+ */
+export async function markPage(page: IJupyterLabPageFixture): Promise<void> {
+  await page.evaluate(() => {
+    (window as any).__pageMark = true;
+  });
+}
+
+/** Whether the mark set by `markPage` is still on the page. */
+export async function pageStillMarked(
+  page: IJupyterLabPageFixture
+): Promise<boolean> {
+  return page.evaluate(() => (window as any).__pageMark === true);
+}
+
+/**
+ * Resolve once the drag-and-drop plugin has activated on the current page.
+ *
+ * `isPluginActivated` is the only probe that distinguishes "the extension ran
+ * and chose to do nothing" from "the extension never loaded". Without it, a
+ * test that asserts an absence after a reload would pass just as happily if
+ * activation had broken outright.
+ */
+export async function waitForExtension(
+  page: IJupyterLabPageFixture
+): Promise<void> {
+  await page.waitForFunction(
+    id => {
+      const app = (window as any).jupyterapp;
+      return !!app && app.isPluginActivated && app.isPluginActivated(id);
+    },
+    DRAG_PLUGIN_ID,
+    { timeout: 30000 }
+  );
+}
+
+/** The centre point of an element, for the real-mouse drags below. */
+export async function centreOf(
+  locator: Locator
+): Promise<{ x: number; y: number }> {
+  const box = await locator.boundingBox();
+  if (!box) {
+    throw new Error('element has no box on screen');
+  }
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+}
+
+/** A file browser breadcrumb, addressed by the path it carries. */
+export function crumb(page: IJupyterLabPageFixture, dataPath: string): Locator {
+  return page.locator(`.jp-BreadCrumbs [data-path="${dataPath}"]`);
+}
+
+/**
+ * Drag a breadcrumb with the real mouse and release it over a point.
+ *
+ * Nothing here is synthetic, unlike the drop drivers above: the extension's
+ * own mousedown handler runs, Lumino builds and moves the drag, and the
+ * element under the release point receives the drop. That whole chain is what
+ * makes the breadcrumb a drag source, so only a real mouse exercises it.
+ */
+export async function dragCrumbTo(
+  page: IJupyterLabPageFixture,
+  dataPath: string,
+  target: { x: number; y: number }
+): Promise<boolean> {
+  const start = await centreOf(crumb(page, dataPath));
+  await page.mouse.move(start.x, start.y);
+  await page.mouse.down();
+  // Several steps, not one jump: the first crosses the drag threshold and
+  // starts the drag, and the ones after it are what Lumino tracks the drop
+  // target with.
+  await page.mouse.move(target.x, target.y, { steps: 12 });
+  // Whether a drag really started. Lumino puts the drag image in the body for
+  // the duration of the drag and takes it away on release, so this is the one
+  // moment the question can be answered - and it is what tells a refused drop
+  // apart from a gesture that never became a drag.
+  const started = (await page.locator('.lm-mod-drag-image').count()) > 0;
+  await page.mouse.up();
+  return started;
+}
+
+/**
+ * Point the file browser at a directory and wait for its crumb to appear.
+ *
+ * Galata's own `filebrowser.openDirectory` double-clicks a listing row found
+ * by its accessible name, which the extensions installed on this workstation
+ * rearrange. The command is the file browser's public entry point and does
+ * not depend on the panel's markup.
+ */
+export async function openFolder(
+  page: IJupyterLabPageFixture,
+  path: string
+): Promise<void> {
+  await activateFileBrowser(page);
+  await page.evaluate(async (path: string) => {
+    await (window as any).jupyterapp.commands.execute(
+      'filebrowser:go-to-path',
+      { path }
+    );
+  }, path);
+  await crumb(page, path).waitFor();
+}
+
+/** Bring the file browser to the front, so its breadcrumbs are on screen. */
+export async function activateFileBrowser(
+  page: IJupyterLabPageFixture
+): Promise<void> {
+  await page.evaluate(() =>
+    (window as any).jupyterapp.commands.execute('filebrowser:activate')
+  );
+  await page.locator('.jp-BreadCrumbs').first().waitFor();
+}

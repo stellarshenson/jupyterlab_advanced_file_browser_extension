@@ -1,3 +1,5 @@
+import os
+
 try:
     from ._version import __version__
 except ImportError:
@@ -32,9 +34,12 @@ def _load_jupyter_server_extension(server_app):
         JupyterLab application instance
     """
     setup_route_handlers(server_app.web_app)
-    # Open in Terminal at the server root needs its absolute path: the terminal API
-    # resolves a missing or relative cwd against the server's process folder
+    # Open in Terminal at the server root and drag-and-drop absolute paths need its
+    # absolute path: JupyterHub may set the root to "~/...", and a path join would
+    # keep the tilde as a literal directory name.
     page_config = server_app.web_app.settings.setdefault("page_config_data", {})
-    page_config["advancedFileBrowserServerRoot"] = server_app.root_dir
+    page_config["advancedFileBrowserServerRoot"] = os.path.realpath(
+        os.path.expanduser(str(server_app.root_dir))
+    )
     name = "jupyterlab_advanced_file_browser_extension"
     server_app.log.info(f"Registered {name} server extension")

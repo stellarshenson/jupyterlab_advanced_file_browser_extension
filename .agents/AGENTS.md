@@ -28,19 +28,21 @@ The following workspace rules are STRICTLY ENFORCED for this project:
 - **No manual package installs if Makefile exists** - use `make install` or equivalent Makefile targets, not direct `pip install`/`uv install`/`npm install`
 - **No automatic git commits or pushes** - only when user explicitly requests
 - **No edit of another extension** - every other extension stays untouched from this project;
-  the retirement of the two replaced ones is the Star Colonel's step
+  the retirement of the three replaced ones is the Star Colonel's step
 
 ## Project Context
 
 JupyterLab 4 extension, `kind: frontend-and-server`, scaffolded from the official copier template
 `jupyterlab/extension-template` v4.6.5. It adds features to the JupyterLab file browser and takes
-over two extensions of the workspace, `jupyterlab_file_browser_sorting_extension` (Unix Style
-Sorting) and `jupyterlab_open_in_terminal_extension` (Open in Terminal), so that both can be
-retired. It adds folder unfolding, ported from `jupyterlab-unfold`.
+over three extensions of the workspace, `jupyterlab_file_browser_sorting_extension` (Unix Style
+Sorting), `jupyterlab_open_in_terminal_extension` (Open in Terminal) and
+`jupyterlab_drag_and_drop_path_extension` (drag-and-drop path insertion into terminals, editors
+and notebooks), so that all three can be retired. It adds folder unfolding, ported from
+`jupyterlab-unfold`. `jupyterlab_drag_and_drop_path_extension` is retired after this campaign.
 
 - **`INTENT.md` is the brief** - the Star Colonel's requirements and his list of the extensions
-  to migrate (two) and to keep separate (thirteen); read it in full before any design or code
-- **`docs/migration.md`** - the two extensions this one replaces, the thirteen that stay separate,
+  to migrate (three) and to keep separate (thirteen); read it in full before any design or code
+- **`docs/migration.md`** - the three extensions this one replaces, the thirteen that stay separate,
   and what each of them assumes about the file browser that folder unfolding must keep
 - **`docs/acc-crit.md`** - the required behaviour as acceptance criteria, each naming its test
 - **Folder unfolding** - ported from https://github.com/jupyterlab-contrib/jupyterlab-unfold and
@@ -49,6 +51,13 @@ retired. It adds folder unfolding, ported from `jupyterlab-unfold`.
   menu of the column header (`.jp-DirListing-header`), beside the core items at ranks 14-18
   (Show Last Modified Column, Show Date Created Column, Show File Size Column, Show File
   Checkboxes, Sort Notebooks Above Files) and Unix Style Sorting
+- **Drag-and-drop path insertion** - ported from `jupyterlab_drag_and_drop_path_extension` 1.0.12:
+  dragging a file or folder from the file browser onto a terminal, a Python file, a notebook code
+  cell or another open file inserts its path, and the breadcrumbs are a drag source; six settings
+  sit on the Advanced File Browser settings page (`dragDropPathEnabled`, `pathType`,
+  `pythonPathStyle`, `pathlibConstructor`, `terminalSeparator`, `terminalQuotePaths`); the server
+  root comes from the page config `advancedFileBrowserServerRoot`, and the ported
+  `terminal-cwd/<name>` route sits under this extension's namespace
 - **Licence** - code ported from `jupyterlab-unfold` keeps its upstream licence notice (BSD
   3-Clause, "Copyright (c) 2023, Martin Renou") in the ported file and in `LICENSE`
 - **State** - the code is the template placeholder (hello route, activation log); update this

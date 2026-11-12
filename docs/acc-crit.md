@@ -694,3 +694,156 @@ What the thirteen separate extensions rely on keeps working beside this one (doc
   - mechanism: 2026-11-11T22:03:30Z @kj when the replaced extension's filebrowser:open-in-terminal command is already registered, only one of the two items is added
   - log: 2026-11-11T22:03:30Z @kj added
   - log: 2026-11-11T22:09:39Z @kj rejected: the replaced extension is retired and uninstalled, so coexistence with it is no longer required; Star Colonel decided 2026-11-11: reject
+
+## Drag and drop paths `DRAG`
+
+Dragging a file, folder or breadcrumb onto a terminal, editor or notebook inserts its path
+
+- log: 2026-11-12T08:30:51Z @kj category created
+
+- [x] `ACC-DRAG-98-TERM-SINGLE` **One path into a terminal** - HIGH; Dropping one file or folder on a terminal inserts its path as one shell argument and nothing runs
+  - evidence: ui-tests/tests/drag-path.spec.ts:199 terminal > plain path needs no escaping and is sent unquoted passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: drop one file on a terminal, read the shell buffer, assert the unquoted path
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:51Z @kj added
+  - log: 2026-11-12T11:08:02Z @kj closed
+- [x] `ACC-DRAG-99-TERM-SPACE` **Spaces are escaped** - HIGH; A path holding a space or a shell metacharacter arrives backslashed, so the shell reads one argument
+  - evidence: ui-tests/tests/drag-path.spec.ts:179 terminal > path with spaces is shell-escaped passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: drop a file named 'my data (1).csv', assert the backslashed name
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:52Z @kj added
+  - log: 2026-11-12T11:08:02Z @kj closed
+- [x] `ACC-DRAG-100-TERM-MULTI` **Several paths into a terminal** - HIGH; A drag holding several items inserts every path in one send, in the order selected
+  - evidence: ui-tests/tests/drag-path.spec.ts:254 terminal > a multi-item drag sends every path in one line passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: drop two paths, assert both on one line in order
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:52Z @kj added
+  - log: 2026-11-12T11:08:02Z @kj closed
+- [x] `ACC-DRAG-101-TERM-SEPARATOR` **Newline separator** - MEDIUM; With terminalSeparator newline every path but the last ends a line with a backslash, so the shell continues and nothing runs
+  - evidence: ui-tests/tests/drag-settings.spec.ts:299 terminal multi-drop settings > the newline separator continues the line instead of submitting it passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: set terminalSeparator newline, drop two paths, assert the buffer holds no submit
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:52Z @kj added
+  - log: 2026-11-12T11:08:02Z @kj closed
+- [x] `ACC-DRAG-102-TERM-QUOTE` **Quoted terminal paths** - MEDIUM; With terminalQuotePaths on each path is wrapped in single quotes instead of backslash escaping, and an embedded quote stays one argument
+  - evidence: ui-tests/tests/drag-settings.spec.ts:321 terminal multi-drop settings > quoting wraps each path instead of escaping it; src/__tests__/drag-paths.spec.ts:248 shellQuote > closes and reopens the quoting around an embedded quote passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: set terminalQuotePaths true, drop a path, assert the quoted word
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:52Z @kj added
+  - log: 2026-11-12T11:08:02Z @kj closed
+- [x] `ACC-DRAG-103-TERM-ACTIVE` **Terminal takes the foreground** - HIGH; A drop on a background terminal activates that terminal tab and focuses it
+  - evidence: ui-tests/tests/drag-path.spec.ts:215 terminal > dropping on a terminal makes it the active widget passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: drop on a background terminal, assert the shell current widget is that terminal
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:52Z @kj added
+  - log: 2026-11-12T11:08:02Z @kj closed
+- [x] `ACC-DRAG-104-EDITOR-PY` **Python file gets a string literal** - HIGH; Dropping on a Python file inserts a single-quoted string literal at the drop coordinates and gives the editor focus
+  - evidence: ui-tests/tests/drag-path.spec.ts:32 file editor > python file receives a quoted path; drag-settings.spec.ts:196 insertion lands at the drop coordinates in an editor; drag-settings.spec.ts:176 editor holds focus after insertion passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: drop on a .py file at coordinates, assert the literal at that position
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:52Z @kj added
+  - log: 2026-11-12T11:08:02Z @kj closed
+- [x] `ACC-DRAG-105-EDITOR-BARE` **Other files get the bare path** - HIGH; Dropping on a file that is not Python inserts the path with no quoting
+  - evidence: ui-tests/tests/drag-path.spec.ts:41 file editor > markdown file receives the bare path passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: drop on a markdown file, assert the bare path
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:52Z @kj added
+  - log: 2026-11-12T11:08:02Z @kj closed
+- [x] `ACC-DRAG-106-EDITOR-MULTI` **An editor declines several items** - MEDIUM; A drag holding several items is declined by an editor, which inserts nothing and shows no-drop
+  - evidence: ui-tests/tests/drag-path.spec.ts:52 file editor > multi-item drag inserts nothing; drag-settings.spec.ts:74 settings > a multi-item drag is not accepted by an editor passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: dispatch a two-item drag on an editor, assert dropAction none and no text
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:52Z @kj added
+  - log: 2026-11-12T11:08:03Z @kj closed
+- [x] `ACC-DRAG-107-PY-PATHLIB` **Pathlib expression** - MEDIUM; With pythonPathStyle pathlib a Python target receives a constructor call joined with the / operator, using the configured constructor
+  - evidence: ui-tests/tests/drag-settings.spec.ts:84 settings > pathlib style inserts a constructor expression; drag-settings.spec.ts:94 settings > the pathlib constructor follows the setting passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: set pathlib and Path, drop on a Python file, assert the expression
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:53Z @kj added
+  - log: 2026-11-12T11:08:03Z @kj closed
+- [x] `ACC-DRAG-108-NB-CELL` **The cell under the pointer takes the drop** - HIGH; A notebook drop lands in the cell under the pointer at that cell's cursor; over no cell the active cell takes it
+  - evidence: ui-tests/tests/drag-path.spec.ts:139 notebook > the cell under the pointer takes the drop, not the active cell; drag-path.spec.ts:102 notebook > insertion lands at the cell cursor, not the drop point passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: with cell 0 active drop over cell 2, assert cell 2 received the path
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:53Z @kj added
+  - log: 2026-11-12T11:08:03Z @kj closed
+- [x] `ACC-DRAG-109-NB-PY` **A Python cell formats before the kernel connects** - HIGH; A Python code cell receives the Python formatting before the kernel sends its language, using the notebook's declared kernel language
+  - evidence: ui-tests/tests/drag-path.spec.ts:74 notebook > python code cell receives a quoted path passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: drop on a fresh Python notebook code cell, assert the quoted literal
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:53Z @kj added
+  - log: 2026-11-12T11:08:03Z @kj closed
+- [x] `ACC-DRAG-110-NB-MULTI` **A notebook declines several items** - MEDIUM; A drag holding several items is declined by a notebook, which inserts nothing
+  - evidence: ui-tests/tests/drag-path.spec.ts:125 notebook > multi-item drag inserts nothing passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: dispatch a two-item drag on a notebook, assert no insertion
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:53Z @kj added
+  - log: 2026-11-12T11:08:03Z @kj closed
+- [x] `ACC-DRAG-111-CRUMB-DRAG` **Breadcrumbs are a drag source** - HIGH; Dragging a breadcrumb folder name onto a terminal, editor or notebook inserts that folder's path
+  - evidence: ui-tests/tests/crumb-drag.spec.ts:35 breadcrumb drag source > a crumb dropped on a terminal inserts its directory path; crumb-drag.spec.ts:56 the home crumb inserts the server root passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/crumb-drag.spec.ts: drag the crumb of a onto a terminal, assert a's path
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:53Z @kj added
+  - log: 2026-11-12T11:08:03Z @kj closed
+- [x] `ACC-DRAG-112-CRUMB-CLICK` **A breadcrumb click still navigates** - HIGH; A press on a breadcrumb that does not travel past the drag threshold navigates to that folder as before
+  - evidence: ui-tests/tests/crumb-drag.spec.ts:121 breadcrumb drag source > a plain click on a crumb still navigates passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/crumb-drag.spec.ts: click the crumb of a, assert the browser entered a
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:53Z @kj added
+  - log: 2026-11-12T11:08:03Z @kj closed
+- [x] `ACC-DRAG-113-CRUMB-DECLINE` **A crumb drag never moves a folder** - MEDIUM; The file listing and the other breadcrumbs decline a breadcrumb drag, so it can only insert a path
+  - evidence: ui-tests/tests/crumb-drag.spec.ts:71 breadcrumb drag source > a crumb drag never moves the directory passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/crumb-drag.spec.ts: dispatch a crumb payload on the listing, assert dropAction none and no move
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:53Z @kj added
+  - log: 2026-11-12T11:08:03Z @kj closed
+- [x] `ACC-DRAG-114-PATH-RELATIVE` **Relative is the default** - HIGH; A relative drop inserts the path measured from the terminal's working directory or from the open document's folder
+  - evidence: ui-tests/tests/drag-path.spec.ts:61 file editor > path is relative to the document directory; drag-server.spec.ts:71 terminal round trip > a relative terminal path resolves against the reported cwd; drag-settings.spec.ts:120 settings > relative is the default path type passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: drop from a sibling folder onto a file, assert the ../ path; terminal drop follows pwd
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:53Z @kj added
+  - log: 2026-11-12T11:08:04Z @kj closed
+- [x] `ACC-DRAG-115-PATH-ABSOLUTE` **Absolute paths** - HIGH; With pathType absolute the inserted path starts with the resolved server root
+  - evidence: ui-tests/tests/drag-settings.spec.ts:107 settings > absolute path type inserts a path under the server root; drag-settings.spec.ts:289 edge cases > server root is reported as an absolute path; crumb-drag.spec.ts:56 the home crumb inserts the server root passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: set pathType absolute, drop on an editor, assert the path starts with the server root
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:54Z @kj added
+  - log: 2026-11-12T11:08:04Z @kj closed
+- [x] `ACC-DRAG-116-ENABLED-OFF` **The master switch stops every drop** - HIGH; With dragDropPathEnabled off no drop target accepts a drag and the breadcrumbs are not draggable; turning it on restores insertion without a reload
+  - evidence: ui-tests/tests/drag-settings.spec.ts settings > enabled off makes the extension inert, and live settings > turning the master switch back on restores insertion live passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: set the switch off, assert dragover none; set it on, assert insertion
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:54Z @kj added
+  - log: 2026-11-12T11:08:04Z @kj closed
+- [x] `ACC-DRAG-117-SETTINGS-LIVE` **A setting change applies to the next drop** - MEDIUM; Changing a drag setting applies to the next drop without a page reload
+  - evidence: ui-tests/tests/drag-settings.spec.ts:143 live settings > a setting change applies to the next drop without a reload passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-path.spec.ts: change pathType then drop again, assert the new form
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:54Z @kj added
+  - log: 2026-11-12T11:08:04Z @kj closed
+- [x] `ACC-DRAG-118-TERM-CWD` **The terminal cwd route is authenticated** - HIGH; The terminal-cwd route requires Jupyter authentication, answers an unknown terminal name with 404, and never creates a terminal
+  - evidence: jupyterlab_advanced_file_browser_extension/tests/test_routes.py: test_terminal_cwd_refuses_an_unauthenticated_request, test_an_unknown_terminal_is_404, test_repeated_unknown_names_create_no_terminals, test_terminal_cwd_of_a_live_terminal; ui-tests/tests/drag-server.spec.ts:24, :41, :57 passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: jupyterlab_advanced_file_browser_extension/tests/test_routes.py: unauthenticated GET is refused; unknown name is 404; terminal count unchanged
+  - test-tags: INTEGRATION
+  - log: 2026-11-12T08:30:59Z @kj added
+  - log: 2026-11-12T11:08:04Z @kj closed
+- [x] `ACC-DRAG-119-ROOT-ABS` **The server root is absolute** - HIGH; The page config advancedFileBrowserServerRoot holds the realpath of the expanded server root
+  - evidence: jupyterlab_advanced_file_browser_extension/tests/test_routes.py::test_page_config_root_is_the_expanded_realpath; ui-tests/tests/drag-settings.spec.ts:289 edge cases > server root is reported as an absolute path passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: jupyterlab_advanced_file_browser_extension/tests/test_routes.py: assert the page config value is absolute and equals the resolved root
+  - test-tags: INTEGRATION
+  - log: 2026-11-12T08:30:59Z @kj added
+  - log: 2026-11-12T11:08:04Z @kj closed
+- [x] `ACC-DRAG-120-DEGRADED` **No wrong path when the server data is missing** - MEDIUM; When the server root or the terminal cwd cannot be read a drop inserts nothing rather than a wrong path; an editor drop with a contents base still inserts
+  - evidence: ui-tests/tests/drag-degraded.spec.ts:26, :52, :75; src/__tests__/drag-paths.spec.ts:339 resolveOrRefuse > refuses an absolute drop when the server root is empty passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: ui-tests/tests/drag-degraded.spec.ts: abort the terminal-cwd route, assert a terminal drop inserts nothing and an editor drop still inserts; src/__tests__/drag-paths.spec.ts: an empty server root refuses an absolute drop
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-12T08:30:59Z @kj added
+  - log: 2026-11-12T08:31:38Z @kj edited test "ui-tests/tests/drag-degraded.spec.ts: stub the routes to fail, assert a terminal drop inserts nothing and an editor drop still inserts" -> "ui-tests/tests/drag-degraded.spec.ts: abort the terminal-cwd route, assert a terminal drop inserts nothing and an editor drop still inserts; src/__tests__/drag-paths.spec.ts: an empty server root refuses an absolute drop"
+  - log: 2026-11-12T11:08:04Z @kj closed
+- [x] `ACC-DRAG-121-PY-MIME` **Markdown is not Python** - MEDIUM; A markdown file, whose mimetype text/x-ipythongfm contains the substring python, receives the bare path
+  - evidence: src/__tests__/drag-paths.spec.ts:180 isPythonMimeType > rejects markdown, whose mimetype contains 'python' as a substring passed in the full default and venv suites; logs tmp/workflows/dragpath-v1/logs/gate-default.log and gate-venv.log
+  - test: src/__tests__/drag-paths.spec.ts: isPythonMimeType rejects text/x-ipythongfm and accepts text/x-python
+  - test-tags: UNIT
+  - log: 2026-11-12T08:30:59Z @kj added
+  - log: 2026-11-12T11:08:04Z @kj closed
+
