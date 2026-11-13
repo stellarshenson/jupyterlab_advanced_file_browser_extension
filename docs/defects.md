@@ -242,6 +242,14 @@ File browser actions on rows inside unfolded folders act on the item's own path
   - log: 2026-11-06T21:23:08Z @kj added
   - log: 2026-11-06T21:23:08Z @kj found by review round 2; Star Colonel decided 2026-11-06: fix
   - log: 2026-11-06T21:31:56Z @kj closed: fixed: _selectOutermost emits the listing selectionChanged when it drops a nested path; `src/listing.ts`
+- [x] `DEF-NESTED-34-TEST-TRASH` **Delete tests fail where the test root has no writable trash** - MINOR; on the workstation the Galata server root is under /tmp on the overlay and HOME is another filesystem, so every DELETE answers 400 send2trash failed and ACC-UNFOLD-14-GONE, ACC-NESTED-37-DELETE and ACC-NESTED-77-OUTERMOST fail; CI passes
+  - evidence: ui-tests/jupyter_server_test_config.py sets delete_to_trash False and always_delete_dir True; build_test.py on the workstation 2026-11-13: Galata 136 passed, was 3 failed; Jest 92, pytest 7
+  - repro: cd ui-tests && JUPYTER_TEST_PORT=<free port> jlpm playwright test nested-actions unfold -g 'DELETE|GONE|OUTERMOST' on the workstation
+  - test-tags: FUNCTIONAL
+  - root-cause: 2026-11-13T18:11:19Z @kj test server config left delete_to_trash True and always_delete_dir False; send2trash targets /.Trash-1000 on the root-owned mount of the test root, and a permanent delete refuses a folder with content
+  - root-cause: 2026-11-13T17:59:38Z @kj ui-tests/jupyter_server_test_config.py leaves delete_to_trash True; send2trash then targets /.Trash-1000 on the root-owned mount of the test root
+  - log: 2026-11-13T17:59:38Z @kj added
+  - log: 2026-11-13T18:11:19Z @kj closed
 
 ## Folder unfolding `UNFOLD`
 

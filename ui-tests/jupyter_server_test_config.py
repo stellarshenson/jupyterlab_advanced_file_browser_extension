@@ -30,5 +30,15 @@ c.GalaxaHubMotd.open_on_start = False
 # download answers 404 (ACC-NESTED-40); this is FileContentsManager's own default, as on CI
 c.ContentsManager.files_handler_params = {"path": c.ServerApp.root_dir}
 
+# The test root is under /tmp; where $HOME is another filesystem send2trash targets the
+# root-owned /.Trash-<uid>, every DELETE answers 400 and the delete tests fail. The three
+# sections are the ones a workstation jupyter_lab_config.py sets to True
+c.FileContentsManager.delete_to_trash = False
+c.AsyncFileContentsManager.delete_to_trash = False
+c.AsyncLargeFileManager.delete_to_trash = False
+# A permanent delete refuses a folder with content ("Directory ... not empty") unless this is
+# set; the trash takes one, and ACC-NESTED-77-OUTERMOST deletes one
+c.FileContentsManager.always_delete_dir = True
+
 # Uncomment to set server log level to debug level
 # c.ServerApp.log_level = "DEBUG"
