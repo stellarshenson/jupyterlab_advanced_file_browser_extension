@@ -20,6 +20,7 @@ import type { Signal } from '@lumino/signaling';
 import { Widget } from '@lumino/widgets';
 
 import folderOpenSvgstr from '../style/icons/folder-open.svg';
+import { deleteItems } from './deleteDialog';
 import { isBelow, type TreeFileBrowserModel } from './model';
 
 const INDENT_CLASS = 'jp-AdvancedFileBrowser-indent';
@@ -103,6 +104,7 @@ interface IListingInternals {
   _focusIndex: number;
   _selectTimer: number;
   _sortNotebooksFirst: boolean;
+  _focusItem(index: number): void;
   _selectItem(index: number, keepExisting: boolean, focus?: boolean): void;
   _selectItemByName(
     name: string,
@@ -195,9 +197,22 @@ export class TreeDirListing extends DirListing {
     this._clipboardEpoch++;
   }
 
-  delete(): Promise<void> {
+  async delete(): Promise<void> {
     this._selectOutermost();
-    return super.delete();
+    const items = Array.from(this.selectedItems());
+    if (!items.length) {
+      return;
+    }
+    await deleteItems(this.model, items, this.translator.load('jupyterlab'));
+    // Unlike stock, no removed-row offset: deleteItems awaited model.refresh(), so _sortedItems no longer holds the removed rows.
+    const active = document.activeElement;
+    if (active && active !== document.body && !this.node.contains(active)) {
+      return;
+    }
+    const { _focusIndex, _sortedItems } = this._internals;
+    this._internals._focusItem(
+      Math.min(_focusIndex, Math.max(0, _sortedItems.length - 1))
+    );
   }
 
   paste(): Promise<void> {

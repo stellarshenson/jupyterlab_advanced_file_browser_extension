@@ -45,6 +45,12 @@ cd ./ui-tests
 jlpm playwright test
 ```
 
+The ACC-DELETE-153 case runs with `trash_on_all_volumes = True` on its own server and skips unless `/tmp` is its own mount:
+
+```sh
+jlpm playwright test --config playwright-all-volumes.config.js
+```
+
 Test results will be shown in the terminal. In case of any test failures, the test report
 will be opened in your browser at the end of the tests execution; see
 [Playwright documentation](https://playwright.dev/docs/test-reporters#html-reporter)

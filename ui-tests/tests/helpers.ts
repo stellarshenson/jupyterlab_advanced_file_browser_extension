@@ -370,11 +370,7 @@ export async function terminalCwd(
       }),
     SERVER_TIMEOUT
   );
-  const root: string = await page.evaluate(
-    () =>
-      JSON.parse(document.getElementById('jupyter-config-data')!.textContent!)
-        .serverRoot
-  );
+  const root = await serverRoot(page);
   if (cwd === root) {
     return '';
   }

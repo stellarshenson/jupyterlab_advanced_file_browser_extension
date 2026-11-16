@@ -847,3 +847,292 @@ Dragging a file, folder or breadcrumb onto a terminal, editor or notebook insert
   - log: 2026-11-12T08:30:59Z @kj added
   - log: 2026-11-12T11:08:04Z @kj closed
 
+## Delete with trash `DELETE`
+
+Delete dialog with Move to Trash and Delete Permanently, the large-removal warning and the progress dialog
+
+- log: 2026-11-13T18:28:39Z @kj category created
+
+- [x] `ACC-DELETE-122-THREE-OPTIONS` **Three options with trash on** - HIGH; with the server's delete_to_trash on, the file browser's Delete dialog offers Cancel, Delete Permanently and Move to Trash; the dialog title is Delete
+  - evidence: Galata 'ACC-DELETE-122-THREE-OPTIONS the Delete dialog offers Cancel, Delete Permanently and Move to Trash' (three buttons, header 'Delete') passed first attempt in tmp/workflows/delete-v1/logs/gate13-default.log and gate13-venv.log; Jest 'deleteItems titles the Delete dialog Delete with the trash on' passed in gate13-jest-junit.xml
+  - test: server with delete_to_trash on, select a file, press Delete, assert the three button labels and the title Delete
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:28:39Z @kj added
+  - log: 2026-11-13T21:26:30Z @kj closed; reason: evidence names every covering test and the gate log it passed in
+  - log: 2026-11-15T21:38:28Z @kj reopened: reopened: owner ordered 2026-11-15: fix the adjudicator-refuted review findings (title); evidence retired: Galata 'ACC-DELETE-122-THREE-OPTIONS the Delete dialog offers Cancel, Delete Permanently and Move to Trash' (tests/delete.spec.ts) passed in logs/gate2-default.log and logs/gate2-venv.log (run in both, absent from the flaky list, both suites 0 failed); Jest 'deleteButtons offers Cancel, Delete Permanently and Move to Trash with the trash on, Move to Trash the default' - suite src/__tests__/delete-dialog.spec.ts PASS (7 suites, 98 of 98 passed in logs/gate2-make-test.log)
+  - log: 2026-11-15T21:38:28Z @kj edited text "with the server's delete_to_trash on, the file browser's Delete dialog offers Cancel, Delete Permanently and Move to Trash" -> "HIGH; with the server's delete_to_trash on, the file browser's Delete dialog offers Cancel, Delete Permanently and Move to Trash; the dialog title is Delete"
+  - log: 2026-11-15T21:38:28Z @kj edited test "server with delete_to_trash on, select a file, press Delete, assert the three button labels" -> "server with delete_to_trash on, select a file, press Delete, assert the three button labels and the title Delete"
+  - log: 2026-11-15T21:38:41Z @kj owner decision 2026-11-15: the Galata test servers set their own home folder, so a run outside the sandbox runner leaves the real home untouched
+  - log: 2026-11-16T05:01:57Z @kj closed; reason: gate13 2026-11-16, review round 14 SHIP
+- [x] `ACC-DELETE-123-TRASH-DEFAULT` **Move to Trash is the default** - HIGH; with trash on, Move to Trash is the focused button, so Enter moves the selected items to the trash
+  - evidence: Galata 'ACC-DELETE-123-TRASH-DEFAULT Enter moves the selection to the trash' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest deleteButtons trash-on case (Move to Trash the default) - delete-dialog.spec.ts PASS in logs/gate2-make-test.log
+  - test: open the dialog, press Enter, assert the file left the listing and sits in the trash folder
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:28:39Z @kj added
+  - log: 2026-11-13T21:26:30Z @kj closed
+- [x] `ACC-DELETE-124-PERMANENT` **Delete Permanently skips the trash** - CRITICAL; with trash on, Delete Permanently removes the selected items from disk and puts nothing in the trash
+  - evidence: Galata 'ACC-DELETE-124-PERMANENT Delete Permanently removes a file without the trash' passed in logs/gate2-default.log and logs/gate2-venv.log; pytest test_delete_removes_a_file and test_delete_removes_a_folder_with_content_whatever_the_trash (send2trash patched, asserted never called) PASSED in logs/gate2-make-test.log
+  - test: Delete Permanently on a file, assert it is gone from disk and absent from the trash folder
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-13T18:28:39Z @kj added
+  - log: 2026-11-13T21:26:30Z @kj closed
+- [x] `ACC-DELETE-125-PERM-FOLDER` **Edge: permanent delete of a folder with content** - HIGH; Delete Permanently removes a folder and everything below it, also with the server's always_delete_dir off; the README says Delete Permanently ignores always_delete_dir
+  - evidence: pytest test_delete_removes_a_folder_with_content_whatever_the_trash (always_delete_dir False) PASSED in tmp/workflows/delete-v1/logs/gate13-make-test.log; Galata 'ACC-DELETE-125-PERM-FOLDER Delete Permanently removes a folder with content' passed in gate13-default.log and gate13-venv.log; README.md line 23 names always_delete_dir
+  - test: always_delete_dir off, Delete Permanently on a folder holding files and subfolders, assert the folder is gone from disk; README names always_delete_dir
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-13T18:28:39Z @kj added
+  - log: 2026-11-13T21:26:31Z @kj closed
+  - log: 2026-11-15T21:38:28Z @kj reopened: reopened: owner ordered 2026-11-15: fix the adjudicator-refuted review findings (README); evidence retired: Galata 'ACC-DELETE-125-PERM-FOLDER Delete Permanently removes a folder with content' passed in logs/gate2-default.log and logs/gate2-venv.log; pytest test_delete_removes_a_folder_with_content_whatever_the_trash (always_delete_dir False, delete_to_trash True) PASSED in logs/gate2-make-test.log; the always_delete_dir-off half rests on pytest, the Galata server keeps always_delete_dir True
+  - log: 2026-11-15T21:38:29Z @kj edited text "Delete Permanently removes a folder and everything below it, also with the server's always_delete_dir off" -> "HIGH; Delete Permanently removes a folder and everything below it, also with the server's always_delete_dir off; the README says Delete Permanently ignores always_delete_dir"
+  - log: 2026-11-15T21:38:29Z @kj edited test "always_delete_dir off, Delete Permanently on a folder holding files and subfolders, assert the folder is gone from disk" -> "always_delete_dir off, Delete Permanently on a folder holding files and subfolders, assert the folder is gone from disk; README names always_delete_dir"
+  - log: 2026-11-16T05:01:58Z @kj closed; reason: gate13 2026-11-16, review round 14 SHIP
+- [x] `ACC-DELETE-126-TRASH-OFF` **Trash off keeps the stock dialog** - HIGH; with delete_to_trash off, the Delete dialog offers Cancel and Delete only, and Delete removes permanently as in stock JupyterLab
+  - evidence: Galata 'ACC-DELETE-126-TRASH-OFF trash off keeps Cancel and Delete, and Delete removes permanently' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest 'deleteButtons offers the stock Cancel and Delete with the trash off, Cancel the default' - delete-dialog.spec.ts PASS in logs/gate2-make-test.log
+  - test: server with delete_to_trash off, press Delete, assert two buttons, confirm, assert the file is gone from disk
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:28:39Z @kj added
+  - log: 2026-11-13T21:26:31Z @kj closed
+- [x] `ACC-DELETE-127-BUTTON-STYLE` **Destructive button marked** - LOW; Delete Permanently is a warn button in --jp-error-color1; Move to Trash is the filled accept button
+  - evidence: Galata 'ACC-DELETE-127-BUTTON-STYLE Delete Permanently is the warn button, Move to Trash the accept button' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest deleteButtons cases - delete-dialog.spec.ts PASS in logs/gate2-make-test.log
+  - test: open the dialog with trash on, assert jp-mod-warn on Delete Permanently and jp-mod-accept on Move to Trash
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:28:39Z @kj added
+  - log: 2026-11-13T21:26:31Z @kj closed
+- [x] `ACC-DELETE-128-LARGE-WARN` **Large-removal warning** - HIGH; with trash on and the selection totalling more than the large-removal threshold, the Delete dialog shows one warning line: Moving large files to the trash is not advised
+  - evidence: Galata 'ACC-DELETE-128-LARGE-WARN a selection above the threshold shows one warning line' passed in logs/gate2-default.log and logs/gate2-venv.log; pytest test_size_stops_past_the_threshold PASSED in logs/gate2-make-test.log
+  - test: lower the threshold in a test build, select a folder above it, open the dialog, assert the warning text
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-13T18:28:39Z @kj added
+  - log: 2026-11-13T21:26:31Z @kj closed
+- [x] `ACC-DELETE-129-WARN-NOTRASH` **Edge: no warning with trash off** - LOW; with delete_to_trash off, the Delete dialog shows no large-removal warning whatever the selection size
+  - evidence: Galata 'ACC-DELETE-129-WARN-NOTRASH trash off shows no warning for a large selection' passed in logs/gate2-default.log and logs/gate2-venv.log; the test selects a 2 MiB file that the size route reports as over the test threshold, not a folder as the test hint names
+  - test: trash off, select a folder above the threshold, open the dialog, assert no warning line
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:29:05Z @kj added
+  - log: 2026-11-13T21:26:32Z @kj closed
+- [x] `ACC-DELETE-130-THRESHOLD` **Threshold is a code constant** - MEDIUM; the large-removal threshold is 10 GiB (10737418240 bytes), set by one named constant in the extension source and absent from the settings editor
+  - evidence: pytest test_the_threshold_is_10_gib_and_not_a_setting PASSED in logs/gate2-make-test.log
+  - test: assert the constant equals 10737418240 and schema/plugin.json holds no threshold key
+  - test-tags: UNIT
+  - log: 2026-11-13T18:29:05Z @kj added
+  - log: 2026-11-13T21:26:32Z @kj closed
+- [x] `ACC-DELETE-131-SIZE-TREE` **Folder size counts its whole tree** - MEDIUM; the size compared with the threshold is the sum of the selected files and of every file below each selected folder
+  - evidence: pytest test_size_sums_the_files_of_a_tree PASSED in logs/gate2-make-test.log
+  - test: folder with 3 files in 2 levels, assert the counted size equals the sum of the 3 file sizes
+  - test-tags: UNIT
+  - log: 2026-11-13T18:29:06Z @kj added
+  - log: 2026-11-13T21:26:32Z @kj closed
+- [x] `ACC-DELETE-132-SIZE-SYMLINK` **Edge: symbolic link counted as itself** - MEDIUM; a symbolic link in the selection or below a selected folder adds its own size; its target is not followed
+  - evidence: pytest test_size_counts_a_link_as_itself PASSED in logs/gate2-make-test.log
+  - test: link to a 1 MB file inside a selected folder, assert the counted size excludes the 1 MB
+  - test-tags: UNIT
+  - log: 2026-11-13T18:29:06Z @kj added
+  - log: 2026-11-13T21:26:32Z @kj closed
+- [x] `ACC-DELETE-133-SIZE-NOWAIT` **Edge: dialog opens before the size count ends** - MEDIUM; the Delete dialog opens without waiting for the size count; the warning line appears once the count passes the threshold
+  - evidence: Galata 'ACC-DELETE-133-SIZE-NOWAIT the dialog opens before the size count answers' passed in logs/gate2-default.log and logs/gate2-venv.log
+  - test: slow the size route in a test, press Delete, assert the dialog shows before the route answers and the warning after
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:29:17Z @kj added
+  - log: 2026-11-13T21:26:33Z @kj closed
+  - log: 2026-11-15T21:38:41Z @kj owner decision 2026-11-15: delete/size returns only over; the bytes field only the tests read goes
+- [x] `ACC-DELETE-134-PROGRESS-SHOW` **Progress dialog for a slow removal** - HIGH; a removal not finished 1 s after the confirm shows a progress dialog, which stays at least 500 ms once shown; a removal that finishes sooner shows none
+  - evidence: Galata 'ACC-DELETE-134-PROGRESS-SHOW a slow removal shows the progress dialog, a quick one none' (100000-file tree) passed in tmp/workflows/delete-v1/logs/gate13-default.log and gate13-venv.log; Jest 'keeps the progress dialog 500 ms once shown: a removal ending 1.1 s after the confirm keeps it until 1.5 s' passed in gate13-jest-junit.xml
+  - test: delete a tree of 20000 files, assert the progress dialog; delete one small file, assert no progress dialog; Jest with fake timers: a removal ending 1.1 s after the confirm keeps the dialog until 1.5 s
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:29:18Z @kj added
+  - log: 2026-11-13T21:26:33Z @kj closed
+  - log: 2026-11-15T21:38:29Z @kj reopened: reopened: owner ordered 2026-11-15: fix the adjudicator-refuted review findings (overlay flash); evidence retired: Galata 'ACC-DELETE-134-PROGRESS-SHOW a slow removal shows the progress dialog, a quick one none' passed in logs/gate2-default.log and logs/gate2-venv.log
+  - log: 2026-11-15T21:38:29Z @kj edited text "a removal not finished 1 s after the confirm shows a progress dialog; a removal that finishes sooner shows none" -> "HIGH; a removal not finished 1 s after the confirm shows a progress dialog, which stays at least 500 ms once shown; a removal that finishes sooner shows none"
+  - log: 2026-11-15T21:38:29Z @kj edited test "delete a tree of 20000 files, assert the progress dialog; delete one small file, assert no progress dialog" -> "delete a tree of 20000 files, assert the progress dialog; delete one small file, assert no progress dialog; Jest with fake timers: a removal ending 1.1 s after the confirm keeps the dialog until 1.5 s"
+  - log: 2026-11-16T05:01:58Z @kj closed; reason: gate13 2026-11-16, review round 14 SHIP
+- [x] `ACC-DELETE-135-PROGRESS-SPINNER` **Spinner in the progress dialog** - HIGH; the progress dialog shows the lab spinner ring for as long as the removal runs
+  - evidence: Galata 'ACC-DELETE-135-PROGRESS-SPINNER the progress dialog shows the spinner until it closes' passed in logs/gate2-default.log and logs/gate2-venv.log
+  - test: delete a tree of 20000 files, assert .jp-Spinner inside the progress dialog until it closes
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:29:18Z @kj added
+  - log: 2026-11-13T21:26:33Z @kj closed
+- [x] `ACC-DELETE-136-PROGRESS-BAR` **Progress bar in the progress dialog** - HIGH; the progress dialog shows a progress bar with its percentage, which only rises and reaches 100 when the removal ends
+  - evidence: Galata 'ACC-DELETE-136-PROGRESS-BAR the percentage only rises and ends at 100' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest percent cases ('is 0 while the total is unknown', 'rounds down, so 100 shows only when everything is done', 'stays at 100 when the tree grew after the count') - delete-dialog.spec.ts PASS in logs/gate2-make-test.log; pytest test_delete_reports_rising_progress_and_drops_the_ended_job PASSED in logs/gate2-make-test.log
+  - test: delete a tree of 20000 files, sample the percentage, assert it never falls and ends at 100
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:29:18Z @kj added
+  - log: 2026-11-13T21:26:33Z @kj closed; reason: evidence names every covering test and the gate log it passed in
+- [x] `ACC-DELETE-137-PROGRESS-TITLE` **Progress dialog title** - LOW; the progress dialog title names the action and the item count: Moving N items to the trash, or Deleting N items
+  - evidence: Galata 'ACC-DELETE-137-PROGRESS-TITLE the progress title names the action and the count' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest 'progressTitle names the action and the item count' - delete-dialog.spec.ts PASS in logs/gate2-make-test.log
+  - test: delete 3 large folders with each option, assert the two titles
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:29:18Z @kj added
+  - log: 2026-11-13T21:26:34Z @kj closed
+- [x] `ACC-DELETE-138-PROGRESS-HIDE` **Hide keeps the removal running** - MEDIUM; the progress dialog's Hide button closes the dialog and the removal continues to the end
+  - evidence: Galata 'ACC-DELETE-138-PROGRESS-HIDE Hide closes the dialog and the removal goes on' passed in logs/gate2-default.log and logs/gate2-venv.log
+  - test: press Hide during a large removal, assert the dialog closes and the tree is gone afterwards
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:29:18Z @kj added
+  - log: 2026-11-13T21:26:34Z @kj closed
+  - log: 2026-11-15T21:38:41Z @kj owner decision 2026-11-15: remove the double-click guard on Hide, which covers a state a user cannot reach
+- [x] `ACC-DELETE-139-PROGRESS-END` **Progress dialog closes at the end** - MEDIUM; when the removal ends, the progress dialog closes and the listing no longer shows the removed items
+  - evidence: Galata 'ACC-DELETE-139-PROGRESS-END the progress dialog closes at the end and the rows are gone' passed in logs/gate2-default.log and logs/gate2-venv.log
+  - test: large removal, wait for the dialog to close, assert the rows are gone from the listing
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:29:18Z @kj added
+  - log: 2026-11-13T21:26:34Z @kj closed
+- [x] `ACC-DELETE-140-REMOVE-FAIL` **Edge: removal fails part way** - MEDIUM; a failed removal shows an error naming each path not removed, in one form for both modes: the path relative to the server root and a short reason in the extension's own words, 'reason unknown' when no reason maps, never a library message or absolute server path; the server log keeps the library message in both modes; a progress request failing after the job started names no path: one line says the removal may still be running and to refresh the listing, the browser console gets the error, and the title is Delete unless a path is reported; items removed before the failure stay removed
+  - evidence: Galata 'ACC-DELETE-140-REMOVE-FAIL a failed removal names the path and keeps the rest removed' passed in tmp/workflows/delete-v1/logs/gate13-default.log and gate13-venv.log (same line form, relative path, both modes; Move to Trash phase targets the locked folder itself); pytest reason wording and test_delete_logs_each_failure_with_the_library_message, test_trash_logs_a_failure_with_the_library_message PASSED; Jest failed-start, failed-poll (no path, prefixed console.warn, title Delete) and mixed-selection cases passed
+  - test: make one subfolder read-only, remove its parent with Delete Permanently and with Move to Trash, assert the same line form with the relative path; pytest: reason wording and one WARNING log line per failure in each mode, Delete Permanently and Move to Trash; Jest: a failed start names each path with 'reason unknown', a failed progress request after the start names none, logs to the console and titles the dialog Delete
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-13T18:29:18Z @kj added
+  - log: 2026-11-13T21:26:34Z @kj closed
+  - log: 2026-11-15T21:38:29Z @kj reopened: reopened: owner ordered 2026-11-15: fix the adjudicator-refuted review findings (failure wording); evidence retired: Galata 'ACC-DELETE-140-REMOVE-FAIL a failed removal names the path and keeps the rest removed' passed in logs/gate2-default.log and logs/gate2-venv.log; pytest test_delete_reports_what_it_cannot_remove_and_removes_the_rest PASSED in logs/gate2-make-test.log (not skipped: the run is non-root)
+  - log: 2026-11-15T21:38:29Z @kj edited text "a failed removal shows an error naming each path not removed; items removed before the failure stay removed" -> "MEDIUM; a failed removal shows an error naming each path not removed, in one form for both modes: the path relative to the server root and a short reason in the extension's own words, never a library message or absolute server path; items removed before the failure stay removed"
+  - log: 2026-11-15T21:38:29Z @kj edited test "make one subfolder read-only, Delete Permanently its parent, assert the error names that path" -> "make one subfolder read-only, remove its parent with Delete Permanently and with Move to Trash, assert the same line form with the relative path; Jest and pytest for the reason wording"
+  - log: 2026-11-15T23:32:05Z @kj edited text "a failed removal shows an error naming each path not removed, in one form for both modes: the path relative to the server root and a short reason in the extension's own words, never a library message or absolute server path; items removed before the failure stay removed" -> "a failed removal shows an error naming each path not removed, in one form for both modes: the path relative to the server root and a short reason in the extension's own words, 'reason unknown' when no reason maps, never a library message or absolute server path; the server log keeps the library message in both modes; a progress request failing after the job started names no path, one line says the listing shows what was removed; items removed before the failure stay removed"; test "make one subfolder read-only, remove its parent with Delete Permanently and with Move to Trash, assert the same line form with the relative path; Jest and pytest for the reason wording" -> "make one subfolder read-only, remove its parent with Delete Permanently and with Move to Trash, assert the same line form with the relative path; pytest: reason wording and one WARNING log line per failure in both modes; Jest: a failed start names each path with 'reason unknown', a failed progress request after the start names none"; reason: owner ordered round 11 findings 1, 3 and 4 fixed on 2026-11-16: server log line, 'reason unknown' fallback, no false path list after a failed progress request
+  - log: 2026-11-16T00:52:18Z @kj edited text "a failed removal shows an error naming each path not removed, in one form for both modes: the path relative to the server root and a short reason in the extension's own words, 'reason unknown' when no reason maps, never a library message or absolute server path; the server log keeps the library message in both modes; a progress request failing after the job started names no path, one line says the listing shows what was removed; items removed before the failure stay removed" -> "a failed removal shows an error naming each path not removed, in one form for both modes: the path relative to the server root and a short reason in the extension's own words, 'reason unknown' when no reason maps, never a library message or absolute server path; the server log keeps the library message in both modes; a progress request failing after the job started names no path: one line says the removal may still be running and to refresh the listing, the browser console gets the error, and the title is Delete unless a path is reported; items removed before the failure stay removed"; test "make one subfolder read-only, remove its parent with Delete Permanently and with Move to Trash, assert the same line form with the relative path; pytest: reason wording and one WARNING log line per failure in both modes; Jest: a failed start names each path with 'reason unknown', a failed progress request after the start names none" -> "make one subfolder read-only, remove its parent with Delete Permanently and with Move to Trash, assert the same line form with the relative path; pytest: reason wording and one WARNING log line per failure in each mode, Delete Permanently and Move to Trash; Jest: a failed start names each path with 'reason unknown', a failed progress request after the start names none, logs to the console and titles the dialog Delete"; reason: owner ordered round 12 findings 1-3 fixed on 2026-11-16: unread-progress line says the removal may still be running, the error goes to the browser console, title Delete when no path is reported
+  - log: 2026-11-16T01:45:16Z @kj owner decision 2026-11-16, round 13 finding: the poll-failure console.warn takes the extension prefix like every other console.warn in src/
+  - log: 2026-11-16T05:01:58Z @kj closed; reason: gate13 2026-11-16, review round 14 SHIP
+- [x] `ACC-DELETE-141-SAME-DIALOG` **Same dialog from key, menu and nested rows** - MEDIUM; the Delete key, the context-menu Delete and a Delete on rows of unfolded folders open the same dialog
+  - evidence: Galata 'ACC-DELETE-141-SAME-DIALOG key, menu and nested rows open the same dialog' passed in logs/gate2-default.log and logs/gate2-venv.log; the nested-actions.spec.ts tests (ACC-NESTED-77-OUTERMOST) also passed in both suites
+  - related: ACC-NESTED-77-OUTERMOST - the outermost-row rule the nested Delete keeps
+  - test: open the dialog by key, by menu and on a nested row, assert the same buttons each time
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T18:29:19Z @kj added
+  - log: 2026-11-13T21:26:35Z @kj closed
+- [x] `ACC-DELETE-142-TAB-CLOSE` **Permanent delete closes the removed file's tab** - MEDIUM; after a permanent removal, the open tab of each removed file closes without a save prompt; the tab of a file not removed stays open
+  - evidence: Galata 'ACC-DELETE-142-TAB-CLOSE Delete Permanently closes the tab of the removed file' passed in logs/gate2-default.log and logs/gate2-venv.log
+  - test: open a file in the editor, Delete Permanently, assert the file is gone from disk and its tab count is 0
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T20:17:09Z @kj added
+  - log: 2026-11-13T21:26:35Z @kj closed
+- [x] `ACC-DELETE-143-READ-ONLY` **Edge: read-only file removed permanently** - MEDIUM; Delete Permanently removes a read-only file and a link to a read-only target, as stock JupyterLab does; a missing path is reported and the other paths are still removed
+  - evidence: pytest test_delete_removes_a_read_only_file_and_reports_a_missing_path (a.txt, ro.txt mode 0444 and 'missing': both files gone, only 'missing' reported) PASSED in logs/gate2-make-test.log; matches the test hint; the criterion's 'link to a read-only target' clause has no test of its own (test_delete_unlinks_a_link_to_a_folder_and_keeps_the_target, also PASSED, covers a link to a writable folder)
+  - test: Delete Permanently on a.txt, ro.txt (mode 0444) and a missing path, assert both files gone and only the missing path reported
+  - test-tags: UNIT
+  - log: 2026-11-13T20:17:09Z @kj added
+  - log: 2026-11-13T21:26:35Z @kj closed
+- [x] `ACC-DELETE-144-ERROR-CAP` **Error list capped** - MEDIUM; the Delete Failed message names at most 10 paths not removed, then 'and N more' with the count of the rest
+  - evidence: Galata 'ACC-DELETE-144-ERROR-CAP the Delete Failed message names 10 paths, then the count of the rest' passed on the first attempt in logs/gate4-default.log and logs/gate4-venv.log; Jest 'notRemoved names at most 10 paths, then the count of the rest' and 'names every path up to 10 and counts one more past them' PASS in logs/gate4-make-test.log (test-tags UNIT and FUNCTIONAL both covered)
+  - test: Delete Permanently a folder whose read-only subfolder holds 25 files, assert 10 paths and 'and 15 more' in the message
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-13T21:45:46Z @kj added
+  - log: 2026-11-14T00:04:47Z @kj closed; reason: evidence names every covering test and the gate log it passed in
+  - log: 2026-11-15T20:16:00Z @kj owner decision 2026-11-15: keep the first 10 paths plus the count of the rest; the capped list meets ACC-DELETE-140-REMOVE-FAIL
+- [x] `ACC-DELETE-145-TRASH-PROGRESS` **Trash progress per whole item** - MEDIUM; Move to Trash progress advances only when an item ends, by equal item shares; the server reads no byte counts or trash info files during a move; one large item shows the spinner at 0% until it ends
+  - evidence: gate9 2026-11-15: pytest test_trash_moves_a_tree_on_one_device_without_walking_it and test_trash_progress_of_two_items_rises_by_whole_items passed, 41/41; Galata ACC-DELETE-136-PROGRESS-BAR passed in gate8 default and venv suites
+  - test: pytest: a one-device Move to Trash of a tree calls no _removal_size walk; two-item Move to Trash polls rise 0 -> 50 -> 100 by item; Galata ACC-DELETE-136-PROGRESS-BAR still green
+  - test-tags: UNIT
+  - log: 2026-11-13T21:45:47Z @kj added
+  - log: 2026-11-14T00:04:47Z @kj closed
+  - log: 2026-11-15T19:03:42Z @kj reopened: owner decision 2026-11-15 after review round 7: option (b), remove the byte sampling; the stock delete_file copies on the event loop so no poll is answered, and with core patches the move is a rename; evidence retired: pytest test_trash_reports_rising_bytes_while_it_copies_across_devices, test_trash_progress_of_two_items_never_falls_and_stays_below_100_until_done, test_trash_moves_a_tree_on_one_device_without_walking_it, test_trash_reports_a_failure_and_keeps_the_file and test_trash_reports_an_unexpected_exception_and_tries_the_next_items PASSED in logs/gate4-make-test.log (test-tags UNIT only)
+  - log: 2026-11-15T19:03:42Z @kj edited title "Trash progress inside one large item" -> "Trash progress per whole item"; text "moving one large folder to the trash where send2trash copies across devices shows a percentage that rises before the move ends; a same-device move ends at once" -> "MEDIUM; Move to Trash progress advances only when an item ends, by equal item shares; the server reads no byte counts or trash info files during a move; one large item shows the spinner at 0% until it ends"; test "force the cross-device copy on a tree of 2000 files, poll the job, assert a value between 0 and 100 before done" -> "pytest: no _trash_copy, _home_trash_infos or _sample in routes; two-item Move to Trash polls rise 0 -> 50 -> 100 by item; Galata ACC-DELETE-136 still green"
+  - log: 2026-11-15T19:03:47Z @kj edited test "pytest: no _trash_copy, _home_trash_infos or _sample in routes; two-item Move to Trash polls rise 0 -> 50 -> 100 by item; Galata ACC-DELETE-136 still green" -> "pytest: no _trash_copy, _home_trash_infos or _sample in routes; two-item Move to Trash polls rise 0 -> 50 -> 100 by item; Galata ACC-DELETE-136-PROGRESS-BAR still green"
+  - log: 2026-11-15T20:06:16Z @kj closed
+  - log: 2026-11-15T20:13:22Z @kj owner decision 2026-11-15: one-item Move to Trash keeps the bar at 0% with the spinner; round 1-3 finding rejected
+  - log: 2026-11-15T20:13:23Z @kj reopened: reopened 2026-11-15: owner ordered the name-absence pytest removed (round 8 finding b); evidence retired: gate7 2026-11-15: pytest test_trash_progress_of_two_items_rises_by_whole_items (0 -> 50 -> 100) and test_trash_progress_reads_no_bytes passed, 40/40; Galata ACC-DELETE-136-PROGRESS-BAR passed first attempt in default and venv suites (tmp/workflows/delete-v1/logs/gate7-*.log)
+  - log: 2026-11-15T20:13:23Z @kj edited test "pytest: no _trash_copy, _home_trash_infos or _sample in routes; two-item Move to Trash polls rise 0 -> 50 -> 100 by item; Galata ACC-DELETE-136-PROGRESS-BAR still green" -> "pytest: a one-device Move to Trash of a tree calls no _removal_size walk; two-item Move to Trash polls rise 0 -> 50 -> 100 by item; Galata ACC-DELETE-136-PROGRESS-BAR still green"
+  - log: 2026-11-15T21:26:31Z @kj closed
+- [x] `ACC-DELETE-146-SIBLING-VIEWS` **Permanent delete closes sibling views** - LOW; after a permanent removal, sibling views of a removed document close too, for example a notebook's cell output view, as stock Delete closes them
+  - evidence: Galata 'ACC-DELETE-146-SIBLING-VIEWS Delete Permanently closes the sibling views of a notebook' passed on the first attempt in logs/gate4-default.log and logs/gate4-venv.log (test-tags FUNCTIONAL)
+  - test: open a notebook, run notebook:create-output-view, Delete Permanently the notebook, assert both tabs closed
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-13T21:45:47Z @kj added
+  - log: 2026-11-14T00:04:47Z @kj closed
+- [x] `ACC-DELETE-147-FOLDER-TABS` **Removing a folder closes the tabs inside it** - LOW; after a folder is removed, permanently or to the trash, every open view of a file below it closes; a file below it that was not removed keeps its tab
+  - evidence: Galata 'ACC-DELETE-147-FOLDER-TABS removing a folder closes the tab of a file inside it' (delete.spec.ts:389; Delete Permanently on perm/ with perm/b.txt open, then Move to Trash on trash/ with trash/c.txt open; folder gone from disk and 0 tabs each time) passed on the first attempt in logs/gate5-venv.log, was flaky in logs/gate5-default.log (first attempt failed, retry #1 passed), and passed in a --retries=0 re-run on the default lab in logs/gate5-default-rerun.log (rc 0, 1 passed, 9.5 s). The first default attempt failed before any delete: openEditor (helpers.ts:568) timed out after 30 s waiting for the b.txt context to become ready, because POST /api/contents/.../perm/b.txt/checkpoints answered 500 at 10:16:14 with FileNotFoundError on os.stat of the checkpoint file jupyter_server had just copied (.ipynb_checkpoints/b-checkpoint.txt) under the 15-worker load (test-tags FUNCTIONAL)
+  - test: open a/b.txt, Delete Permanently folder a, assert the b.txt tab closed; repeat with Move to Trash
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-14T08:51:41Z @kj added
+  - log: 2026-11-14T09:33:47Z @kj closed; reason: evidence names every covering test and the gate log it passed in
+- [x] `ACC-DELETE-148-TRASH-LOG` **Unexpected trash failure logged** - LOW; an unexpected error (not an OSError) while an item is moved to the trash writes its traceback to the server log, besides the Delete Failed message
+  - evidence: pytest test_trash_reports_an_unexpected_exception_and_tries_the_next_items PASSED in logs/gate5-make-test.log: send2trash raises RuntimeError('unexpected') on f.txt and g.txt; asserts 2 'Traceback (most recent call last)' and 2 'RuntimeError: unexpected' in caplog (test_routes.py:441-442), both paths in the job report errors, both files still on disk (test-tags UNIT)
+  - test: patch send2trash to raise RuntimeError, Move to Trash a file, assert the traceback in the server log and the error in the job report
+  - test-tags: UNIT
+  - log: 2026-11-14T08:51:42Z @kj added
+  - log: 2026-11-14T09:33:48Z @kj closed
+- [x] `ACC-DELETE-149-TRASH-MANAGER` **Move to Trash goes through the contents manager** - HIGH; Move to Trash removes each item through the contents manager's delete, so a server patch of delete_file applies, such as the core patches rename into the mount trash in a worker thread under one lock; nothing calls send2trash directly
+  - evidence: gate7 2026-11-15: pytest test_trash_goes_through_the_contents_manager_delete_file and test_trash_is_refused_with_the_server_trash_off passed, 40/40; every Move to Trash Galata case passed first attempt in default and venv suites, all-volumes 1/1 in both
+  - test: patch AsyncFileContentsManager.delete_file to record calls, Move to Trash two items, assert both went through it and send2trash was not called by routes.py
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-14T09:33:51Z @kj added
+  - log: 2026-11-14T10:54:57Z @kj owner decision: keep the 400 refusal of a trash request while the server trash is off, so Move to Trash never deletes permanently
+  - log: 2026-11-15T20:06:17Z @kj closed
+- [x] `ACC-DELETE-150-FOLDER-KERNELS` **Removing a folder stops the kernels inside it** - MEDIUM; before a removal, every running notebook or document session whose path is a selected path or lies below a selected folder is shut down, in both modes; a console started from that folder keeps running; a session at exactly a selected path stops whatever its type
+  - evidence: gate7 2026-11-15: Galata delete.spec.ts:424 passed first attempt in default and venv suites; notebook session below the folder gone, console session below the folder still listed
+  - test: open a/n.ipynb with a kernel and start a console session at a/console-x, Delete Permanently folder a, assert GET api/sessions lists no session for a/n.ipynb and still lists a/console-x
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-14T09:34:36Z @kj added
+  - log: 2026-11-15T19:03:42Z @kj edited text "before a removal, every running session whose notebook is a selected path or lies below a selected folder is shut down, in both modes" -> "MEDIUM; before a removal, every running notebook or document session whose path is a selected path or lies below a selected folder is shut down, in both modes; a console started from that folder keeps running; a session at exactly a selected path stops whatever its type"; test "open a/n.ipynb with a kernel, Delete Permanently folder a, assert GET api/sessions lists no session for a/n.ipynb" -> "open a/n.ipynb with a kernel and start a console session at a/console-x, Delete Permanently folder a, assert GET api/sessions lists no session for a/n.ipynb and still lists a/console-x"
+  - log: 2026-11-15T19:03:42Z @kj owner decision 2026-11-15: apply review round 7 plan, console sessions below a removed folder keep running
+  - log: 2026-11-15T20:06:17Z @kj closed
+- [x] `ACC-DELETE-151-UNMONITORED` **No Move to Trash for an unmonitored location** - HIGH; an item is monitored when its mount, the longest /proc/self/mountinfo prefix of its real path, is the home trash's mount, the server root, or a folder in TrashManagement.locations (default [], ~ expanded, relative to the root); when no selected item is monitored, the dialog offers Cancel and Delete Permanently only and one line saying the trash of this location is not monitored
+  - evidence: Galata 'ACC-DELETE-151-UNMONITORED an unmonitored trash offers Cancel and Delete Permanently only' and ACC-DELETE-122-THREE-OPTIONS (monitored, three options, no line) passed in tmp/workflows/delete-v1/logs/gate13-default.log and gate13-venv.log; Jest not-monitored line present when no item is monitored, absent when monitored, passed; pytest test_trash_check_offers_the_trash_only_where_it_is_monitored PASSED
+  - mechanism: 2026-11-14T09:36:13Z @kj server extension reads serverapp.config TrashManagement.locations itself, resolves each as trash management does, and answers a check route before the dialog opens; the trash extension exposes no route or page config for it
+  - related: ACC-DELETE-122-THREE-OPTIONS - three options now only where the trash is monitored
+  - test: select a file on a mount outside the monitored trash locations, press Delete, assert Cancel and Delete Permanently only and the not-monitored line; a monitored file still gets three options and no such line
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-14T09:35:09Z @kj added; reason: owner decision 2026-11-14 stated in the body; the setting name and defaults follow from the trash management extension's answer
+  - log: 2026-11-14T09:35:09Z @kj explicit owner decision 2026-11-14: same setting and defaults as jupyterlab_trash_mgmt_extension's trash monitoring; for unmonitored locations (mounts) offer only delete; setting name pending that session's answer
+  - log: 2026-11-14T09:36:13Z @kj amended text "a selected item in a location whose trash the trash management extension does not monitor, by the same setting and defaults, gets no Move to Trash: the dialog offers Cancel and Delete Permanently only; one such item removes the option for the whole selection" -> "Move to Trash is offered only when every selected item's mount, the longest /proc/self/mountinfo prefix of its real path, is the home trash's mount, the server root, or a folder in the server option TrashManagement.locations (default [], ~ expanded, relative to the root); otherwise Cancel and Delete Permanently only"; reason: owner rule made concrete from the trash management extension's answer of 2026-11-14: same option and defaults
+  - log: 2026-11-15T20:06:17Z @kj closed
+  - log: 2026-11-15T21:38:30Z @kj reopened: reopened: owner ordered 2026-11-15: fix the adjudicator-refuted review findings (reason line, mixed selection in ACC-DELETE-156); evidence retired: gate7 2026-11-15: Galata delete.spec.ts:835 passed first attempt in default and venv suites; pytest test_trash_check_offers_the_trash_only_where_it_is_monitored passed, 40/40; Jest delete-dialog.spec.ts unmonitored case passed, 101/101
+  - log: 2026-11-15T21:38:30Z @kj edited text "Move to Trash is offered only when every selected item's mount, the longest /proc/self/mountinfo prefix of its real path, is the home trash's mount, the server root, or a folder in the server option TrashManagement.locations (default [], ~ expanded, relative to the root); otherwise Cancel and Delete Permanently only" -> "HIGH; an item is monitored when its mount, the longest /proc/self/mountinfo prefix of its real path, is the home trash's mount, the server root, or a folder in TrashManagement.locations (default [], ~ expanded, relative to the root); when no selected item is monitored, the dialog offers Cancel and Delete Permanently only and one line saying the trash of this location is not monitored"; reason: the mount rule and its three sources must stay exact
+  - log: 2026-11-15T21:38:30Z @kj edited test "select a file on a mount outside the monitored trash locations, press Delete, assert Cancel and Delete Permanently only; a monitored file still gets three options" -> "select a file on a mount outside the monitored trash locations, press Delete, assert Cancel and Delete Permanently only and the not-monitored line; a monitored file still gets three options and no such line"
+  - log: 2026-11-16T05:01:58Z @kj closed; reason: gate13 2026-11-16, review round 14 SHIP
+  - log: 2026-11-16T05:02:07Z @kj edited evidence "Galata 'ACC-DELETE-151-UNMONITORED an unmonitored trash offers Cancel and Delete Permanently only' and ACC-DELETE-122 (monitored, three options, no line) passed in tmp/workflows/delete-v1/logs/gate13-default.log and gate13-venv.log; Jest not-monitored line present when no item is monitored, absent when monitored, passed; pytest test_trash_check_offers_the_trash_only_where_it_is_monitored PASSED" -> "Galata 'ACC-DELETE-151-UNMONITORED an unmonitored trash offers Cancel and Delete Permanently only' and ACC-DELETE-122-THREE-OPTIONS (monitored, three options, no line) passed in tmp/workflows/delete-v1/logs/gate13-default.log and gate13-venv.log; Jest not-monitored line present when no item is monitored, absent when monitored, passed; pytest test_trash_check_offers_the_trash_only_where_it_is_monitored PASSED"; reason: full ids in the evidence, gate13 2026-11-16
+- [x] `ACC-DELETE-152-SYMLINK-MOUNT` **Edge: a file on a linked mount is deleted permanently** - HIGH; a file reached through a symbolic link to another mount, such as an NFS volume linked into the workspace, is judged by its real path: its mount is not monitored, the dialog offers Delete Permanently only, and the file is removed permanently, not trashed
+  - evidence: gate7 2026-11-15: Galata delete.spec.ts:866 passed first attempt in default and venv suites over a real link to the /tmp mount, check not stubbed; pytest test_trash_check_offers_the_trash_only_where_it_is_monitored passed, 40/40
+  - related: ACC-DELETE-151-UNMONITORED - the rule this edge applies
+  - test: link a folder on another mount into the root, select a file through the link, assert two buttons, confirm, assert the file is gone and no trash holds it
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-14T09:36:13Z @kj added
+  - log: 2026-11-14T09:36:13Z @kj owner statement 2026-11-14: a file in an NFS volume linked into the workspace is another mount and is deleted permanently, not trashed
+  - log: 2026-11-15T20:06:17Z @kj closed
+- [x] `ACC-DELETE-153-ALL-VOLUMES` **Config option trash_on_all_volumes** - HIGH; server config option c.AdvancedFileBrowser.trash_on_all_volumes, Bool, default False; True offers Move to Trash for every item whatever its mount and trashes it through the contents manager, which with the core patches delete fix on is the item's own volume trash; False keeps ACC-DELETE-151-UNMONITORED
+  - evidence: gate7 2026-11-15: Galata default False case delete.spec.ts:911 passed in default and venv suites; True case all-volumes.spec.ts:25 passed in the all-volumes runs, default and venv; pytest test_trash_on_all_volumes_offers_the_trash_on_another_mount passed, 40/40
+  - related: ACC-DELETE-151-UNMONITORED - the rule this option turns off; ACC-DELETE-149-TRASH-MANAGER - the trash path that reaches the volume trash through delete_file
+  - test: Galata, both values on a real test server: default False - a file on another sandbox mount gets Cancel and Delete Permanently only; True (second server config) - the same file gets three options, and after Move to Trash it is gone from its folder and present in a trash folder; pytest for the option read
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-14T09:37:45Z @kj added; reason: owner decision 2026-11-14 with its name, type, default and both behaviours
+  - log: 2026-11-14T09:37:45Z @kj explicit owner decision 2026-11-14: config file setting trash_follows_mounts, False by default; True always offers trash and always trashes to any given volume
+  - log: 2026-11-14T09:37:51Z @kj amended text "server config option c.AdvancedFileBrowser.trash_follows_mounts, Bool, default False; True offers Move to Trash for every item whatever its mount and trashes each into its own volume's trash; False keeps ACC-DELETE-151" -> "server config option c.AdvancedFileBrowser.trash_follows_mounts, Bool, default False; True offers Move to Trash for every item whatever its mount and trashes each into its own volume's trash; False keeps ACC-DELETE-151-UNMONITORED"
+  - log: 2026-11-14T09:39:26Z @kj renamed code "FOLLOW-MOUNTS" -> "ALL-VOLUMES"
+  - log: 2026-11-14T09:39:27Z @kj amended title "Config option trash_follows_mounts" -> "Config option trash_on_all_volumes"; text "server config option c.AdvancedFileBrowser.trash_follows_mounts, Bool, default False; True offers Move to Trash for every item whatever its mount and trashes each into its own volume's trash; False keeps ACC-DELETE-151-UNMONITORED" -> "server config option c.AdvancedFileBrowser.trash_on_all_volumes, Bool, default False; True offers Move to Trash for every item whatever its mount and trashes each into its own volume's trash; False keeps ACC-DELETE-151-UNMONITORED"
+  - log: 2026-11-14T09:39:27Z @kj edited test "pytest: default False keeps the monitored rule; True makes the check answer monitored for a path on another mount; Galata with the option True: a file on another mount gets three options and lands in that mount's trash" -> "pytest: default False keeps the monitored rule; trash_on_all_volumes True makes the check answer monitored for a path on another mount; Galata with the option True: a file on another mount gets three options and lands in that mount's trash"
+  - log: 2026-11-14T09:39:27Z @kj owner renamed the option 2026-11-14: trash_follows_mounts -> trash_on_all_volumes
+  - log: 2026-11-14T09:40:54Z @kj amended text "server config option c.AdvancedFileBrowser.trash_on_all_volumes, Bool, default False; True offers Move to Trash for every item whatever its mount and trashes each into its own volume's trash; False keeps ACC-DELETE-151-UNMONITORED" -> "server config option c.AdvancedFileBrowser.trash_on_all_volumes, Bool, default False; True offers Move to Trash for every item whatever its mount and trashes it through the contents manager, which with the core patches delete fix on is the item's own volume trash; False keeps ACC-DELETE-151-UNMONITORED"; reason: no dependency on core patches, so the volume trash holds only with its delete fix on
+  - log: 2026-11-14T09:40:54Z @kj owner 2026-11-14: functionally test the option; no dependency on core patches (request withdrawn)
+  - log: 2026-11-14T09:41:29Z @kj edited test "pytest: default False keeps the monitored rule; trash_on_all_volumes True makes the check answer monitored for a path on another mount; Galata with the option True: a file on another mount gets three options and lands in that mount's trash" -> "Galata, both values on a real test server: default False - a file on another sandbox mount gets Cancel and Delete Permanently only; True (second server config) - the same file gets three options, and after Move to Trash it is gone from its folder and present in a trash folder; pytest for the option read"; reason: the owner asked for a functional test of both option values; the line names both cases
+  - log: 2026-11-15T20:06:17Z @kj closed
+  - log: 2026-11-15T20:13:28Z @kj owner decision 2026-11-15: ui-tests/README.md names the all-volumes Galata command (round 8 finding c)
+- [x] `ACC-DELETE-154-CORE-OPTIONAL` **Core patches optional** - HIGH; no declared dependency on jupyterlab_core_patches_extension; Move to Trash goes through delete_file, so its delete fix renames into the mount trash when on, stock behaviour otherwise; README recommends it; with the server trash on and its delete_file wrapper not installed, the server logs one start line saying not installed
+  - evidence: gate9 2026-11-15: pytest test_core_patches_is_not_a_dependency, test_start_names_a_core_patches_delete_fix_that_is_not_installed (3 rows) and test_start_check_passes_a_contents_manager_without_delete_to_trash passed, 41/41; all-volumes Galata servers logged no start line
+  - related: ACC-DELETE-149-TRASH-MANAGER and ACC-DELETE-153-ALL-VOLUMES - both rely on its delete_file wrapper
+  - test: assert pyproject.toml lists no jupyterlab_core_patches_extension; pytest: trash on and wrapper absent - one start line saying not installed; wrapper present - no line; trash off, or a contents manager without delete_to_trash - no line and no error
+  - test-tags: UNIT
+  - log: 2026-11-14T09:41:29Z @kj added
+  - log: 2026-11-14T09:41:29Z @kj explicit owner decision 2026-11-14: this extension depends on core patches
+  - log: 2026-11-14T09:42:46Z @kj renamed code "CORE-PATCHES" -> "CORE-OPTIONAL"
+  - log: 2026-11-14T09:42:46Z @kj amended title "Depends on core patches" -> "Core patches optional"; text "the Python package depends on jupyterlab_core_patches_extension, floor at the release that added the jupyterlab_file_delete_trash_fix switch, ceiling below 2, so Move to Trash of an item on another mount is a rename into that mount's trash" -> "no declared dependency on jupyterlab_core_patches_extension; Move to Trash goes through delete_file, so its delete fix renames into the mount trash when on and stock behaviour applies otherwise; the README recommends it; the server logs one line at start when the fix is not active"; reason: owner chose the optional relation with stock fallback 2026-11-14, replacing the hard dependency
+  - log: 2026-11-14T09:42:46Z @kj edited test "read the installed distribution's requirements with importlib.metadata, assert jupyterlab_core_patches_extension with that floor; pip install of the wheel pulls it in" -> "assert pyproject.toml lists no jupyterlab_core_patches_extension; pytest: with the delete_file wrapper absent the startup log names the missing fix, with it present no such line"
+  - log: 2026-11-14T09:42:46Z @kj owner decision 2026-11-14: core patches optional, fall back to stock; keeps the extension lightweight
+  - log: 2026-11-15T20:06:17Z @kj closed
+  - log: 2026-11-15T20:13:23Z @kj reopened: reopened 2026-11-15: owner ordered round 8 findings a and e fixed; evidence retired: gate7 2026-11-15: pytest test_core_patches_is_not_a_dependency and test_start_names_a_core_patches_delete_fix_that_is_not_active[False-1] and [True-0] passed, 40/40; four Galata servers with the fix on logged no warning line
+  - log: 2026-11-15T20:13:27Z @kj edited text "no declared dependency on jupyterlab_core_patches_extension; Move to Trash goes through delete_file, so its delete fix renames into the mount trash when on and stock behaviour applies otherwise; the README recommends it; the server logs one line at start when the fix is not active" -> "HIGH; no declared dependency on jupyterlab_core_patches_extension; Move to Trash goes through delete_file, so its delete fix renames into the mount trash when on, stock behaviour otherwise; README recommends it; with the server trash on and its delete_file wrapper not installed, the server logs one start line saying not installed"
+  - log: 2026-11-15T20:13:27Z @kj edited test "assert pyproject.toml lists no jupyterlab_core_patches_extension; pytest: with the delete_file wrapper absent the startup log names the missing fix, with it present no such line" -> "assert pyproject.toml lists no jupyterlab_core_patches_extension; pytest: trash on and wrapper absent - one start line saying not installed; wrapper present - no line; trash off and wrapper absent - no line"
+  - log: 2026-11-15T21:15:01Z @kj owner decision 2026-11-15: fix round 9 findings - the start check reads delete_to_trash with getattr default False, so a contents manager without it gives no line and no error
+  - log: 2026-11-15T21:15:01Z @kj edited test "assert pyproject.toml lists no jupyterlab_core_patches_extension; pytest: trash on and wrapper absent - one start line saying not installed; wrapper present - no line; trash off and wrapper absent - no line" -> "assert pyproject.toml lists no jupyterlab_core_patches_extension; pytest: trash on and wrapper absent - one start line saying not installed; wrapper present - no line; trash off, or a contents manager without delete_to_trash - no line and no error"
+  - log: 2026-11-15T21:26:31Z @kj closed
+- [x] `ACC-DELETE-155-FIRST-CHECK` **First progress check without a wait** - MEDIUM; a removal asks for its job state right after it starts, then every 250 ms; one small file leaves the listing without a fixed 250 ms wait
+  - evidence: Jest 'the removal Move to Trash asks for the job state at once, then every 250 ms' and the Delete Permanently twin passed in tmp/workflows/delete-v1/logs/gate13-jest-junit.xml; Galata ACC-DELETE-134-PROGRESS-SHOW quick-removal case (no dialog) passed in gate13-default.log and gate13-venv.log
+  - test: Jest with fake timers: the first job poll runs at 0 ms, later polls every 250 ms; Galata ACC-DELETE-134-PROGRESS-SHOW small-file case still shows no dialog
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-15T21:38:35Z @kj added
+  - log: 2026-11-16T05:01:58Z @kj closed; reason: gate13 2026-11-16, review round 14 SHIP
+  - log: 2026-11-16T05:02:07Z @kj edited evidence "Jest 'the removal Move to Trash asks for the job state at once, then every 250 ms' and the Delete Permanently twin passed in tmp/workflows/delete-v1/logs/gate13-jest-junit.xml; Galata ACC-DELETE-134 quick-removal case (no dialog) passed in gate13-default.log and gate13-venv.log" -> "Jest 'the removal Move to Trash asks for the job state at once, then every 250 ms' and the Delete Permanently twin passed in tmp/workflows/delete-v1/logs/gate13-jest-junit.xml; Galata ACC-DELETE-134-PROGRESS-SHOW quick-removal case (no dialog) passed in gate13-default.log and gate13-venv.log"; reason: full ids in the evidence, gate13 2026-11-16
+- [x] `ACC-DELETE-156-MIXED-SELECTION` **Mixed selection keeps Move to Trash** - HIGH; a selection holding monitored and unmonitored items offers the three options, and the first dialog adds one line: N of the selected items are on a location whose trash is not monitored and are asked about after Move to Trash; Move to Trash moves the monitored items, then a second dialog lists the other items and asks to delete them permanently, Cancel the default, which leaves them in place
+  - evidence: Galata 'ACC-DELETE-156-MIXED-SELECTION Move to Trash moves the monitored file, then a second dialog asks for the other' (real /tmp mount, count line asserted, Cancel keeps, Delete Permanently removes) passed in tmp/workflows/delete-v1/logs/gate13-default.log and gate13-venv.log; Jest mixed-selection cases (count line, second dialog, cap) passed; pytest per-path trash-check PASSED
+  - related: ACC-DELETE-151-UNMONITORED
+  - test: Galata: select a monitored file and a file on the /tmp mount, assert the first dialog's not-monitored count line, Move to Trash, assert the first in the trash and the second dialog; Cancel keeps the second file; a repeat with Delete Permanently removes it; Jest asserts the line
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-15T21:38:36Z @kj added
+  - log: 2026-11-15T23:32:11Z @kj edited text "a selection holding monitored and unmonitored items offers the three options; Move to Trash moves the monitored items to the trash, then a second dialog lists the other items and asks to delete them permanently, Cancel the default, which leaves them in place" -> "a selection holding monitored and unmonitored items offers the three options, and the first dialog adds one line: N of the selected items are on a location whose trash is not monitored and are asked about after Move to Trash; Move to Trash moves the monitored items, then a second dialog lists the other items and asks to delete them permanently, Cancel the default, which leaves them in place"; test "Galata: select a monitored file and a file on the /tmp mount, Move to Trash, assert the first in the trash and the second dialog; Cancel keeps the second file; a repeat with Delete Permanently removes it" -> "Galata: select a monitored file and a file on the /tmp mount, assert the first dialog's not-monitored count line, Move to Trash, assert the first in the trash and the second dialog; Cancel keeps the second file; a repeat with Delete Permanently removes it; Jest asserts the line"; reason: owner ordered round 11 finding 2 fixed on 2026-11-16: the first dialog names the count Move to Trash does not move
+  - log: 2026-11-16T05:01:58Z @kj closed; reason: gate13 2026-11-16, review round 14 SHIP
+

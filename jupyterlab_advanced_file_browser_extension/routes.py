@@ -1,17 +1,71 @@
 """
-API handlers for drag-and-drop path resolution.
+API handlers for drag-and-drop path resolution and the permanent delete.
 
 ``terminal-cwd/<name>`` returns the current working directory of a terminal,
 used to turn an absolute path into a path relative to that terminal.
+
+``delete/size``, ``delete`` and ``delete/<id>`` size a selection against
+``LARGE_REMOVAL_BYTES``, start a removal to the trash or a permanent one and
+report its progress. ``delete/trash-check`` says for each item of a selection whether
+the trash management extension monitors its trash, so Move to Trash may be offered.
+
+``AdvancedFileBrowser`` holds the server options of this extension.
 """
+import asyncio
+import errno
 import json
 import os
+import re
+import stat
 import subprocess
 import sys
+import uuid
 
+from jupyter_core.paths import is_hidden
 from jupyter_server.base.handlers import APIHandler
-from jupyter_server.utils import url_path_join
+from jupyter_server.utils import ensure_async, to_api_path, url_path_join
 import tornado
+from traitlets import Bool
+from traitlets.config import Configurable
+
+try:
+    from send2trash import plat_other
+except (ImportError, AttributeError):  # Windows: the module calls os.getuid on import
+    plat_other = None
+
+# A selection above this many bytes gets the warning that the trash is not advised.
+# Not a setting; the Galata server config lowers it by assigning this module name.
+LARGE_REMOVAL_BYTES = 10 * 1024 ** 3
+
+# The mount table of this process, read as core patches reads it.
+_MOUNTINFO = "/proc/self/mountinfo"
+
+# The Delete Failed reasons in this extension's words, by the errno of the failure.
+_REASONS = {
+    errno.EACCES: "permission denied",
+    errno.EPERM: "permission denied",
+    errno.ENOENT: "not found",
+    errno.EBUSY: "in use",
+}
+
+# shortcut: a job leaves memory only through the GET that reports it done, so a job whose
+# page closed mid-removal stays; add an expiry if abandoned jobs ever accumulate.
+_jobs: dict[str, dict] = {}
+_tasks: set[asyncio.Task] = set()
+
+
+class AdvancedFileBrowser(Configurable):
+    """The server options of this extension, set as ``c.AdvancedFileBrowser.<name>``."""
+
+    trash_on_all_volumes = Bool(
+        False,
+        config=True,
+        help=(
+            "Offer Move to Trash for every item whatever its mount, and move it through the"
+            " contents manager's delete; False offers it only where the trash management"
+            " extension monitors the trash (TrashManagement.locations)."
+        ),
+    )
 
 class HelloRouteHandler(APIHandler):
     # The following decorator should be present on all verb methods (head, get, post,
@@ -352,7 +406,257 @@ class TerminalCwdHandler(APIHandler):
         return None
 
 
-def setup_route_handlers(web_app):
+def _request_paths(handler: APIHandler) -> list[str]:
+    """The API paths of the request body ``{"paths": [...]}``."""
+    body = handler.get_json_body()
+    paths = body.get("paths") if isinstance(body, dict) else None
+    if not paths or not isinstance(paths, list) or not all(isinstance(p, str) for p in paths):
+        raise tornado.web.HTTPError(400, "Expected a non-empty list of paths")
+    return [path.strip("/") for path in paths]
+
+
+def _removal_size(os_paths: list[str]) -> int:
+    """Bytes of the files and links at or below `os_paths`, counted until the
+    sum passes LARGE_REMOVAL_BYTES; links are counted as themselves, never followed."""
+    total = 0
+    stack = list(os_paths)
+    while stack and total <= LARGE_REMOVAL_BYTES:
+        path = stack.pop()
+        try:
+            info = os.lstat(path)
+            if stat.S_ISDIR(info.st_mode):
+                with os.scandir(path) as entries:
+                    stack.extend(entry.path for entry in entries)
+            else:
+                total += info.st_size
+        except OSError:
+            pass
+    return total
+
+
+def _bottom_up(top: str, onerror=None):
+    """Yield `(path, is_folder)` for `top` and everything below it, each folder
+    after its content; a link is an entry of its own and is never followed."""
+    is_folder = os.path.isdir(top) and not os.path.islink(top)
+    if is_folder:
+        for folder, folders, files in os.walk(top, topdown=False, onerror=onerror):
+            for name in files:
+                yield os.path.join(folder, name), False
+            for name in folders:
+                path = os.path.join(folder, name)
+                yield path, not os.path.islink(path)
+    yield top, is_folder
+
+
+def _reason(error: BaseException | None) -> str:
+    """The Delete Failed reason for `error`, never the library's message, which can hold an
+    absolute server path: an HTTPError of the contents manager's delete by its status, or by
+    the OSError behind it (send2trash failed); an OSError by its errno."""
+    if isinstance(error, tornado.web.HTTPError):
+        reason = {403: "permission denied", 404: "not found"}.get(error.status_code)
+        return reason or _reason(error.__cause__)
+    return _REASONS.get(getattr(error, "errno", None), "reason unknown")
+
+
+def _remove(job: dict, root: str, os_paths: list[str], log) -> None:
+    """Remove `os_paths` and everything below them, counting into `job`."""
+    job["total"] = sum(1 for top in os_paths for _ in _bottom_up(top))
+    # Failures already reported, and the folders kept only because something below failed.
+    explained: set[str] = set()
+
+    def fail(error: OSError) -> None:
+        path = error.filename
+        if path not in explained:
+            # The library's message reaches the server log only, as in _trash.
+            log.warning("Delete of %s failed: %s", path, error)
+            job["errors"].append({"path": to_api_path(path, root), "message": _reason(error)})
+        explained.update((path, os.path.dirname(path)))
+
+    for top in os_paths:
+        for path, is_folder in _bottom_up(top, fail):
+            try:
+                if is_folder:
+                    os.rmdir(path)
+                else:
+                    os.unlink(path)
+                job["removed"] += 1
+            except OSError as error:
+                fail(error)
+
+
+async def _trash(job: dict, contents_manager, paths: list[str], os_paths: list[str], log) -> None:
+    """Move `paths` to the trash through the contents manager's delete, so the server's
+    delete_file runs with its checks and any patch of it, counting one equal share per item
+    into `job` when the item ends."""
+    job["total"] = len(paths)
+    for index, (path, os_path) in enumerate(zip(paths, os_paths)):
+        try:
+            await ensure_async(contents_manager.delete(path))
+        except tornado.web.HTTPError as error:
+            # Never a permanent removal in its place: the item stays. The library's message
+            # reaches the server log only.
+            log.warning("Move to trash of %s failed: %s", os_path, error)
+            job["errors"].append({"path": path, "message": _reason(error)})
+        except Exception as error:
+            # Any other fault is reported for this item too, and the next items are still moved.
+            log.exception("Move to trash of %s failed", os_path)
+            job["errors"].append({"path": path, "message": _reason(error)})
+        job["removed"] = index + 1
+
+
+async def _run_removal(
+    job: dict, contents_manager, paths: list[str], os_paths: list[str], trash: bool, log
+) -> None:
+    try:
+        if trash:
+            await _trash(job, contents_manager, paths, os_paths, log)
+        else:
+            await asyncio.get_running_loop().run_in_executor(
+                None, _remove, job, os.path.abspath(contents_manager.root_dir), os_paths, log
+            )
+            # As ContentsManager.delete does for the path it removes.
+            for path, os_path in zip(paths, os_paths):
+                if not os.path.lexists(os_path):
+                    await ensure_async(contents_manager.checkpoints.delete_all_checkpoints(path))
+    except Exception:
+        log.exception("Delete of %s failed", paths)
+    finally:
+        job["done"] = True
+
+
+def _mounts() -> list[str]:
+    """The mount points of `_MOUNTINFO`, in file order, with their octal escapes decoded."""
+    with open(_MOUNTINFO, "rb") as f:
+        text = os.fsdecode(f.read())
+    return [
+        re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), line.split()[4])
+        for line in text.splitlines()
+    ]
+
+
+def _mount_point(path: str, mounts: list[str]) -> str:
+    """The longest mount point that is a path prefix of `path`."""
+    return max(
+        (m for m in mounts if path == m or path.startswith(m.rstrip("/") + "/")),
+        key=len,
+        default="/",
+    )
+
+
+def _trash_monitored(os_paths: list[str], root: str, locations: list[str]) -> list[bool]:
+    """Whether the trash management extension monitors the trash of each path: the mount of
+    the real path of its folder, joined with its name, is the home trash's mount, or is the
+    server root or a folder of `locations` (each ~-expanded, a relative one taken from the
+    root). A link is judged where it lies; a path below a link, by the link's target. Without
+    a mount table to read (another platform) the trash stays offered, as stock."""
+    try:
+        mounts = _mounts()
+    except OSError:
+        return [True] * len(os_paths)
+    # The home trash folder, or its nearest existing parent.
+    home_trash = os.path.realpath(plat_other.HOMETRASH)
+    while not os.path.exists(home_trash):
+        home_trash = os.path.dirname(home_trash)
+    root = os.path.realpath(root)
+    monitored = {_mount_point(home_trash, mounts), root}
+    monitored.update(
+        os.path.realpath(os.path.join(root, os.path.expanduser(location))) for location in locations
+    )
+    return [
+        _mount_point(
+            os.path.join(os.path.realpath(os.path.dirname(path)), os.path.basename(path)), mounts
+        )
+        in monitored
+        for path in os_paths
+    ]
+
+
+class DeleteTrashCheckHandler(APIHandler):
+    """For each path of a selection, in order, whether the trash management extension monitors
+    its trash, by its server option ``TrashManagement.locations``: Move to Trash is offered for
+    a selection with a monitored item and moves only those, and with
+    ``AdvancedFileBrowser.trash_on_all_volumes`` every item is monitored."""
+
+    def initialize(self, trash_on_all_volumes: bool) -> None:
+        self.trash_on_all_volumes = trash_on_all_volumes
+
+    @tornado.web.authenticated
+    async def post(self):
+        os_paths = [self.contents_manager._get_os_path(path) for path in _request_paths(self)]
+        # That extension's option, from the server's own config.
+        locations = self.serverapp.config.get("TrashManagement", {}).get("locations", [])
+        # With trash_on_all_volumes every path answers monitored; the mount table is not read.
+        monitored = (
+            [True] * len(os_paths)
+            if self.trash_on_all_volumes
+            else await asyncio.get_running_loop().run_in_executor(
+                None, _trash_monitored, os_paths, self.contents_manager.root_dir, locations
+            )
+        )
+        self.finish(json.dumps({"monitored": monitored}))
+
+
+class DeleteSizeHandler(APIHandler):
+    """Whether a selection is larger than LARGE_REMOVAL_BYTES."""
+
+    @tornado.web.authenticated
+    async def post(self):
+        os_paths = [self.contents_manager._get_os_path(path) for path in _request_paths(self)]
+        size = await asyncio.get_running_loop().run_in_executor(None, _removal_size, os_paths)
+        self.finish(json.dumps({"over": size > LARGE_REMOVAL_BYTES}))
+
+
+class DeleteHandler(APIHandler):
+    """Start a removal: to the trash when the body says ``"trash": true``, through the contents
+    manager's delete, else permanent, whatever delete_to_trash and always_delete_dir say."""
+
+    @tornado.web.authenticated
+    async def post(self):
+        contents_manager = self.contents_manager
+        paths = _request_paths(self)
+        trash = self.get_json_body().get("trash") is True
+        # With the trash off the contents manager's delete removes permanently.
+        if trash and not contents_manager.delete_to_trash:
+            raise tornado.web.HTTPError(400, "The server's trash is off")
+        os_paths = []
+        root = os.path.abspath(contents_manager.root_dir)
+        for path in paths:
+            # _get_os_path normalises, so '', '.' and 'a/..' all name the root.
+            os_path = contents_manager._get_os_path(path)
+            if os_path == root:
+                raise tornado.web.HTTPError(400, "Can't delete root")
+            if not contents_manager.allow_hidden and is_hidden(os_path, contents_manager.root_dir):
+                raise tornado.web.HTTPError(400, "Cannot delete file or directory %r" % path)
+            os_paths.append(os_path)
+        job_id = uuid.uuid4().hex
+        job = _jobs[job_id] = {"total": 0, "removed": 0, "done": False, "errors": []}
+        task = asyncio.ensure_future(
+            _run_removal(job, contents_manager, paths, os_paths, trash, self.log)
+        )
+        # The event loop keeps only a weak reference to a task.
+        _tasks.add(task)
+        task.add_done_callback(_tasks.discard)
+        self.set_status(202)
+        self.finish(json.dumps({"id": job_id}))
+
+
+class DeleteJobHandler(APIHandler):
+    """Progress of a removal: total, removed and done; the errors once done."""
+
+    @tornado.web.authenticated
+    def get(self, job_id: str):
+        job = _jobs.get(job_id)
+        if job is None:
+            raise tornado.web.HTTPError(404, "Unknown delete job")
+        if job["done"]:
+            del _jobs[job_id]
+            self.finish(json.dumps(job))
+        else:
+            # The errors go once, in the report that says done, not on every poll.
+            self.finish(json.dumps({key: value for key, value in job.items() if key != "errors"}))
+
+
+def setup_route_handlers(web_app, options: AdvancedFileBrowser):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
 
@@ -363,9 +667,18 @@ def setup_route_handlers(web_app):
         "terminal-cwd",
         "([^/]+)"  # terminal_name parameter
     )
+    delete_route = url_path_join(base_url, "jupyterlab-advanced-file-browser-extension", "delete")
     handlers = [
         (hello_route_pattern, HelloRouteHandler),
         (terminal_cwd_route, TerminalCwdHandler),
+        (url_path_join(delete_route, "size"), DeleteSizeHandler),
+        (
+            url_path_join(delete_route, "trash-check"),
+            DeleteTrashCheckHandler,
+            {"trash_on_all_volumes": options.trash_on_all_volumes},
+        ),
+        (delete_route, DeleteHandler),
+        (url_path_join(delete_route, "([0-9a-f]{32})"), DeleteJobHandler),
     ]
 
     web_app.add_handlers(host_pattern, handlers)

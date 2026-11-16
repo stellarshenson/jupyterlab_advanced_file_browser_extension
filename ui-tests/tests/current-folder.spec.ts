@@ -13,6 +13,7 @@ import {
   rowLocator,
   SERVER_TIMEOUT,
   seedTree,
+  serverRoot,
   setUnfolding,
   unfold,
   visibleRows
@@ -150,11 +151,7 @@ test('DEF-FOLDER-7-RESORT a Down press into another folder keeps the row order',
   // About 3000 rows, written straight into the server root: one contents API call per file takes minutes
   // d10 to d20: the byte order of the names is the numeric order
   const folders = Array.from({ length: 11 }, (_, k) => `d${10 + k}`);
-  const root: string = await page.evaluate(
-    () =>
-      JSON.parse(document.getElementById('jupyter-config-data')!.textContent!)
-        .serverRoot
-  );
+  const root = await serverRoot(page);
   for (const folder of folders) {
     mkdirSync(join(root, tmpPath, folder));
     for (let i = 0; i < 270; i++) {
@@ -293,11 +290,7 @@ test('DEF-FOLDER-14-OVERLAY-SCROLLBAR a press on an overlay scrollbar keeps the 
 }) => {
   await setup(page, tmpPath, true);
   // 40 more rows in a make the listing scroll; written straight into the server root
-  const root: string = await page.evaluate(
-    () =>
-      JSON.parse(document.getElementById('jupyter-config-data')!.textContent!)
-        .serverRoot
-  );
+  const root = await serverRoot(page);
   for (let i = 0; i < 40; i++) {
     writeFileSync(join(root, tmpPath, 'a', `f${10 + i}.txt`), 'f');
   }

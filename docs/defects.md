@@ -250,6 +250,16 @@ File browser actions on rows inside unfolded folders act on the item's own path
   - root-cause: 2026-11-13T17:59:38Z @kj ui-tests/jupyter_server_test_config.py leaves delete_to_trash True; send2trash then targets /.Trash-1000 on the root-owned mount of the test root
   - log: 2026-11-13T17:59:38Z @kj added
   - log: 2026-11-13T18:11:19Z @kj closed
+  - log: 2026-11-13T21:05:22Z @kj cause removed differently by the Delete with trash campaign: the Galata root moved under HOME and delete_to_trash is on again, so send2trash uses the home trash on the same filesystem
+- [x] `DEF-NESTED-35-TEST-ROOT` **Test seeds read the shortened server root** - MINOR; with the Galata root under HOME the page config serverRoot reads ~/galata-test-X; terminalCwd in helpers.ts and two current-folder.spec.ts seeds use it as a path, so 9 tests fail in both full suites; the extension's paths are right
+  - evidence: terminalCwd in helpers.ts and both current-folder.spec.ts seeds read serverRoot(page); the 9 tests passed first time in tmp/workflows/delete-v1/logs/gate2-default.log and gate2-venv.log, both suites 0 failed
+  - related: DEF-NESTED-34-TEST-TRASH - its fix moved the Galata root under HOME
+  - repro: full run-galata.sh suite with the Galata root under HOME; fails ACC-FOLDER-93-CRUMB-TERM, ACC-TERM-56-FILECWD, ACC-TERM-57-EMPTYCWD, ACC-TERM-58-NOSELECT, ACC-TERM-59-SUBNAV, ACC-TERM-60-ROOT, ACC-TERM-62-MULTI, DEF-FOLDER-7-RESORT, DEF-FOLDER-14-OVERLAY-SCROLLBAR
+  - test-tags: FUNCTIONAL
+  - root-cause: 2026-11-13T21:05:22Z @kj jupyter_server shortens a root under HOME to ~ in serverRoot; Node mkdirSync and the cwd strip do not expand ~; the existing serverRoot(page) helper reads the expanded advancedFileBrowserServerRoot
+  - log: 2026-11-13T21:05:22Z @kj added
+  - log: 2026-11-13T21:05:34Z @kj edited repro "run-galata.sh full suite with ui-tests/jupyter_server_test_config.py rooting the server under HOME; ACC-TERM-56 to 60 and 62, ACC-FOLDER-93, DEF-FOLDER-7 and DEF-FOLDER-14 fail" -> "full run-galata.sh suite with the Galata root under HOME; fails ACC-FOLDER-93-CRUMB-TERM, ACC-TERM-56-FILECWD, ACC-TERM-57-EMPTYCWD, ACC-TERM-58-NOSELECT, ACC-TERM-59-SUBNAV, ACC-TERM-60-ROOT, ACC-TERM-62-MULTI, DEF-FOLDER-7-RESORT, DEF-FOLDER-14-OVERLAY-SCROLLBAR"
+  - log: 2026-11-13T21:26:35Z @kj closed
 
 ## Folder unfolding `UNFOLD`
 

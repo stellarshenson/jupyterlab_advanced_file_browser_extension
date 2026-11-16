@@ -107,6 +107,7 @@ const plugin: JupyterFrontEndPlugin<IFileBrowserFactory> = {
         translator,
         auto: options.auto ?? true,
         manager: docManager,
+        shell: app.shell,
         driveName: options.driveName || '',
         refreshInterval: options.refreshInterval,
         refreshStandby: () => (info && !info.isConnected) || 'when-hidden',

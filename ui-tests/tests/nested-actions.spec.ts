@@ -113,7 +113,10 @@ test('ACC-NESTED-37-DELETE delete removes only the nested item', async ({
 
   const menu = await openItemMenu(page, `${tmpPath}/a/x.txt`);
   await menuItem(menu, 'filebrowser:delete').click();
-  await page.locator('.jp-Dialog .jp-mod-accept').click();
+  await page
+    .locator('.jp-Dialog')
+    .getByRole('button', { name: 'Move to Trash', exact: true })
+    .click();
 
   await expect
     .poll(() => page.contents.fileExists(`${tmpPath}/a/x.txt`), {
@@ -240,7 +243,9 @@ test('ACC-NESTED-77-OUTERMOST a folder selected with its own rows acts once', as
   const deleted = run(page, 'filebrowser:delete');
   const dialog = page.locator('.jp-Dialog');
   await expect(dialog.locator('.jp-Dialog-body')).toContainText(': a?');
-  await dialog.locator('.jp-mod-accept').click();
+  await dialog
+    .getByRole('button', { name: 'Move to Trash', exact: true })
+    .click();
   await deleted;
   expect(await page.contents.directoryExists(`${tmpPath}/a`)).toBe(false);
   await expect(dialog).toHaveCount(0);

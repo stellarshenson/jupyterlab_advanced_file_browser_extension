@@ -7,6 +7,7 @@
  * BSD 3-Clause License; the full text is in LICENSE.
  */
 
+import type { JupyterFrontEnd } from '@jupyterlab/application';
 import { PathExt } from '@jupyterlab/coreutils';
 import {
   FileBrowserModel,
@@ -22,6 +23,11 @@ export namespace TreeFileBrowserModel {
      * Whether folders unfold in place; default false.
      */
     unfolding?: boolean;
+
+    /**
+     * The application shell; a Delete closes the views of the removed documents in its main area.
+     */
+    shell?: JupyterFrontEnd.IShell;
   }
 }
 
@@ -34,7 +40,10 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
     super(options);
     this._unfolding = options.unfolding ?? false;
     this._stateDB = options.state ?? null;
+    this.shell = options.shell ?? null;
   }
+
+  readonly shell: JupyterFrontEnd.IShell | null;
 
   get unfolding(): boolean {
     return this._unfolding;

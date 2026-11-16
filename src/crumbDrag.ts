@@ -95,13 +95,15 @@ export function attachCrumbDragSource(isEnabled: () => boolean): void {
       stop();
       const mimeData = new MimeData();
       mimeData.setData(PATH_MIME, [path]);
-      void new Drag({
+      const drag = new Drag({
         mimeData,
         dragImage: createDragImage(path),
         supportedActions: 'copy',
         proposedAction: 'copy',
         source: crumb
-      }).start(move.clientX, move.clientY);
+      });
+      // A drag disposes itself when it ends, so this call only states the ownership
+      void drag.start(move.clientX, move.clientY).then(() => drag.dispose());
     };
 
     document.addEventListener('mousemove', onMove, {

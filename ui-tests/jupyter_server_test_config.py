@@ -8,8 +8,15 @@ import os
 from tempfile import mkdtemp
 
 from jupyterlab.galata import configure_jupyter_server
+from jupyterlab_advanced_file_browser_extension import routes
 
 configure_jupyter_server(c)
+
+# Trash on (DEF-NESTED-34-TEST-TRASH): the server root sits under $HOME, the server's own home
+# (GALATA_HOME, playwright.config.js), so send2trash renames into the home trash on the same
+# mount. Under /tmp on another filesystem it targets the root-owned /.Trash-<uid> and every
+# DELETE answers 400; under a /tmp bind of the same filesystem it copies
+c.ServerApp.root_dir = mkdtemp(prefix="galata-test-", dir=os.path.expanduser("~"))
 
 # configure_jupyter_server moves the workspaces and the server root, not the user settings;
 # without this a settings write to the test server lands in ~/.jupyter/lab/user-settings.
@@ -30,15 +37,18 @@ c.GalaxaHubMotd.open_on_start = False
 # download answers 404 (ACC-NESTED-40); this is FileContentsManager's own default, as on CI
 c.ContentsManager.files_handler_params = {"path": c.ServerApp.root_dir}
 
-# The test root is under /tmp; where $HOME is another filesystem send2trash targets the
-# root-owned /.Trash-<uid>, every DELETE answers 400 and the delete tests fail. The three
-# sections are the ones a workstation jupyter_lab_config.py sets to True
-c.FileContentsManager.delete_to_trash = False
-c.AsyncFileContentsManager.delete_to_trash = False
-c.AsyncLargeFileManager.delete_to_trash = False
+# The three sections a workstation jupyter_lab_config.py sets; the root under $HOME above makes
+# the trash work
+c.FileContentsManager.delete_to_trash = True
+c.AsyncFileContentsManager.delete_to_trash = True
+c.AsyncLargeFileManager.delete_to_trash = True
 # A permanent delete refuses a folder with content ("Directory ... not empty") unless this is
 # set; the trash takes one, and ACC-NESTED-77-OUTERMOST deletes one
 c.FileContentsManager.always_delete_dir = True
+
+# ACC-DELETE-128 needs a selection above the large-removal threshold; 10 GiB does not fit a test.
+# The server extension reads the constant at call time, in this process
+routes.LARGE_REMOVAL_BYTES = 1024**2
 
 # Uncomment to set server log level to debug level
 # c.ServerApp.log_level = "DEBUG"

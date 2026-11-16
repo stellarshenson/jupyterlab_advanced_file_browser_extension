@@ -80,3 +80,90 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* Delete dialog: the large-removal warning, an inline warning message */
+.jp-AdvancedFileBrowser-deleteWarning {
+  margin-top: 12px;
+  padding: 8px 12px;
+  border: 1px solid color-mix(in srgb, var(--jp-warn-color1) 35%, transparent);
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--jp-warn-color1) 15%, transparent);
+  color: var(--jp-ui-font-color1);
+  font-size: var(--jp-ui-font-size1);
+}
+
+/* Delete progress: the compact spinner dialog of the design system */
+.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-content {
+  min-width: 240px;
+  min-height: 0;
+  padding: 16px 20px 8px;
+  resize: none;
+}
+
+.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-header {
+  padding-bottom: 8px;
+  font-size: var(--jp-ui-font-size2);
+  font-weight: 600;
+}
+
+.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-footer {
+  padding: 8px 12px;
+}
+
+.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-button {
+  height: 28px;
+}
+
+.jp-AdvancedFileBrowser-deleteProgress {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 8px 0;
+}
+
+/* The lab Spinner covers its parent; here it sits in the flow above the bar */
+.jp-AdvancedFileBrowser-deleteProgress .jp-Spinner {
+  position: static;
+  width: auto;
+  height: auto;
+  background: transparent;
+}
+
+.jp-AdvancedFileBrowser-deleteProgress .jp-SpinnerContent {
+  margin: 0 auto;
+}
+
+.jp-AdvancedFileBrowser-deleteProgress .jp-SpinnerContent::after {
+  background: var(--jp-layout-color1);
+}
+
+/* Determinate bar: a 6px track, the fill bound to the fraction, the percentage right-aligned */
+.jp-AdvancedFileBrowser-deleteBar {
+  display: grid;
+  grid-template-columns: 1fr 42px;
+  align-items: center;
+  gap: 12px;
+}
+
+.jp-AdvancedFileBrowser-deleteTrack {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border: 1px solid var(--jp-border-color2);
+  border-radius: 2px;
+  background: var(--jp-layout-color0);
+}
+
+.jp-AdvancedFileBrowser-deleteFill {
+  display: block;
+  width: 0;
+  height: 100%;
+  background: var(--jp-brand-color1);
+}
+
+.jp-AdvancedFileBrowser-deletePercent {
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size1);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
