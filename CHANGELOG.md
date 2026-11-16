@@ -2,6 +2,20 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.6] - 2026-11-16
+
+### Added
+
+- With the server's trash on, the Delete dialog offers Cancel, Delete Permanently and Move to Trash, and Move to Trash is the default; with the trash off, it offers Cancel and Delete
+- Move to Trash moves only the items whose trash the trash management extension monitors; a selection with unmonitored items asks about those in a second dialog after Move to Trash, and the server option `c.AdvancedFileBrowser.trash_on_all_volumes` offers Move to Trash for every item
+- A selection larger than 10 GiB shows a warning that moving large files to the trash is not advised
+- A removal still running after 1 second shows a progress dialog with a spinner and a progress bar, and its Hide button keeps the removal running
+- The server logs one start line when the `jupyterlab_core_patches_extension` delete fix is not installed or its switch is off
+
+### Fixed
+
+- Move to Trash of many items runs in a worker thread, so the server keeps answering requests and kernel messages while the items move
+
 ## [1.0.4] - 2026-11-12
 
 ### Added
