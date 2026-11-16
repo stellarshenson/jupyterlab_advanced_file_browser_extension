@@ -27,18 +27,33 @@ def _jupyter_server_extension_points():
 
 def _warn_without_trash_fix(server_app):
     """Log one line when the server trash is on and the delete_file fix of
-    jupyterlab_core_patches_extension is not installed: its delete_file wrapper wraps the method
-    it keeps in _jp_file_delete_trash_original."""
+    jupyterlab_core_patches_extension is not installed or switched off: its delete_file wrapper
+    wraps the method it keeps in _jp_file_delete_trash_original and reads its switch through
+    patch_enabled on every delete. The switch is read here once, at start-up."""
+    if not getattr(server_app.contents_manager, "delete_to_trash", False):
+        return
     cls = type(server_app.contents_manager)
     original = getattr(cls, "_jp_file_delete_trash_original", None)
-    if getattr(server_app.contents_manager, "delete_to_trash", False) and (
-        original is None or getattr(cls.delete_file, "__wrapped__", None) is not original
-    ):
-        server_app.log.warning(
-            "jupyterlab_advanced_file_browser_extension: the delete_file fix of"
-            " jupyterlab_core_patches_extension is not installed, so Move to Trash follows the"
-            " stock JupyterLab trash behaviour"
-        )
+    if original is None or getattr(cls.delete_file, "__wrapped__", None) is not original:
+        state = "is not installed"
+    else:
+        try:
+            # Imported already: its wrapper is installed. The wrapper's own switch read.
+            from jupyterlab_core_patches_extension.server.file_delete_trash import (
+                SWITCH_KEY,
+                patch_enabled,
+            )
+
+            if patch_enabled(server_app, SWITCH_KEY):
+                return
+        except Exception:
+            pass  # a switch that cannot be read does not show the fix on
+        state = "is switched off"
+    server_app.log.warning(
+        "jupyterlab_advanced_file_browser_extension: the delete_file fix of"
+        f" jupyterlab_core_patches_extension {state}, so Move to Trash follows the"
+        " stock JupyterLab trash behaviour"
+    )
 
 
 def _load_jupyter_server_extension(server_app):

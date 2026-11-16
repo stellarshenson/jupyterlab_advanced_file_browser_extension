@@ -1047,11 +1047,25 @@ def test_core_patches_is_not_a_dependency():
     ]
 
 
+CORE_FIX = "jupyterlab_core_patches_extension.server.file_delete_trash"
+
+
 @pytest.mark.parametrize(
-    "trash, fix_installed, lines", [(True, False, 1), (True, True, 0), (False, False, 0)]
+    "trash, fix_installed, switch, state",
+    [
+        (True, False, None, "is not installed"),
+        (True, True, False, "is switched off"),
+        (True, True, True, None),
+        (False, True, False, None),
+        # Core patches not installed: nothing may import it.
+        (True, False, "absent", "is not installed"),
+        (True, True, "raises", "is switched off"),
+        # The switch in core patches' own settings file, read by its own patch_enabled.
+        (True, True, "settings-off", "is switched off"),
+    ],
 )
-def test_start_names_a_core_patches_delete_fix_that_is_not_installed(
-    trash, fix_installed, lines, monkeypatch
+def test_start_names_a_core_patches_delete_fix_that_is_not_installed_or_switched_off(
+    trash, fix_installed, switch, state, tmp_path, monkeypatch
 ):
     cls = filemanager.AsyncFileContentsManager
     if fix_installed:
@@ -1070,6 +1084,24 @@ def test_start_names_a_core_patches_delete_fix_that_is_not_installed(
     server_app.web_app.settings = {"base_url": "/"}
     # The server's default contents manager, which inherits the wrapper.
     server_app.contents_manager = AsyncLargeFileManager(delete_to_trash=trash)
+    if switch == "settings-off":
+        fix = pytest.importorskip(CORE_FIX)
+        package = pytest.importorskip("jupyterlab_core_patches_extension.settings").PACKAGE
+        settings = tmp_path / package / "plugin.jupyterlab-settings"
+        settings.parent.mkdir(parents=True)
+        settings.write_text(json.dumps({fix.SWITCH_KEY: False}))
+        server_app.user_settings_dir = str(tmp_path)
+    elif switch == "absent":
+        monkeypatch.setitem(sys.modules, CORE_FIX, None)
+    elif fix_installed:
+
+        def patch_enabled(app, key):
+            if switch == "raises":
+                raise RuntimeError("unreadable settings")
+            return switch
+
+        fake = SimpleNamespace(SWITCH_KEY="switch", patch_enabled=patch_enabled)
+        monkeypatch.setitem(sys.modules, CORE_FIX, fake)
 
     _load_jupyter_server_extension(server_app)
     # The check waits for the IOLoop, which runs once every server extension has loaded.
@@ -1078,10 +1110,12 @@ def test_start_names_a_core_patches_delete_fix_that_is_not_installed(
     callback(*args)
 
     warnings = [call.args[0] for call in server_app.log.warning.call_args_list]
-    assert len(warnings) == lines
-    for line in warnings:
-        assert "jupyterlab_core_patches_extension" in line
-        assert "not installed" in line
+    line = (
+        "jupyterlab_advanced_file_browser_extension: the delete_file fix of"
+        f" jupyterlab_core_patches_extension {state}, so Move to Trash follows the"
+        " stock JupyterLab trash behaviour"
+    )
+    assert warnings == ([] if state is None else [line])
 
 
 def test_start_check_passes_a_contents_manager_without_delete_to_trash():
