@@ -52,6 +52,8 @@ const SIZE_URL = /\/delete\/size(\?|$)/;
 const CHECK_URL = /\/delete\/trash-check(\?|$)/;
 /** The request that starts a removal job. */
 const JOB_URL = /\/delete(\?|$)/;
+/** The progress request of a removal job. */
+const PROGRESS_URL = /\/delete\/[0-9a-f]{32}(\?|$)/;
 /** Files of a large tree: about 2 s to remove on the workstation, past the 1 s before the progress dialog. */
 const LARGE = 100000;
 /** The test server's home trash (GALATA_HOME, playwright.config.js); the server root sits on its mount. */
@@ -714,6 +716,13 @@ test('ACC-DELETE-138-PROGRESS-HIDE Hide closes the dialog and the removal goes o
   tmpPath
 }) => {
   const big = await largeTree(page, tmpPath);
+  // A fast disk ends the removal before the press on Hide, so the progress answers wait for the press
+  let pressed = () => {};
+  const afterHide = new Promise<void>(resolve => (pressed = resolve));
+  await page.route(PROGRESS_URL, async route => {
+    await afterHide;
+    await route.continue();
+  });
   const { done } = await confirmDelete(page, [big], 'Delete Permanently');
 
   await page
@@ -724,6 +733,7 @@ test('ACC-DELETE-138-PROGRESS-HIDE Hide closes the dialog and the removal goes o
   await expect(page.locator(PROGRESS)).toHaveCount(0);
   // Closed by Hide before the end, then the removal ended
   expect((await progressLog(page)).closedAt[0]).toBeLessThan(100);
+  pressed();
   await done;
   expect(existsSync(await onDisk(page, big))).toBe(false);
 });

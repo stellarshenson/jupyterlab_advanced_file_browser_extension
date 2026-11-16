@@ -373,4 +373,13 @@ defects of Delete, Move to Trash, the large-removal warning and the progress dia
   - log: 2026-11-16T05:44:07Z @kj owner decision 2026-11-16: core patches fixes it, but the trash job runs in a separate worker, off the server event loop, with and without core patches; replaces the per-item yield
   - log: 2026-11-16T07:15:42Z @kj owner decision 2026-11-16, review round 16 finding 1: fix, confirmed after the spiralling note; without core patches, a stock contents-API trash delete and a worker trash move never run at once, and waiting for that never holds the server loop
   - log: 2026-11-16T08:41:21Z @kj closed
+- [x] `DEF-DELETE-37-HIDE-TIMING` **Hide test fails where the removal ends before the press** - MINOR; Galata ACC-DELETE-138-PROGRESS-HIDE fails on the GitHub runner, first run and retry: `expect(received).toBeLessThan(expected)`, Expected < 100, Received 100; cause: the 100000-file removal ends before the press on Hide; fix: the test holds the progress answers until the press; `ui-tests/tests/delete.spec.ts`
+  - evidence: repaired spec passes with 100000, 40000 and 1000 files (logs/repro-hide-fixed-*.log); build_test.py at 1.0.6: Jest 117, pytest 64, Galata 157 passed, 138 on its first run (logs/fleet-build-test.log)
+  - related: ACC-DELETE-138-PROGRESS-HIDE - the criterion this test proves
+  - repro: GitHub Build run 43854114286 at 005495c, job Integration tests; locally the spec at 005495c with LARGE lowered until the removal ends within 1.5 s
+  - test-tags: FUNCTIONAL
+  - root-cause: 2026-11-16T12:06:40Z @kj the progress dialog shows 1 s after the confirm and stays 500 ms; on the runner the removal ended in that span, 100 was painted, then the press closed the dialog; the test assumed the removal outlasts the press; the product is right
+  - log: 2026-11-16T12:06:40Z @kj added
+  - log: 2026-11-16T12:15:21Z @kj reproduced on the workstation: the spec of 005495c with a 40000-file tree fails with Expected < 100, Received 100; with 60000 and 100000 files it passes (logs/repro-hide-40000.log)
+  - log: 2026-11-16T12:15:21Z @kj closed
 
