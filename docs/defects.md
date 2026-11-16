@@ -357,3 +357,20 @@ Dragging a file, folder or breadcrumb onto a terminal, editor or notebook insert
   - log: 2026-11-12T10:42:02Z @kj rejected: owner accepted the ported deepest-shell behaviour on 2026-11-12: relative terminal paths follow the deepest shell, as in the retired extension; a correct fix needs a terminal-side cwd signal and is out of this campaign
   - log: 2026-11-12T10:42:06Z @kj edited test-tags added "FUNCTIONAL"
 
+## Delete with trash `DELETE`
+
+defects of Delete, Move to Trash, the large-removal warning and the progress dialog
+
+- log: 2026-11-16T05:42:03Z @kj category created
+
+- [x] `DEF-DELETE-36-TRASH-STALL` **Move to Trash of many items freezes the server** - MAJOR; without the core patches delete fix, Move to Trash of thousands of items holds the server event loop until the job ends: no request or kernel message answered (about 4 s for 10000 files), progress bar at 0%, against ACC-DELETE-145-TRASH-PROGRESS
+  - evidence: gate15 2026-11-16: pytest 63/63, test_trash_of_many_items_leaves_the_server_loop_answering (3000 items, stock manager, loop lag under 0.1 s, rising reports) and test_a_contents_delete_waits_for_a_trash_job_s_move_and_the_loop_answers pass; review round 17 SHIP; log tmp/workflows/delete-v1/logs/gate15-make-test.log
+  - related: ACC-DELETE-145-TRASH-PROGRESS
+  - repro: server without the core patches delete fix, trash on; select 10000 files, Delete, Enter; other requests wait until the job ends, the bar stays at 0%
+  - test-tags: UNIT
+  - root-cause: 2026-11-16T05:42:03Z @kj routes.py _trash awaits contents_manager.delete per item in one loop; the stock trash branch of delete_file calls send2trash synchronously and never suspends, so the loop gives the IOLoop no turn between items; the pytest stub sleeps 0.1 s and hides it; found by review round 15 (ponytail-review and architect)
+  - log: 2026-11-16T05:42:03Z @kj added
+  - log: 2026-11-16T05:44:07Z @kj owner decision 2026-11-16: core patches fixes it, but the trash job runs in a separate worker, off the server event loop, with and without core patches; replaces the per-item yield
+  - log: 2026-11-16T07:15:42Z @kj owner decision 2026-11-16, review round 16 finding 1: fix, confirmed after the spiralling note; without core patches, a stock contents-API trash delete and a worker trash move never run at once, and waiting for that never holds the server loop
+  - log: 2026-11-16T08:41:21Z @kj closed
+

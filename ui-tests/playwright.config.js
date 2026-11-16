@@ -2,15 +2,30 @@
  * Configuration for Playwright using default from @jupyterlab/galata
  */
 const baseConfig = require('@jupyterlab/galata/lib/playwright-config');
-const { mkdtempSync } = require('fs');
+const { mkdtempSync, rmSync } = require('fs');
 const { homedir } = require('os');
 const { join } = require('path');
 
 // The test server's own home, so a run outside the sandbox runner never reads or writes the
 // real home's trash, settings or workspaces. It is made in the home, not in /tmp, so the server
 // root below it is not on the runner's /tmp mount, which ACC-DELETE-152 and 156 use as another
-// mount. Made once: the workers inherit it, and the specs read the trash from it.
+// mount. Made once: the workers inherit it, and the specs read the trash from it. Only a folder
+// made here is removed, never a GALATA_HOME the caller set. The removal is registered here, before
+// the webServer starts, so it runs at process exit also when the server fails to start; by then
+// the webServer is stopped.
+const madeHome = !process.env.GALATA_HOME;
 process.env.GALATA_HOME ||= mkdtempSync(join(homedir(), 'galata-home-'));
+if (madeHome) {
+  const home = process.env.GALATA_HOME;
+  process.on('exit', () => {
+    try {
+      rmSync(home, { recursive: true, force: true, maxRetries: 3 });
+    } catch (error) {
+      // A failed removal must not change the exit status of the run.
+      console.warn(`The test server's home ${home} was not removed: ${error}`);
+    }
+  });
+}
 
 // Galata pins the test server to 8888 and does not move it when the port is taken.
 // JUPYTER_TEST_PORT moves the server (jupyter_server_test_config.py) and this base URL together.

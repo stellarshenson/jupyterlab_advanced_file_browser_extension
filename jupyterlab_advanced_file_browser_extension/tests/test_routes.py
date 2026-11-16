@@ -3,16 +3,21 @@ import asyncio
 import errno
 import functools
 import json
+import logging
 import os
 import re
 import subprocess
 import sys
+import threading
+import time
 import tomllib
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 import tornado
+from jupyter_server.serverapp import ServerApp
 from jupyter_server.services.contents import filemanager
 from jupyter_server.services.contents.largefilemanager import AsyncLargeFileManager
 from jupyter_server.services.contents.manager import ContentsManager
@@ -151,11 +156,16 @@ async def _delete(jp_fetch, paths, trash=False):
     )
     assert response.code == 202
     job_id = json.loads(response.body)["id"]
+    return job_id, await _job_reports(jp_fetch, job_id)
+
+
+async def _job_reports(jp_fetch, job_id):
+    """Poll a removal to the end; every report in order."""
     reports = []
     for _ in range(1000):
         reports.append(json.loads((await jp_fetch(URL, "delete", job_id)).body))
         if reports[-1]["done"]:
-            return job_id, reports
+            return reports
         await asyncio.sleep(0.01)
     raise AssertionError("the removal did not end")
 
@@ -206,7 +216,7 @@ async def test_delete_removes_a_file(jp_fetch, jp_root_dir):
 
 
 async def test_delete_removes_a_folder_with_content_whatever_the_trash(
-    jp_fetch, jp_root_dir, jp_serverapp, monkeypatch
+    jp_fetch, jp_root_dir, jp_serverapp, tmp_path, monkeypatch
 ):
     contents_manager = jp_serverapp.contents_manager
     monkeypatch.setattr(contents_manager, "always_delete_dir", False)
@@ -215,12 +225,16 @@ async def test_delete_removes_a_folder_with_content_whatever_the_trash(
     monkeypatch.setattr(filemanager, "send2trash", trashed.append)
     _tree(jp_root_dir, {"a/f": b"x", "a/b/g": b"y", "a/b/c/h": b"z"})
     os.symlink(jp_root_dir / "outside", jp_root_dir / "a" / "dangling")
+    # A link to a folder outside the server root: the link goes, never the files of its target.
+    _tree(tmp_path, {"outside/keep.txt": b"k"})
+    os.symlink(tmp_path / "outside", jp_root_dir / "a" / "b" / "ln")
 
     _, reports = await _delete(jp_fetch, ["a"])
 
     assert reports[-1]["errors"] == []
     assert not os.path.lexists(jp_root_dir / "a")
     assert trashed == []
+    assert (tmp_path / "outside" / "keep.txt").exists()
 
 
 async def test_delete_unlinks_a_link_to_a_folder_and_keeps_the_target(
@@ -401,6 +415,330 @@ async def test_trash_progress_of_two_items_rises_by_whole_items(
     assert reports[-1] == {"total": 2, "removed": 2, "done": True, "errors": []}
     assert (data / "Trash" / "files" / "a" / "f").exists()
     assert (data / "Trash" / "files" / "c" / "g").exists()
+
+
+async def test_trash_of_many_items_leaves_the_server_loop_answering(
+    jp_fetch, jp_root_dir, jp_serverapp, tmp_path, monkeypatch
+):
+    # DEF-DELETE-36: the stock delete_file calls send2trash without suspending. The server's own
+    # manager with the trash on, no core patches wrapper, a home trash of its own on the root's
+    # device.
+    contents_manager = jp_serverapp.contents_manager
+    assert isinstance(contents_manager, AsyncLargeFileManager) and contents_manager.delete_to_trash
+    assert "_jp_file_delete_trash_original" not in vars(filemanager.AsyncFileContentsManager)
+    data = tmp_path / "data"
+    monkeypatch.setattr(plat_other, "XDG_DATA_HOME", os.fsencode(data))
+    monkeypatch.setattr(plat_other, "HOMETRASH_B", os.fsencode(data / "Trash"))
+    monkeypatch.setattr(plat_other, "HOMETRASH", str(data / "Trash"))
+    monkeypatch.setattr(plat_other, "get_dev", lambda path: 0)
+    paths = [f"f{i}" for i in range(3000)]
+    _tree(jp_root_dir, dict.fromkeys(paths, b"x"))
+    # The thread of each contents event listener: the events websocket's listener writes to it.
+    threads = []
+
+    async def listener(logger, schema_id, data):
+        threads.append(threading.get_ident())
+
+    contents_manager.event_logger.add_listener(
+        schema_id=contents_manager.event_schema_id, listener=listener
+    )
+    # How late a 10 ms sleep on the server loop wakes while the job runs. Not sampled: the POST,
+    # which checks every path on the loop before it answers.
+    lags, reports = [], []
+
+    async def probe():
+        while True:
+            start = time.monotonic()
+            await asyncio.sleep(0.01)
+            lags.append(time.monotonic() - start - 0.01)
+
+    response = await jp_fetch(
+        URL, "delete", method="POST", body=json.dumps({"paths": paths, "trash": True})
+    )
+    job_id = json.loads(response.body)["id"]
+    probing = asyncio.ensure_future(probe())
+    try:
+        for _ in range(1000):
+            reports.append(json.loads((await jp_fetch(URL, "delete", job_id)).body))
+            if reports[-1]["done"]:
+                break
+            await asyncio.sleep(0.01)
+    finally:
+        probing.cancel()
+
+    assert any(0 < report["removed"] < report["total"] for report in reports[:-1])
+    assert max(lags) < 0.1
+    assert reports[-1] == {"total": 3000, "removed": 3000, "done": True, "errors": []}
+    assert len(os.listdir(data / "Trash" / "files")) == 3000
+    assert threads == [threading.get_ident()] * 3000
+
+
+async def test_trash_jobs_move_one_item_at_a_time(jp_fetch, jp_root_dir, jp_serverapp, monkeypatch):
+    # send2trash picks a free name in the trash, then renames onto it: two moves at once can pick
+    # one name. Two jobs, each on its own worker thread, with a delete_file that suspends.
+    moving, overlaps = [], []
+
+    async def delete_file(path):
+        moving.append(path)
+        overlaps.append(len(moving))
+        await asyncio.sleep(0.02)
+        moving.remove(path)
+
+    monkeypatch.setattr(jp_serverapp.contents_manager, "delete_file", delete_file)
+    _tree(jp_root_dir, {f"{folder}/f{i}": b"x" for folder in "ab" for i in range(5)})
+
+    await asyncio.gather(
+        _delete(jp_fetch, [f"a/f{i}" for i in range(5)], trash=True),
+        _delete(jp_fetch, [f"b/f{i}" for i in range(5)], trash=True),
+    )
+
+    assert overlaps == [1] * 10
+
+
+def _own_home_trash(tmp_path, monkeypatch) -> Path:
+    """A home trash of its own on the root's device, where the stock delete_file moves by rename."""
+    data = tmp_path / "data"
+    monkeypatch.setattr(plat_other, "XDG_DATA_HOME", os.fsencode(data))
+    monkeypatch.setattr(plat_other, "HOMETRASH_B", os.fsencode(data / "Trash"))
+    monkeypatch.setattr(plat_other, "HOMETRASH", str(data / "Trash"))
+    monkeypatch.setattr(plat_other, "get_dev", lambda path: 0)
+    return data / "Trash"
+
+
+async def _slow_job(jp_fetch, monkeypatch, paths, fails: str = ""):
+    """Start a Move to Trash of `paths` whose items each take 0.3 s to move. Once its first move
+    started, return its id and the list that records each send2trash call as (thread, moves
+    running at its start). A move off the server thread is the job's; a path ending in `fails`
+    raises."""
+    server = threading.get_ident()
+    job_moving = threading.Event()
+    moving, calls = [], []
+
+    def send2trash(path):
+        moving.append(path)
+        calls.append((threading.get_ident(), len(moving)))
+        try:
+            if fails and path.endswith(fails):
+                raise OSError(errno.EIO, "Input/output error")
+            if threading.get_ident() != server:
+                job_moving.set()
+                time.sleep(0.3)
+            plat_other.send2trash(path)
+        finally:
+            moving.remove(path)
+
+    monkeypatch.setattr(filemanager, "send2trash", send2trash)
+    response = await jp_fetch(
+        URL, "delete", method="POST", body=json.dumps({"paths": paths, "trash": True})
+    )
+    while not job_moving.is_set():
+        await asyncio.sleep(0.005)
+    return json.loads(response.body)["id"], calls
+
+
+async def test_a_contents_delete_waits_for_a_trash_job_s_move_and_the_loop_answers(
+    jp_fetch, jp_root_dir, jp_serverapp, tmp_path, monkeypatch
+):
+    # DEF-DELETE-36 without core patches: a stock DELETE /api/contents and an item of a Move to Trash
+    # job never move at once, and the server loop answers while the DELETE waits.
+    trash = _own_home_trash(tmp_path, monkeypatch)
+    contents_manager = jp_serverapp.contents_manager
+    server = threading.get_ident()
+    events = []
+
+    async def listener(logger, schema_id, data):
+        events.append((data["path"], threading.get_ident()))
+
+    contents_manager.event_logger.add_listener(
+        schema_id=contents_manager.event_schema_id, listener=listener
+    )
+    _tree(jp_root_dir, {"a0": b"x", "a1": b"x", "a2": b"x", "s.txt": b"y"})
+    job_id, calls = await _slow_job(jp_fetch, monkeypatch, ["a0", "a1", "a2"])
+    # How late a 10 ms sleep on the server loop wakes while the DELETE waits.
+    lags = []
+
+    async def probe():
+        while True:
+            start = time.monotonic()
+            await asyncio.sleep(0.01)
+            lags.append(time.monotonic() - start - 0.01)
+
+    probing = asyncio.ensure_future(probe())
+    try:
+        deleted = await jp_fetch("api", "contents", "s.txt", method="DELETE")
+    finally:
+        probing.cancel()
+        reports = await _job_reports(jp_fetch, job_id)
+
+    assert deleted.code == 204
+    assert [running for _, running in calls] == [1, 1, 1, 1]
+    # The DELETE moves right after the job's current item, on the server thread as stock does.
+    assert [thread == server for thread, _ in calls] == [False, True, False, False]
+    assert len(lags) >= 10 and max(lags) < 0.1
+    assert reports[-1] == {"total": 3, "removed": 3, "done": True, "errors": []}
+    assert sorted(os.listdir(trash / "files")) == ["a0", "a1", "a2", "s.txt"]
+    assert ("s.txt", server) in events
+
+
+async def test_a_failed_or_a_cancelled_contents_delete_leaves_later_moves_to_trash_working(
+    jp_fetch, jp_root_dir, jp_serverapp, tmp_path, monkeypatch
+):
+    trash = _own_home_trash(tmp_path, monkeypatch)
+    _tree(jp_root_dir, dict.fromkeys(["a0", "waits.txt", "fails.txt", "last.txt"], b"x"))
+    job_id, _ = await _slow_job(jp_fetch, monkeypatch, ["a0"], fails="fails.txt")
+    try:
+        # A delete that waits for the job's move, cancelled as a request can be.
+        waiting = asyncio.ensure_future(jp_serverapp.contents_manager.delete("waits.txt"))
+        await asyncio.sleep(0.05)
+        waited = not waiting.done()
+        waiting.cancel()
+        (cancelled,) = await asyncio.gather(waiting, return_exceptions=True)
+    finally:
+        await _job_reports(jp_fetch, job_id)
+    # A stock delete whose move raises: the client still gets the stock error.
+    with pytest.raises(tornado.httpclient.HTTPClientError) as refused:
+        await jp_fetch("api", "contents", "fails.txt", method="DELETE")
+    _, reports = await _delete(jp_fetch, ["last.txt"], trash=True)
+
+    assert waited
+    assert isinstance(cancelled, asyncio.CancelledError)
+    assert refused.value.code == 400
+    assert "send2trash failed" in refused.value.response.body.decode()
+    assert reports[-1] == {"total": 1, "removed": 1, "done": True, "errors": []}
+    assert sorted(os.listdir(trash / "files")) == ["a0", "last.txt"]
+    assert (jp_root_dir / "waits.txt").exists()
+    assert (jp_root_dir / "fails.txt").exists()
+
+
+async def test_with_the_trash_off_and_for_delete_permanently_nothing_waits_for_a_trash_move(
+    jp_fetch, jp_root_dir, jp_serverapp, tmp_path, monkeypatch
+):
+    trash = _own_home_trash(tmp_path, monkeypatch)
+    _tree(jp_root_dir, dict.fromkeys(["a0", "stock.txt", "perm.txt"], b"x"))
+    job_id, _ = await _slow_job(jp_fetch, monkeypatch, ["a0"])
+    try:
+        _, reports = await _delete(jp_fetch, ["perm.txt"])
+        monkeypatch.setattr(jp_serverapp.contents_manager, "delete_to_trash", False)
+        deleted = await jp_fetch("api", "contents", "stock.txt", method="DELETE")
+        # Both ended while the job's item was still moving; read without a GET, which would drop
+        # a job that is done.
+        during = dict(routes._jobs[job_id])
+    finally:
+        jobs = await _job_reports(jp_fetch, job_id)
+
+    assert during == {"total": 1, "removed": 0, "done": False, "errors": []}
+    assert jobs[-1] == {"total": 1, "removed": 1, "done": True, "errors": []}
+    assert reports[-1] == {"total": 1, "removed": 1, "done": True, "errors": []}
+    assert deleted.code == 204
+    # Both removed permanently.
+    assert not (jp_root_dir / "perm.txt").exists()
+    assert not (jp_root_dir / "stock.txt").exists()
+    assert os.listdir(trash / "files") == ["a0"]
+
+
+async def test_trash_jobs_of_a_sync_delete_file_still_move_one_item_at_a_time(
+    jp_fetch, jp_root_dir, jp_serverapp, monkeypatch
+):
+    # A sync delete_file, as of the sync FileContentsManager, is not wrapped: a wait in it would
+    # hold the server loop. The jobs then wait for their turn themselves.
+    contents_manager = jp_serverapp.contents_manager
+    moving, overlaps = [], []
+
+    def delete_file(path):
+        moving.append(path)
+        overlaps.append(len(moving))
+        time.sleep(0.02)
+        moving.remove(path)
+
+    monkeypatch.setattr(contents_manager, "delete_file", delete_file)
+    # As the sync ContentsManager.delete calls it.
+    monkeypatch.setattr(contents_manager, "delete", lambda path: contents_manager.delete_file(path))
+    _tree(jp_root_dir, {f"{folder}/f{i}": b"x" for folder in "ab" for i in range(5)})
+
+    await asyncio.gather(
+        _delete(jp_fetch, [f"a/f{i}" for i in range(5)], trash=True),
+        _delete(jp_fetch, [f"b/f{i}" for i in range(5)], trash=True),
+    )
+
+    assert overlaps == [1] * 10
+    assert contents_manager.delete_file is delete_file
+
+
+@pytest.fixture
+def core_patches(request, tmp_path, monkeypatch):
+    """The delete_file fix of jupyterlab_core_patches_extension, installed on the class as its
+    server extension installs it: before this extension loads ("before"), or by the returned
+    function once the server runs ("after"). Undone after the test."""
+    file_delete_trash = pytest.importorskip(
+        "jupyterlab_core_patches_extension.server.file_delete_trash"
+    )
+    cls = filemanager.AsyncFileContentsManager
+    stock = vars(cls)["delete_file"]
+    monkeypatch.setattr(cls, file_delete_trash._ORIGINAL, stock, raising=False)
+    monkeypatch.setattr(cls, "delete_file", stock)
+    # Settings that hold no switch, so the fix is on.
+    server_app = SimpleNamespace(
+        user_settings_dir=str(tmp_path / "settings"), log=logging.getLogger("core-patches")
+    )
+    install = functools.partial(file_delete_trash.patch_contents_manager, server_app)
+    if request.param == "before":
+        assert not ServerApp.initialized()
+        install()
+        return lambda: None
+    return install
+
+
+@pytest.mark.parametrize("core_patches", ["before", "after"], indirect=True)
+async def test_with_the_core_patches_delete_fix_every_item_moves_once_and_one_at_a_time(
+    core_patches, jp_fetch, jp_root_dir, jp_serverapp, tmp_path, monkeypatch
+):
+    core_patches()
+    assert "_jp_file_delete_trash_original" in vars(filemanager.AsyncFileContentsManager)
+    trash = _own_home_trash(tmp_path, monkeypatch)
+    moving, overlaps, moved, thread_names = [], [], [], []
+
+    def send2trash(path):
+        moving.append(path)
+        overlaps.append(len(moving))
+        moved.append(path)
+        thread_names.append(threading.current_thread().name)
+        try:
+            time.sleep(0.02)
+            plat_other.send2trash(path)
+        finally:
+            moving.remove(path)
+
+    monkeypatch.setattr(filemanager, "send2trash", send2trash)
+    # One base name in every folder, so the trash names collide.
+    items = {folder: [f"{folder}/f{i}" for i in range(10 if folder != "c" else 3)] for folder in "abc"}
+    _tree(jp_root_dir, {path: b"x" for paths in items.values() for path in paths})
+
+    async def stock_deletes():
+        codes = []
+        for path in items["c"]:
+            await asyncio.sleep(0.05)
+            codes.append((await jp_fetch("api", "contents", path, method="DELETE")).code)
+        return codes
+
+    # Every job ends before an assertion can end the test.
+    results = await asyncio.gather(
+        _delete(jp_fetch, items["a"], trash=True),
+        _delete(jp_fetch, items["b"], trash=True),
+        stock_deletes(),
+        return_exceptions=True,
+    )
+
+    assert not [result for result in results if isinstance(result, BaseException)]
+    (_, a), (_, b), codes = results
+    assert a[-1] == {"total": 10, "removed": 10, "done": True, "errors": []}
+    assert b[-1] == {"total": 10, "removed": 10, "done": True, "errors": []}
+    assert codes == [204] * 3
+    assert overlaps == [1] * 23
+    # Each item moved once, by the fix's trash call in an AnyIO worker thread.
+    assert sorted(moved) == sorted(str(jp_root_dir / p) for paths in items.values() for p in paths)
+    assert set(thread_names) == {"AnyIO worker thread"}
+    assert len(os.listdir(trash / "files")) == 23
+    assert not any((jp_root_dir / p).exists() for paths in items.values() for p in paths)
 
 
 async def test_trash_reports_a_failure_and_keeps_the_file(jp_fetch, jp_root_dir, monkeypatch):

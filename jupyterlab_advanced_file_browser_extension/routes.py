@@ -12,13 +12,17 @@ the trash management extension monitors its trash, so Move to Trash may be offer
 ``AdvancedFileBrowser`` holds the server options of this extension.
 """
 import asyncio
+import collections
+import contextlib
 import errno
+import inspect
 import json
 import os
 import re
 import stat
 import subprocess
 import sys
+import threading
 import uuid
 
 from jupyter_core.paths import is_hidden
@@ -52,6 +56,12 @@ _REASONS = {
 # page closed mid-removal stays; add an expiry if abandoned jobs ever accumulate.
 _jobs: dict[str, dict] = {}
 _tasks: set[asyncio.Task] = set()
+
+# The callers waiting for their move to the trash, first come first served (_trash_turn), so the
+# items of Move to Trash jobs on their worker threads and a contents API delete on the server loop
+# move one at a time: send2trash picks a free name in the trash, then renames onto it, so two moves
+# at once can pick one name and the second replaces the first.
+_TRASH_QUEUE: collections.deque = collections.deque()
 
 
 class AdvancedFileBrowser(Configurable):
@@ -487,11 +497,16 @@ def _remove(job: dict, root: str, os_paths: list[str], log) -> None:
 async def _trash(job: dict, contents_manager, paths: list[str], os_paths: list[str], log) -> None:
     """Move `paths` to the trash through the contents manager's delete, so the server's
     delete_file runs with its checks and any patch of it, counting one equal share per item
-    into `job` when the item ends."""
+    into `job` when the item ends. It runs on a worker thread's own event loop (_run_removal)."""
     job["total"] = len(paths)
+    # _lock_trash_moves puts the turn in an async delete_file. A sync delete_file stays as it was,
+    # so the job waits for its turn here.
+    locked = getattr(contents_manager.delete_file, "trash_locked", False)
+    turn = contextlib.nullcontext if locked else _trash_turn
     for index, (path, os_path) in enumerate(zip(paths, os_paths)):
         try:
-            await ensure_async(contents_manager.delete(path))
+            async with turn():
+                await ensure_async(contents_manager.delete(path))
         except tornado.web.HTTPError as error:
             # Never a permanent removal in its place: the item stays. The library's message
             # reaches the server log only.
@@ -504,12 +519,73 @@ async def _trash(job: dict, contents_manager, paths: list[str], os_paths: list[s
         job["removed"] = index + 1
 
 
+def _emit_on_loop(contents_manager, loop: asyncio.AbstractEventLoop) -> None:
+    """Make the manager's emit, called from a trash worker thread, run on the server `loop`:
+    jupyter_events starts each listener as a task of the calling thread's loop, and the listener
+    of the events websocket writes to it, which only the server loop may do. A call on the
+    server loop's thread runs at once, as before."""
+    emit = contents_manager.emit
+    if getattr(emit, "loop", None) is loop:
+        return
+    thread = threading.get_ident()
+
+    def emit_on_loop(data):
+        if threading.get_ident() == thread:
+            emit(data)
+        else:
+            loop.call_soon_threadsafe(emit, data)
+
+    emit_on_loop.loop = loop
+    contents_manager.emit = emit_on_loop
+
+
+@contextlib.asynccontextmanager
+async def _trash_turn():
+    """Wait for the caller's turn in _TRASH_QUEUE, and end it however the move ends. The wait
+    polls on the caller's loop: a blocking wait would hold the server loop, and one in a thread
+    could take the turn after the waiting request was cancelled, and keep it."""
+    turn = object()
+    _TRASH_QUEUE.append(turn)
+    try:
+        while _TRASH_QUEUE[0] is not turn:
+            await asyncio.sleep(0.001)
+        yield
+    finally:
+        _TRASH_QUEUE.remove(turn)
+
+
+def _lock_trash_moves(contents_manager) -> None:
+    """Make the manager's delete_file wait for its turn (_trash_turn) while the trash is on, for a
+    job's item and a contents API delete alike. Wrapped once per manager at its first trash job,
+    after every server extension has loaded, so a patch of the class's delete_file (core patches)
+    runs inside the turn. A sync delete_file is left as it is: a wait in it would hold the server
+    loop."""
+    delete_file = contents_manager.delete_file
+    if getattr(delete_file, "trash_locked", False) or not inspect.iscoroutinefunction(delete_file):
+        return
+
+    async def locked_delete_file(path):
+        if not contents_manager.delete_to_trash:
+            return await delete_file(path)
+        async with _trash_turn():
+            return await delete_file(path)
+
+    locked_delete_file.trash_locked = True
+    contents_manager.delete_file = locked_delete_file
+
+
 async def _run_removal(
     job: dict, contents_manager, paths: list[str], os_paths: list[str], trash: bool, log
 ) -> None:
     try:
         if trash:
-            await _trash(job, contents_manager, paths, os_paths, log)
+            _emit_on_loop(contents_manager, asyncio.get_running_loop())
+            _lock_trash_moves(contents_manager)
+            # The stock delete_file calls send2trash without suspending, so the items move on a
+            # worker thread's own event loop and the server loop answers meanwhile.
+            await asyncio.to_thread(
+                asyncio.run, _trash(job, contents_manager, paths, os_paths, log)
+            )
         else:
             await asyncio.get_running_loop().run_in_executor(
                 None, _remove, job, os.path.abspath(contents_manager.root_dir), os_paths, log

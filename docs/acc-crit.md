@@ -864,6 +864,8 @@ Delete dialog with Move to Trash and Delete Permanently, the large-removal warni
   - log: 2026-11-15T21:38:28Z @kj edited test "server with delete_to_trash on, select a file, press Delete, assert the three button labels" -> "server with delete_to_trash on, select a file, press Delete, assert the three button labels and the title Delete"
   - log: 2026-11-15T21:38:41Z @kj owner decision 2026-11-15: the Galata test servers set their own home folder, so a run outside the sandbox runner leaves the real home untouched
   - log: 2026-11-16T05:01:57Z @kj closed; reason: gate13 2026-11-16, review round 14 SHIP
+  - log: 2026-11-16T05:42:03Z @kj owner decision 2026-11-16, round 15: a Galata run outside the runner creates ~/galata-home-XXXXXX; a Playwright globalTeardown removes the folder that run created
+  - log: 2026-11-16T07:14:37Z @kj owner decision 2026-11-16, review round 16 finding 2: fix; playwright.config.js registers the exit removal of the galata-home folder it creates, so a test server that fails to start leaves no folder; global-teardown.js removed
 - [x] `ACC-DELETE-123-TRASH-DEFAULT` **Move to Trash is the default** - HIGH; with trash on, Move to Trash is the focused button, so Enter moves the selected items to the trash
   - evidence: Galata 'ACC-DELETE-123-TRASH-DEFAULT Enter moves the selection to the trash' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest deleteButtons trash-on case (Move to Trash the default) - delete-dialog.spec.ts PASS in logs/gate2-make-test.log
   - test: open the dialog, press Enter, assert the file left the listing and sits in the trash folder
@@ -886,6 +888,7 @@ Delete dialog with Move to Trash and Delete Permanently, the large-removal warni
   - log: 2026-11-15T21:38:29Z @kj edited text "Delete Permanently removes a folder and everything below it, also with the server's always_delete_dir off" -> "HIGH; Delete Permanently removes a folder and everything below it, also with the server's always_delete_dir off; the README says Delete Permanently ignores always_delete_dir"
   - log: 2026-11-15T21:38:29Z @kj edited test "always_delete_dir off, Delete Permanently on a folder holding files and subfolders, assert the folder is gone from disk" -> "always_delete_dir off, Delete Permanently on a folder holding files and subfolders, assert the folder is gone from disk; README names always_delete_dir"
   - log: 2026-11-16T05:01:58Z @kj closed; reason: gate13 2026-11-16, review round 14 SHIP
+  - log: 2026-11-16T05:42:03Z @kj owner decision 2026-11-16, round 15: the folder pytest adds a link to an outside folder inside the removed folder and asserts the outside file stays
 - [x] `ACC-DELETE-126-TRASH-OFF` **Trash off keeps the stock dialog** - HIGH; with delete_to_trash off, the Delete dialog offers Cancel and Delete only, and Delete removes permanently as in stock JupyterLab
   - evidence: Galata 'ACC-DELETE-126-TRASH-OFF trash off keeps Cancel and Delete, and Delete removes permanently' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest 'deleteButtons offers the stock Cancel and Delete with the trash off, Cancel the default' - delete-dialog.spec.ts PASS in logs/gate2-make-test.log
   - test: server with delete_to_trash off, press Delete, assert two buttons, confirm, assert the file is gone from disk
