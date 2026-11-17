@@ -276,6 +276,55 @@ async def test_delete_removes_a_file_checkpoint(jp_fetch, jp_root_dir):
     assert not (jp_root_dir / ".ipynb_checkpoints" / "f-checkpoint.txt").exists()
 
 
+def _checkpoint_folders(root: Path) -> list[str]:
+    return sorted(str(p.relative_to(root)) for p in root.rglob(".ipynb_checkpoints"))
+
+
+# ACC-DELETE-157-CHECKPOINTS
+@pytest.mark.parametrize("trash", [False, True], ids=["permanent", "trash"])
+@pytest.mark.parametrize(
+    "target, files",
+    [
+        (".ipynb_checkpoints", {"nb.ipynb": b"{}", ".ipynb_checkpoints/nb-checkpoint.ipynb": b"{}"}),
+        ("sub", {"sub/in.ipynb": b"{}", "sub/.ipynb_checkpoints/in-checkpoint.ipynb": b"{}"}),
+        (".cache", {".cache/x.bin": b"x"}),
+        (
+            "nb.ipynb",
+            {
+                "nb.ipynb": b"{}",
+                "keep.ipynb": b"{}",
+                ".ipynb_checkpoints/nb-checkpoint.ipynb": b"{}",
+                ".ipynb_checkpoints/keep-checkpoint.ipynb": b"{}",
+            },
+        ),
+        ("a/b.ipynb", {"a/b.ipynb": b"{}"}),
+    ],
+    ids=["checkpoint-folder", "folder", "hidden-folder", "notebook", "nested-notebook"],
+)
+async def test_delete_removes_checkpoints_and_makes_no_checkpoint_folder(
+    jp_fetch, jp_root_dir, jp_serverapp, tmp_path, monkeypatch, target, files, trash
+):
+    contents_manager = jp_serverapp.contents_manager
+    # Hidden files shown: the server lists and removes hidden items.
+    monkeypatch.setattr(contents_manager, "allow_hidden", True)
+    monkeypatch.setattr(contents_manager, "delete_to_trash", True)
+    monkeypatch.setenv("XDG_DATA_HOME", str(_own_home_trash(tmp_path, monkeypatch).parent))
+    _tree(jp_root_dir, files)
+    before = _checkpoint_folders(jp_root_dir)
+
+    _, reports = await _delete(jp_fetch, [target], trash=trash)
+
+    assert reports[-1]["errors"] == []
+    assert not os.path.lexists(jp_root_dir / target)
+    # Only the removed ones are gone; none is made in the parent of a removed item.
+    assert _checkpoint_folders(jp_root_dir) == [
+        p for p in before if p != target and not p.startswith(target + "/")
+    ]
+    if target == "nb.ipynb":
+        # The notebook's own checkpoint goes with it.
+        assert os.listdir(jp_root_dir / ".ipynb_checkpoints") == ["keep-checkpoint.ipynb"]
+
+
 async def test_delete_reports_what_it_cannot_remove_and_removes_the_rest(
     jp_fetch, jp_root_dir
 ):
@@ -651,8 +700,6 @@ async def test_trash_jobs_of_a_sync_delete_file_still_move_one_item_at_a_time(
         moving.remove(path)
 
     monkeypatch.setattr(contents_manager, "delete_file", delete_file)
-    # As the sync ContentsManager.delete calls it.
-    monkeypatch.setattr(contents_manager, "delete", lambda path: contents_manager.delete_file(path))
     _tree(jp_root_dir, {f"{folder}/f{i}": b"x" for folder in "ab" for i in range(5)})
 
     await asyncio.gather(

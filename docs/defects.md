@@ -178,6 +178,17 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-08T23:16:48Z @kj added
   - log: 2026-11-08T23:16:52Z @kj found by review round 11 (wf_0127a192-f76), MINOR; Star Colonel instruction 2026-11-09: continue until the goal clears; remedy: an own epoch counter
   - log: 2026-11-08T23:19:13Z @kj closed: fixed: the listing counts its own `_clipboardEpoch` in copy and cut; both restore guards compare it
+- [x] `DEF-FOLDER-38-NEW-DELAY` **New items appear late** - MAJOR; New Folder, New File and New Notebook show the new item in the listing only after a delay, so rows jump; likely cause: the item is created on the server and the view picks it up only at a later refresh; reproduce first
+  - evidence: gate7 2026-11-17: new-item.spec.ts New Folder/File/Notebook/rename rows 4-74 ms after a 1500 ms held answer (bound 150), default 188+4 flaky, venv 192+1 flaky, 0 failed; Jest 137/137; review round 3 SHIP
+  - root-cause: 2026-11-16T15:59:07Z @kj with unfolding on, a new item shows only after the listing re-read, and _refreshTree (src/model.ts:328-331) waits for one GET per visible unfolded folder: 220-400 ms with 8 folders, stock 25-40 ms; the owner's logged 1.47 s passed before the browser handled the create answer
+  - related: ACC-FOLDER-158-NEW-INSTANT
+  - repro: click New Folder in the file browser toolbar; the Untitled Folder row appears after a delay instead of at once
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-16T14:55:49Z @kj added
+  - log: 2026-11-16T16:07:06Z @kj owner decision 2026-11-16: fix by showing the item from the create answer; find out how the stock file browser makes a new item look instant although it also lagged, and match it; rename included
+  - log: 2026-11-17T10:16:28Z @kj owner decision 2026-11-17: one read per create (own folder only, as stock); r1c editor at stock time kept, its two 8-folder failures go with the re-read of every unfolded folder
+  - log: 2026-11-17T14:18:31Z @kj verify7 failed r1d: Delete then create within the Delete's refresh leaves the deleted row listed until the 10 s poll; the create's one-folder read discards the older whole-tree read (model.ts:515 read < _applied); regression against 1.0.6, repair next
+  - log: 2026-11-17T20:13:36Z @kj closed
 
 ## Open in Terminal `TERM`
 

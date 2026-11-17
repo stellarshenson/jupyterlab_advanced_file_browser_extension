@@ -494,10 +494,19 @@ def _remove(job: dict, root: str, os_paths: list[str], log) -> None:
                 fail(error)
 
 
+def _has_checkpoint_folder(contents_manager, os_path: str) -> bool:
+    """Whether the checkpoint folder beside `os_path` exists. Listing checkpoints makes that
+    folder (FileCheckpoints.checkpoint_path), so a removal lists them only where it already is;
+    a checkpoints class without checkpoint_dir is always listed."""
+    folder = getattr(contents_manager.checkpoints, "checkpoint_dir", None)
+    return folder is None or os.path.isdir(os.path.join(os.path.dirname(os_path), folder))
+
+
 async def _trash(job: dict, contents_manager, paths: list[str], os_paths: list[str], log) -> None:
-    """Move `paths` to the trash through the contents manager's delete, so the server's
-    delete_file runs with its checks and any patch of it, counting one equal share per item
-    into `job` when the item ends. It runs on a worker thread's own event loop (_run_removal)."""
+    """Move `paths` to the trash through the steps of the contents manager's delete, so the
+    server's delete_file runs with its checks and any patch of it, counting one equal share per
+    item into `job` when the item ends. It runs on a worker thread's own event loop
+    (_run_removal)."""
     job["total"] = len(paths)
     # _lock_trash_moves puts the turn in an async delete_file. A sync delete_file stays as it was,
     # so the job waits for its turn here.
@@ -506,7 +515,11 @@ async def _trash(job: dict, contents_manager, paths: list[str], os_paths: list[s
     for index, (path, os_path) in enumerate(zip(paths, os_paths)):
         try:
             async with turn():
-                await ensure_async(contents_manager.delete(path))
+                # ContentsManager.delete, with the checkpoint step guarded.
+                await ensure_async(contents_manager.delete_file(path))
+                if _has_checkpoint_folder(contents_manager, os_path):
+                    await ensure_async(contents_manager.checkpoints.delete_all_checkpoints(path))
+                contents_manager.emit(data={"action": "delete", "path": path})
         except tornado.web.HTTPError as error:
             # Never a permanent removal in its place: the item stays. The library's message
             # reaches the server log only.
@@ -592,7 +605,7 @@ async def _run_removal(
             )
             # As ContentsManager.delete does for the path it removes.
             for path, os_path in zip(paths, os_paths):
-                if not os.path.lexists(os_path):
+                if not os.path.lexists(os_path) and _has_checkpoint_folder(contents_manager, os_path):
                     await ensure_async(contents_manager.checkpoints.delete_all_checkpoints(path))
     except Exception:
         log.exception("Delete of %s failed", paths)

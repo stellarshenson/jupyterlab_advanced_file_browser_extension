@@ -127,17 +127,9 @@ interface INaturalRow {
 export class TreeDirListing extends DirListing {
   constructor(options: DirListing.IOptions) {
     super(options);
-    const internals = this._internals;
-    const stock = internals._selectItemByName.bind(this);
     // The stock selectItemByName and the post-rename selection both call this member.
-    internals._selectItemByName = (name, focus = false, force = false) =>
-      this.model.unfolding
-        ? this._selectItemByPath(
-            PathExt.join(this.model.path, name),
-            focus,
-            force
-          )
-        : stock(name, focus, force);
+    this._internals._selectItemByName = (name, focus = false, force = false) =>
+      this._selectMatch(this.model.path, name, focus, force);
   }
 
   get model(): TreeFileBrowserModel {
@@ -168,10 +160,7 @@ export class TreeDirListing extends DirListing {
     this._reorder();
   }
 
-  rename(): Promise<string> {
-    if (!this.model.unfolding) {
-      return super.rename();
-    }
+  async rename(): Promise<string> {
     const { _sortedItems, _focusIndex } = this._internals;
     const selected = Object.keys(this.selection);
     let path = _sortedItems[_focusIndex]?.path;
@@ -181,8 +170,17 @@ export class TreeDirListing extends DirListing {
     if (!path) {
       return super.rename();
     }
+    const folder = PathExt.dirname(path);
     // The stock rename joins model.path with the old name.
-    return this.model.withPath(PathExt.dirname(path), () => super.rename());
+    const name = this.model.unfolding
+      ? await this.model.withPath(folder, () => super.rename())
+      : await super.rename();
+    // The renamed row shown from the server answer took the old path out of the selection, so
+    // the stock rename did not select it; as stock, it is selected when nothing else was.
+    if (!Object.keys(this.selection).length) {
+      await this._selectMatch(folder, name, true, true).catch(() => undefined);
+    }
+    return name;
   }
 
   copy(): void {
@@ -562,26 +560,52 @@ export class TreeDirListing extends DirListing {
   }
 
   /**
-   * The stock name lookup with a path, so a same-named row at another depth
-   * is never selected.
+   * The row `name` of `folder`: by path while unfolding is on, so a same-named row at another
+   * depth is never matched; by name as stock while it is off.
    */
-  private async _selectItemByPath(
-    path: string,
+  private _match(
+    folder: string,
+    name: string
+  ): (item: Contents.IModel) => boolean {
+    const path = PathExt.join(folder, name);
+    return this.model.unfolding
+      ? item => item.path === path
+      : item => item.name === name;
+  }
+
+  /**
+   * The stock name lookup of `name` in `folder`. A select of a listed row runs at once, so the
+   * row shown from the answer is selected then: the stock listing's own select on a create answer
+   * and the forced selects after a rename. A create's select (focused, not forced) waits for one
+   * read of `folder`, as stock waits for its one folder: the stock render reuses row nodes by
+   * index, and the rename editor that follows stays with its node when the read adds a row above.
+   */
+  private async _selectMatch(
+    folder: string,
+    name: string,
     focus: boolean,
     force: boolean
   ): Promise<void> {
-    if (!force && this.selection[path]) {
-      return;
-    }
-    await this.model.refresh();
-    if (this.isDisposed) {
-      throw new Error('File browser is disposed.');
-    }
     const internals = this._internals;
+    const match = this._match(folder, name);
+    const create = focus && !force;
+    if (create || !internals._sortedItems.some(match)) {
+      await (create ? this.model.refreshFolder(folder) : this.model.refresh());
+      if (this.isDisposed) {
+        throw new Error('File browser is disposed.');
+      }
+    }
     this._ensureOrder();
-    const index = internals._sortedItems.findIndex(item => item.path === path);
+    const index = internals._sortedItems.findIndex(match);
     if (index === -1) {
       throw new Error('Item does not exist.');
+    }
+    if (
+      !force &&
+      !focus &&
+      this.selection[internals._sortedItems[index].path]
+    ) {
+      return;
     }
     internals._selectItem(index, false, focus);
     // A rename that follows needs the row node now.

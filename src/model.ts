@@ -202,10 +202,29 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
   }
 
   async cd(path = '.'): Promise<void> {
+    await this._cd(path);
+    // The read kept changes shown from answers that came while it was in flight, so a read
+    // started now confirms them; Poll drops a refresh asked during a refresh tick.
+    if (this._unconfirmed && !this.isDisposed) {
+      this._unconfirmed = false;
+      await this.cd('.');
+    }
+  }
+
+  private async _cd(path: string): Promise<void> {
     if (!this._unfolding) {
       return super.cd(path);
     }
     if (path === '.') {
+      // A refresh tick that only creates asked for is the latest create's one read of its folder;
+      // a refresh() or another change during that read makes the tick read the whole tree after it.
+      const tick = this._pollTick;
+      if (this._created && this._createTick === tick) {
+        await this._created.read;
+        if (this._createTick === tick) {
+          return;
+        }
+      }
       return this._refreshTree();
     }
     const navigation = this._navigate(path);
@@ -217,6 +236,23 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
         this._navigation = null;
       }
     }
+  }
+
+  /**
+   * Join a create's read of `folder` in flight (`_readCreated`), so a create waits for one read
+   * of its folder as in stock; else refresh.
+   */
+  async refreshFolder(folder: string): Promise<void> {
+    if (this._created?.folder === folder) {
+      return this._created.read;
+    }
+    return this.refresh();
+  }
+
+  async refresh(): Promise<void> {
+    // A refresh asked for while a create's tick is pending reads the whole tree.
+    this._createTick = null;
+    return super.refresh();
   }
 
   async restore(id: string, populate = true): Promise<void> {
@@ -265,6 +301,16 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
   }
 
   protected handleContents(contents: Contents.IModel): void {
+    // A stock cd read; it started before an answer when it was the stock read in flight then.
+    // Without the stock private it keeps nothing, so a kept change cannot re-read without end.
+    const pending = this._stockPending;
+    this._handle(
+      this._keep(contents, shown => !!pending && shown.pending === pending)
+    );
+  }
+
+  private _handle(contents: Contents.IModel): void {
+    this._top = contents;
     if (!this._unfolding) {
       super.handleContents(contents);
       return;
@@ -288,6 +334,11 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
     sender: Contents.IManager,
     change: Contents.IChangedArgs
   ): void {
+    this._showChange(change);
+    const create = this._readCreated(change);
+    const tick = this._pollTick;
+    const joined = this._createTick === tick;
+    // The stock refresh, and the one below for a nested folder, re-read to confirm the change.
     super.onFileChanged(sender, change);
     if (!this._unfolding) {
       return;
@@ -302,6 +353,129 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
     if (nested) {
       void this.refresh();
     }
+    // A tick that only creates asked for joins the create's read (_cd); any other reads the tree.
+    this._createTick =
+      create && (this._pollTick !== tick || joined) ? this._pollTick : null;
+  }
+
+  /**
+   * Show a new or renamed item from the server answer, in its folder when that folder is listed.
+   */
+  private _showChange(change: Contents.IChangedArgs): void {
+    const item = change.newValue as Contents.IModel | null;
+    const top = this._top;
+    if (
+      !top ||
+      (change.type !== 'new' && change.type !== 'rename') ||
+      !item?.path ||
+      !item.name ||
+      !item.type ||
+      // A path of another drive can have the same local folder.
+      this.manager.services.contents.driveName(item.path) !== this.driveName
+    ) {
+      return;
+    }
+    const contents = this._withChange(top, change);
+    if (contents) {
+      this._shown.push({
+        change,
+        read: this._reads,
+        pending: this._stockPending
+      });
+      this._handle(contents);
+      this._emitRefreshed();
+    }
+  }
+
+  /**
+   * `contents` of a read with the shown changes that `inFlight` keeps applied again: those from
+   * answers that came while it was in flight, or in a folder it did not read; the other shown
+   * changes are dropped, since the read started after them.
+   */
+  private _keep(
+    contents: Contents.IModel,
+    inFlight: (shown: IShownChange) => boolean
+  ): Contents.IModel {
+    this._shown = this._shown.filter(inFlight);
+    // A read started after an answer, such as a create's read of its folder, confirms it.
+    this._unconfirmed = this._shown.some(shown => shown.read === this._reads);
+    return this._shown.reduce(
+      (top, { change }) => this._withChange(top, change) ?? top,
+      contents
+    );
+  }
+
+  /**
+   * `top` with `change` applied, and the loaded unfolded folders changed in place; null when no
+   * listed row changes.
+   */
+  private _withChange(
+    top: Contents.IModel,
+    change: Contents.IChangedArgs
+  ): Contents.IModel | null {
+    const item = change.newValue as Contents.IModel;
+    const gone = [item.path, change.oldValue?.path];
+    const folder = PathExt.dirname(this._local(item.path));
+    let changed = false;
+    const update = (path: string, rows: Contents.IModel[]) => {
+      const kept = rows.filter(row => !gone.includes(row.path));
+      const own = this._local(path) === folder;
+      if (own) {
+        kept.push(item);
+      }
+      changed ||= own || kept.length < rows.length;
+      return kept;
+    };
+    const content = update(top.path, top.content);
+    if (this._unfolding) {
+      this._loaded.forEach((rows, path) =>
+        this._loaded.set(path, update(path, rows))
+      );
+    }
+    return changed ? { ...top, content } : null;
+  }
+
+  /**
+   * One read per create: start the read of a new item's listed folder, as stock reads its one
+   * folder; the refresh and the select the create starts join it. While a create read of that
+   * folder is in flight, one read is queued after it and the later creates there join it, so a
+   * Paste of n items reads its folder twice, not n times. False for any other change.
+   */
+  private _readCreated(change: Contents.IChangedArgs): boolean {
+    const item = change.newValue;
+    if (!this._unfolding || change.type !== 'new' || !item?.path) {
+      return false;
+    }
+    const local = PathExt.dirname(this._local(item.path));
+    const folder = [this.topPath, ...this._visibleUnfolded(this.topPath)].find(
+      path => this._local(path) === local
+    );
+    if (folder === undefined) {
+      return false;
+    }
+    const previous = this._created;
+    if (previous?.folder === folder && previous.queued) {
+      return true;
+    }
+    const created = {
+      folder,
+      queued: previous?.folder === folder,
+      read: Promise.resolve()
+    };
+    const start = () => {
+      created.queued = false;
+      return this._refreshTree(folder);
+    };
+    created.read =
+      previous?.folder === folder ? previous.read.then(start, start) : start();
+    this._created = created;
+    const clear = () => {
+      if (this._created === created) {
+        this._created = null;
+      }
+    };
+    void created.read.then(clear, clear);
+    return true;
   }
 
   private async _navigate(path: string): Promise<void> {
@@ -312,22 +486,34 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
       this.topPath,
       path
     );
-    this._merge(await this._fetchUnfolded(target));
+    this._merge(await this._fetchUnfolded(this._visibleUnfolded(target)));
     await super.cd(path);
   }
 
-  private async _refreshTree(): Promise<void> {
+  /**
+   * Re-read the top folder and every visible unfolded folder; with `folder`, only that folder
+   * and the visible unfolded folders not loaded yet, while the other folders keep their rows.
+   */
+  private async _refreshTree(folder?: string): Promise<void> {
     if (this._navigation) {
       await this._navigation.catch(() => undefined);
     }
     const count = this._navigationCount;
+    const read = ++this._reads;
     const { contents, sessions } = this.manager.services;
+    const visible = this._visibleUnfolded(this.topPath);
+    const shownTop =
+      folder !== undefined && folder !== this.topPath ? this._top : null;
     let top: Contents.IModel;
     let fetched: Map<string, Contents.IModel[]>;
     try {
       [top, fetched] = await Promise.all([
-        contents.get(this.topPath, { content: true }),
-        this._fetchUnfolded(this.topPath)
+        shownTop ?? contents.get(this.topPath, { content: true }),
+        this._fetchUnfolded(
+          folder === undefined
+            ? visible
+            : visible.filter(path => path === folder || !this._loaded.has(path))
+        )
       ]);
     } catch {
       if (count === this._navigationCount && !this.isDisposed) {
@@ -340,19 +526,42 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
     if (count !== this._navigationCount || this.isDisposed) {
       return;
     }
+    // Per folder, a read older than one already applied there would undo the newer rows.
+    const stale = (path: string) => (this._applied.get(path) ?? 0) > read;
+    for (const path of fetched.keys()) {
+      if (stale(path)) {
+        fetched.delete(path);
+      }
+    }
+    const ownTop = shownTop === null && !stale(this.topPath);
+    if (!ownTop && fetched.size === 0) {
+      return;
+    }
+    const applied = [...fetched.keys(), ...(ownTop ? [this.topPath] : [])];
+    applied.forEach(path => this._applied.set(path, read));
+    const local = new Set(applied.map(path => this._local(path)));
+    // A read of some folders confirms only the changes in the folders it applied.
+    const confirms = ({ change, read: before }: IShownChange) =>
+      before < read &&
+      (folder === undefined ||
+        [change.newValue?.path, change.oldValue?.path].every(
+          path => !path || local.has(PathExt.dirname(this._local(path)))
+        ));
     this._merge(fetched);
-    this.handleContents(top);
+    this._handle(
+      this._keep(ownTop ? top : (this._top ?? top), shown => !confirms(shown))
+    );
     this.onRunningChanged(sessions, sessions.running());
   }
 
   private async _fetchUnfolded(
-    top: string
+    folders: string[]
   ): Promise<Map<string, Contents.IModel[]>> {
     const contents = this.manager.services.contents;
     const fetched = new Map<string, Contents.IModel[]>();
     let removed = false;
     await Promise.all(
-      this._visibleUnfolded(top).map(async folder => {
+      folders.map(async folder => {
         try {
           const model = await contents.get(folder, { content: true });
           fetched.set(folder, model.content);
@@ -423,6 +632,17 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
     this._current = null;
   }
 
+  /** The stock model's poll tick, of the stock private `_poll`; each scheduled refresh replaces it. */
+  private get _pollTick(): Promise<unknown> {
+    return (this as unknown as { _poll: { tick: Promise<unknown> } })._poll
+      .tick;
+  }
+
+  /** The stock cd's listing read in flight, the stock model's private `_pending`. */
+  private get _stockPending(): Promise<void> | null {
+    return (this as unknown as { _pending: Promise<void> | null })._pending;
+  }
+
   private _emitRefreshed(): void {
     (this.refreshed as Signal<this, void>).emit(undefined);
   }
@@ -442,12 +662,38 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
   private _unfolding = false;
   private _unfolded = new Set<string>();
   private _loaded = new Map<string, Contents.IModel[]>();
+  /** The top folder as last read, without the unfolded folders' rows. */
+  private _top: Contents.IModel | null = null;
+  /** Changes shown from answers that no read started after the answer has replaced yet. */
+  private _shown: IShownChange[] = [];
+  /** Tree reads started. */
+  private _reads = 0;
+  /** The newest tree read applied to each folder read, the top folder or an unfolded folder. */
+  private _applied = new Map<string, number>();
+  private _unconfirmed = false;
+  /** The read of a new item's folder in flight, or queued after one in flight until it starts. */
+  private _created: {
+    folder: string;
+    queued: boolean;
+    read: Promise<void>;
+  } | null = null;
+  /** The poll tick that only creates asked for. */
+  private _createTick: Promise<unknown> | null = null;
   private _current: string | null = null;
   private _pathOverride: string | null = null;
   private _navigation: Promise<void> | null = null;
   private _navigationCount = 0;
   private _stateDB: IStateDB | null = null;
   private _stateKey: string | null = null;
+}
+
+/** A change shown from a server answer, with the reads in flight at the answer. */
+interface IShownChange {
+  change: Contents.IChangedArgs;
+  /** Tree reads started before the answer */
+  read: number;
+  /** The stock cd's read in flight at the answer */
+  pending: Promise<void> | null;
 }
 
 export function isBelow(path: string, top: string): boolean {

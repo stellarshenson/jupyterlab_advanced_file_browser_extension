@@ -1052,3 +1052,57 @@ test('ACC-DELETE-156-MIXED-SELECTION Move to Trash moves the monitored file, the
     rmSync(target, { recursive: true, force: true });
   }
 });
+
+for (const label of ['Delete Permanently', 'Move to Trash']) {
+  test(`ACC-DELETE-157-CHECKPOINTS with hidden files shown ${label} removes .ipynb_checkpoints and a folder and makes no new .ipynb_checkpoints`, async ({
+    page,
+    tmpPath
+  }) => {
+    const root = await onDisk(page, tmpPath);
+    mkdirSync(join(root, '.ipynb_checkpoints'));
+    mkdirSync(join(root, 'acc157'));
+    writeFileSync(join(root, 'nb.ipynb'), notebookFixture([]));
+    writeFileSync(
+      join(root, '.ipynb_checkpoints', 'nb-checkpoint.ipynb'),
+      notebookFixture([])
+    );
+    writeFileSync(join(root, 'acc157', 'a.txt'), 'a');
+    await page.evaluate(async () => {
+      const registry: any = await window.galata.getPlugin(
+        '@jupyterlab/apputils-extension:settings'
+      );
+      await registry.set(
+        '@jupyterlab/filebrowser-extension:browser',
+        'showHiddenFiles',
+        true
+      );
+    });
+    await page.filebrowser.refresh();
+    const paths = [`${tmpPath}/.ipynb_checkpoints`, `${tmpPath}/acc157`];
+    const mark = trashMark();
+
+    await (
+      await confirmDelete(page, paths, label)
+    ).done;
+
+    const rows = async () => (await visibleRows(page)).map(row => row.path);
+    await expect.poll(rows).toEqual([`${tmpPath}/nb.ipynb`]);
+    expect(existsSync(join(root, '.ipynb_checkpoints'))).toBe(false);
+    expect(existsSync(join(root, 'acc157'))).toBe(false);
+    // Only this root: parallel workers' tmpPath teardown moves their folders to the shared trash
+    const trashed = trashedSince(mark).filter(path =>
+      path.startsWith(`${root}/`)
+    );
+    if (label === 'Move to Trash') {
+      expect(trashed.sort()).toEqual([
+        join(root, '.ipynb_checkpoints'),
+        join(root, 'acc157')
+      ]);
+    } else {
+      expect(trashed).toEqual([]);
+    }
+    // A later re-read finds no folder made after the removal either
+    await page.filebrowser.refresh();
+    expect(await rows()).toEqual([`${tmpPath}/nb.ipynb`]);
+  });
+}
