@@ -2,6 +2,22 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.7] - 2026-11-18
+
+### Added
+
+- A new folder, file or notebook shows in the listing as soon as the server confirms the create, in its sorted place, and its rename editor opens after one read of its own folder
+- Delete of a `.ipynb_checkpoints` folder removes it, and no Delete leaves a new empty `.ipynb_checkpoints` folder behind
+
+### Changed
+
+- A Paste, Duplicate or drag-copy answer joins or queues behind the create read of its own folder, kept per folder; a create answered in another folder between Paste answers no longer starts a second read of the unfolded folder
+
+### Fixed
+
+- The extra listing read a create in another folder caused between Paste answers into an unfolded folder (DEF-FOLDER-39-PASTE-READ)
+- The held-read Galata case takes its release from the test after the editor appears, so it no longer fails its own premise under load
+
 ## [1.0.6] - 2026-11-16
 
 ### Added

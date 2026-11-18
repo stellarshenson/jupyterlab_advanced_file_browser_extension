@@ -216,11 +216,13 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
       return super.cd(path);
     }
     if (path === '.') {
-      // A refresh tick that only creates asked for is the latest create's one read of its folder;
-      // a refresh() or another change during that read makes the tick read the whole tree after it.
+      // A refresh tick that only creates asked for joins every create read in flight; a
+      // refresh() or another change during them makes the tick read the whole tree after them.
       const tick = this._pollTick;
-      if (this._created && this._createTick === tick) {
-        await this._created.read;
+      if (this._created.size > 0 && this._createTick === tick) {
+        await Promise.all(
+          Array.from(this._created.values(), created => created.read)
+        );
         if (this._createTick === tick) {
           return;
         }
@@ -239,12 +241,13 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
   }
 
   /**
-   * Join a create's read of `folder` in flight (`_readCreated`), so a create waits for one read
-   * of its folder as in stock; else refresh.
+   * Join a create's read of `folder` in flight (`_readCreated`), starting it now when it is
+   * queued, so a create waits for one read of its folder as in stock; else refresh.
    */
   async refreshFolder(folder: string): Promise<void> {
-    if (this._created?.folder === folder) {
-      return this._created.read;
+    const created = this._created.get(folder);
+    if (created) {
+      return created.start();
     }
     return this.refresh();
   }
@@ -436,10 +439,12 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
   }
 
   /**
-   * One read per create: start the read of a new item's listed folder, as stock reads its one
-   * folder; the refresh and the select the create starts join it. While a create read of that
-   * folder is in flight, one read is queued after it and the later creates there join it, so a
-   * Paste of n items reads its folder twice, not n times. False for any other change.
+   * One read per create and per folder: start the read of a new item's listed folder, as stock
+   * reads its one folder; the refresh and the select the create starts join it. While a create
+   * read of that folder is in flight, one read is queued after it and the later creates there
+   * join it, also when a create in another folder was answered since, so a Paste of n items
+   * reads its folder twice, not n times; a create's select starts the queued read at once
+   * (refreshFolder). False for any other change.
    */
   private _readCreated(change: Contents.IChangedArgs): boolean {
     const item = change.newValue;
@@ -453,25 +458,26 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
     if (folder === undefined) {
       return false;
     }
-    const previous = this._created;
-    if (previous?.folder === folder && previous.queued) {
+    const previous = this._created.get(folder);
+    if (previous?.queued) {
       return true;
     }
+    let started: Promise<void> | null = null;
     const created = {
-      folder,
-      queued: previous?.folder === folder,
-      read: Promise.resolve()
+      queued: !!previous,
+      read: Promise.resolve(),
+      start: (): Promise<void> => {
+        created.queued = false;
+        return (started ??= this._refreshTree(folder));
+      }
     };
-    const start = () => {
-      created.queued = false;
-      return this._refreshTree(folder);
-    };
-    created.read =
-      previous?.folder === folder ? previous.read.then(start, start) : start();
-    this._created = created;
+    created.read = previous
+      ? previous.read.then(created.start, created.start)
+      : created.start();
+    this._created.set(folder, created);
     const clear = () => {
-      if (this._created === created) {
-        this._created = null;
+      if (this._created.get(folder) === created) {
+        this._created.delete(folder);
       }
     };
     void created.read.then(clear, clear);
@@ -671,12 +677,16 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
   /** The newest tree read applied to each folder read, the top folder or an unfolded folder. */
   private _applied = new Map<string, number>();
   private _unconfirmed = false;
-  /** The read of a new item's folder in flight, or queued after one in flight until it starts. */
-  private _created: {
-    folder: string;
-    queued: boolean;
-    read: Promise<void>;
-  } | null = null;
+  /** Each folder's read of a new item in flight, or queued after one in flight until it starts. */
+  private _created = new Map<
+    string,
+    {
+      queued: boolean;
+      read: Promise<void>;
+      /** Starts the read at most once; on a queued read, before the read it is queued after ends. */
+      start: () => Promise<void>;
+    }
+  >();
   /** The poll tick that only creates asked for. */
   private _createTick: Promise<unknown> | null = null;
   private _current: string | null = null;

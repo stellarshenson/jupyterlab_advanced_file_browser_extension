@@ -189,6 +189,15 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-17T10:16:28Z @kj owner decision 2026-11-17: one read per create (own folder only, as stock); r1c editor at stock time kept, its two 8-folder failures go with the re-read of every unfolded folder
   - log: 2026-11-17T14:18:31Z @kj verify7 failed r1d: Delete then create within the Delete's refresh leaves the deleted row listed until the 10 s poll; the create's one-folder read discards the older whole-tree read (model.ts:515 read < _applied); regression against 1.0.6, repair next
   - log: 2026-11-17T20:13:36Z @kj closed
+- [x] `DEF-FOLDER-39-PASTE-READ` **Extra Paste read beside a create in another folder** - MINOR; a New Folder or New File answered in another folder between the Paste answers into an unfolded folder makes the next Paste answer start a second read of that folder while its first read still runs; listing stays right; found under load 57-78
+  - evidence: Fixed by r5-queue: one create read per folder in src/model.ts; covering Jest cases in src/__tests__/tree-model.spec.ts 139/139 and Galata verify12 loaded 5/5 (logs/verify12-load.log); gate10 venv 194 passed (logs/gate10-venv.log); review round 5 SHIP (tmp/workflows/newitem-v1/review-r5.json)
+  - related: ACC-FOLDER-158-NEW-INSTANT
+  - repro: repro/verify9.spec.ts V9HPASTENF top variant, 1 worker, under load: verify9.spec.ts:1121 fails
+  - test-tags: UNIT, FUNCTIONAL
+  - root-cause: 2026-11-17T22:41:16Z @kj _readCreated keeps one _created slot; a create in another folder replaces it, so a later Paste answer finds no read of its folder and starts one (r2-paste, in 7d3a44a)
+  - log: 2026-11-17T22:41:16Z @kj added
+  - log: 2026-11-17T22:41:23Z @kj owner decision 2026-11-17: fix it as a new item; found by round 4 Apply (round4.json failures); committed code fails the same check 2 of 3 runs (logs/round4-r4ab.log)
+  - log: 2026-11-18T02:08:00Z @kj closed
 
 ## Open in Terminal `TERM`
 

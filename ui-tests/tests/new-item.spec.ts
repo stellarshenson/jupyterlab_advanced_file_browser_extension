@@ -841,6 +841,79 @@ test.describe('8 unfolded folders, one read per create', () => {
       rows.map(row => row.path.slice(row.path.lastIndexOf('/') + 1))
     );
   });
+
+  test('ACC-FOLDER-158-NEW-INSTANT New Folder in f0 during the held first read after a Paste of 20 files into f0 opens the rename editor before that read is released', async ({
+    page,
+    tmpPath
+  }) => {
+    await prepare(page, tmpPath, '8 unfolded folders');
+    const folder = `${tmpPath}/f0`;
+    const path = `${folder}/Untitled Folder`;
+    // f0 holds file00.txt-file24.txt too, so the server names each copy -Copy1.
+    const names = Array.from(
+      { length: 20 },
+      (_, i) => `file${String(i).padStart(2, '0')}`
+    );
+    const pasted = names.map(name => `${folder}/${name}-Copy1.txt`);
+    await (await rowLocator(page, `${tmpPath}/f1/${names[0]}.txt`)).click();
+    await (
+      await rowLocator(page, `${tmpPath}/f1/${names[19]}.txt`)
+    ).click({ modifiers: ['Shift'] });
+    await page.evaluate(() =>
+      window.jupyterapp.commands.execute('filebrowser:copy')
+    );
+    // The click makes f0 the current folder: the Paste target and the new folder's place.
+    await (await rowLocator(page, folder)).click();
+    await resetPoll(page);
+    // The first listing read of f0 after the Paste stays held until the test releases it, so no
+    // load can outlast the hold.
+    let asked = false;
+    let releasedAt = 0;
+    let release!: () => void;
+    const released = new Promise<void>(resolve => {
+      release = () => resolve();
+    });
+    await page.route(
+      url =>
+        decodeURIComponent(url.pathname).endsWith(`/api/contents/${folder}`),
+      async route => {
+        if (route.request().method() !== 'GET' || asked) {
+          return route.fallback();
+        }
+        asked = true;
+        const response = await route.fetch();
+        await released;
+        releasedAt = Date.now();
+        await route.fulfill({ response });
+      }
+    );
+
+    await page.evaluate(() =>
+      window.jupyterapp.commands.execute('filebrowser:paste')
+    );
+    await expect.poll(() => asked, { timeout: CONFIRM_MS }).toBe(true);
+    expect(releasedAt).toBe(0);
+    await watchEditor(page, folder);
+    await page.locator(NEW_FOLDER).first().click();
+
+    await expect
+      .poll(() => editorRow(page), { timeout: CONFIRM_MS })
+      .toBe(path);
+    await page.keyboard.press('Escape');
+    // Hold the read at least 100 ms past the editor, so the order cannot hinge on the clocks.
+    await page.waitForTimeout(100);
+    release();
+    await expect
+      .poll(() => releasedAt, { timeout: CONFIRM_MS })
+      .toBeGreaterThan(0);
+    const { editorAt } = await page.evaluate(() => (window as any).__editor);
+    expect(editorAt).toBeGreaterThan(0);
+    expect(editorAt).toBeLessThan(releasedAt);
+    await page.waitForTimeout(500);
+    const listed = (await visibleRows(page)).map(row => row.path);
+    expect([...pasted, path].filter(p => !listed.includes(p))).toEqual([]);
+    await page.unrouteAll({ behavior: 'wait' });
+  });
 });
 
 test.describe('8 unfolded folders, the refresh after a Delete in flight at a create', () => {

@@ -674,7 +674,8 @@ describe('TreeFileBrowserModel', () => {
         true
       );
       await settle();
-      expect(heldPaths).toEqual(['a']);
+      // The focused select starts the queued read at once.
+      expect(heldPaths).toEqual(['a', 'a']);
 
       await release(0, 1);
       await reads(2);
@@ -689,6 +690,96 @@ describe('TreeFileBrowserModel', () => {
         expect.arrayContaining(pasted)
       );
       expect(Object.keys(selection(listing))).toEqual([pasted[4]]);
+    });
+
+    it('a New Folder answered during a Paste read of its unfolded folder is selected after one read that started after its answer, with the Paste read still held', async () => {
+      await model.toggle('a');
+      model.setCurrentFolder('a');
+      holdReads();
+      const contents = model.manager.services.contents;
+      const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+      // The first Paste copy starts the read of a; the two answered while it is held queue one read.
+      const pasted: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        pasted.push(
+          (await contents.newUntitled({ path: 'a', type: 'file' })).path
+        );
+      }
+      await settle();
+      expect(heldPaths).toEqual(['a']);
+
+      // New Folder: its answer while the Paste read is held, then its select before the rename editor.
+      const created = await contents.newUntitled({
+        path: 'a',
+        type: 'directory'
+      });
+      const focused = listing.selectItemByName(created.name, true);
+      await settle();
+      expect(heldPaths).toEqual(['a', 'a']);
+      await release(1, 2);
+
+      expect(await settles(focused)).toBe(true);
+      expect(Object.keys(selection(listing))).toEqual([created.path]);
+      await release(0, 1);
+      await settle();
+      expect(heldPaths).toEqual(['a', 'a']);
+      expect(paths(listing.sortedItems())).toEqual(
+        expect.arrayContaining([...pasted, created.path])
+      );
+    });
+
+    it('DEF-FOLDER-39-PASTE-READ Paste answers into a during its create read join it after a create in the top folder was answered, and the top create is selected after its own read', async () => {
+      await model.toggle('a');
+      holdReads();
+      const contents = model.manager.services.contents;
+      const settle = () => new Promise(resolve => setTimeout(resolve, 20));
+      // The Paste answers into a: the first starts a read of a, the next two queue one read.
+      const pasted: string[] = [];
+      for (let i = 0; i < 3; i++) {
+        pasted.push(
+          (await contents.newUntitled({ path: 'a', type: 'file' })).path
+        );
+      }
+      await settle();
+      expect(heldPaths).toEqual(['a']);
+
+      // A New Folder in the top folder: its own read, and its select before the rename editor.
+      const created = await contents.newUntitled({
+        path: '',
+        type: 'directory'
+      });
+      await settle();
+      expect(heldPaths).toEqual(['a', '']);
+      const focused = listing.selectItemByName(created.name, true);
+
+      // Paste answers into a after the top create join the queued read of a.
+      for (let i = 0; i < 2; i++) {
+        pasted.push(
+          (await contents.newUntitled({ path: 'a', type: 'file' })).path
+        );
+      }
+      await settle();
+      expect(heldPaths).toEqual(['a', '']);
+
+      // The select waits for the top folder's read only.
+      expect(await settles(focused)).toBe(false);
+
+      // Releasing the first read of a starts one queued read of a, not one per answer.
+      await release(0, 1);
+      await reads(3);
+      expect(heldPaths).toEqual(['a', '', 'a']);
+      expect(await settles(focused)).toBe(false);
+
+      await release(1, 2);
+      expect(await settles(focused)).toBe(true);
+      expect(Object.keys(selection(listing))).toEqual([created.path]);
+
+      await release(2, 3);
+      await settle();
+      expect(heldPaths).toEqual(['a', '', 'a']);
+      expect(paths(listing.sortedItems())).toEqual(
+        expect.arrayContaining([...pasted, created.path])
+      );
     });
 
     it('with unfolding off a new item and a rename show, the new row is selected at the answer, and a focused select waits for the re-read', async () => {

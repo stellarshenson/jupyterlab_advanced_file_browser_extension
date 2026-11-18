@@ -405,7 +405,8 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - test-tags: FUNCTIONAL
   - log: 2026-11-11T22:03:31Z @kj added
   - log: 2026-11-11T23:23:51Z @kj closed
-- [ ] `ACC-FOLDER-158-NEW-INSTANT` **New items appear at once** - HIGH; a folder, file or notebook created from the file browser toolbar, the New menu or the launcher shows in the listing as soon as the server confirms it, in its sorted place, never later than in the stock file browser under the same delay, and no row moves after it appears, except that under the Last Modified sort the parent folder may move once at the re-read; a rename shows the new name in its sorted place as soon as the server confirms it
+- [x] `ACC-FOLDER-158-NEW-INSTANT` **New items appear at once** - HIGH; a folder, file or notebook created from the file browser toolbar, the New menu or the launcher shows in the listing as soon as the server confirms it, in its sorted place, never later than in the stock file browser under the same delay, and no row moves after it appears, except that under the Last Modified sort the parent folder may move once at the re-read; a rename shows the new name in its sorted place as soon as the server confirms it
+  - evidence: Galata new-item.spec.ts 27 passed and the held-read case 5/5 under 8-hog load (logs/verify12-load.log); gate10 venv 194 passed, default 190 (logs/gate10-venv.log, gate10-default.log); review round 5 SHIP, 0 findings (tmp/workflows/newitem-v1/review-r5.json)
   - test: Galata: New Folder, New File, New Notebook and rename, with and without unfolded folders and with a delayed server answer; assert the row shows at the answer and the rename editor after one read of its own folder, both within 250 ms of the answer as stock, and no row moves afterwards
   - test-tags: FUNCTIONAL
   - log: 2026-11-16T14:55:49Z @kj added
@@ -422,6 +423,8 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-17T17:44:07Z @kj owner decisions 2026-11-17, review round 2: apply the plan (whole-tree read after a create's read when a refresh was asked during it; remove refreshFolder's partial-read branch; design.md fix); accept one Last Modified move, also under an open rename editor
   - log: 2026-11-17T17:44:07Z @kj owner decision 2026-11-17: fix, against the review's refutation: a Paste of n copied items reads the target folder n times; creates answered while a read of the same folder runs join one queued read after it
   - log: 2026-11-17T20:13:36Z @kj review round 3 SHIP, accepted 2026-11-17; owner ordered the fix of its one refuted MINOR: a New Folder or New File answered during a Paste's read of that folder waits two reads for its editor; stays open until that fix is reviewed
+  - log: 2026-11-17T21:28:23Z @kj owner decision 2026-11-17: apply r3-editor although measured slower; New Folder or New File during a Paste read of its folder: editor 291-312 ms after answer (committed code 121-147 ms, bound 250), accepted for that case; V9HPASTENF overlap assertion changes
+  - log: 2026-11-18T02:08:03Z @kj closed
 
 ## Actions on nested rows `NESTED`
 
