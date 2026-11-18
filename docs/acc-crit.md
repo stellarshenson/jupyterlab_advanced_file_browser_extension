@@ -1174,3 +1174,14 @@ Delete dialog with Move to Trash and Delete Permanently, the large-removal warni
   - log: 2026-11-17T05:56:26Z @kj owner decision 2026-11-17, review round 1: apply the plan; remove the unused contents_manager.delete monkeypatch in the trash test
   - log: 2026-11-17T20:13:36Z @kj closed
 
+## Row tooltips `TIPS`
+
+A hover tooltip on every file and folder row shows the item's details on more than one line
+
+- log: 2026-11-18T11:41:10Z @kj category created
+
+- [ ] `ACC-TIPS-159-DETAILS` **Details on hover** - CRITICAL; every file row and every folder row in the file browser, also inside an unfolded folder, shows a hover tooltip with the item's details on more than one line: the name, the full path and the last modified time, and for a file the size
+  - test: Galata: hover a file row, a folder row and a row inside an unfolded folder; assert a tooltip with more than one line showing name, path, modified time and, for a file, size
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-18T11:41:10Z @kj added
+
