@@ -362,6 +362,36 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - log: 2026-11-09T09:41:32Z @kj added
   - log: 2026-11-09T09:41:42Z @kj root-cause recorded; reason: root cause established by review round 13
   - log: 2026-11-09T09:50:36Z @kj closed
+- [x] `DEF-UNFOLD-40-REFRESH-EXTERNAL` **Unfolded folder shows an external file only after about 30 s** - MEDIUM; File written on disk by a process outside JupyterLab inside an unfolded folder; its row appears only after about 30 s.
+  - evidence: make test exit 0: 139 Jest, 77 pytest, auth gate. Full Galata: 195 passed, 1 flaky start-up race, 3 skipped. The DEF-UNFOLD-40-REFRESH-EXTERNAL spec passes: visible runs 9585/10139 ms within 13000, visibility run 211 ms within 2000.
+  - test-tags: FUNCTIONAL
+  - root-cause: 2026-11-20T12:42:34Z @kj Reported event not standby: server log shows the tree poll reading the file's folder at 12:46:57 and 12:47:07 while the resource monitor polled every 5 s, so the page was visible; the row could list by 12:47:07. Standby explains only the 12:37 and 12:40 gaps. Visible-page cause under investigation.
+  - root-cause: 2026-11-20T12:37:45Z @kj visible page: one 10 s tick (9994, 10020 ms measured). The 30 s came while the tab was hidden: Lumino when-hidden standby stops the poll and nothing refreshes on visibility return, so the row waits for the next timer; the server log's six gaps match the resource-monitor poll's when-hidden pauses.
+  - repro: With unfolding on, unfold a folder, then create a file in it from a terminal; the row appears only after about 30 s.
+  - log: 2026-11-20T11:49:09Z @kj added
+  - log: 2026-11-20T12:37:45Z @kj edited test-tags added "FUNCTIONAL"
+  - log: 2026-11-20T12:37:45Z @kj closed
+  - log: 2026-11-20T12:37:54Z @kj edited evidence "make test exit 0: 139 Jest, 77 pytest, auth gate. Full Galata: 195 passed, 1 flaky start-up race, 3 skipped. DEF-UNFOLD-40 spec passes: visible runs 9585/10139 ms within 13000, visibility run 211 ms within 2000." -> "make test exit 0: 139 Jest, 77 pytest, auth gate. Full Galata: 195 passed, 1 flaky start-up race, 3 skipped. The DEF-UNFOLD-40-REFRESH-EXTERNAL spec passes: visible runs 9585/10139 ms within 13000, visibility run 211 ms within 2000."
+  - log: 2026-11-20T12:37:55Z @kj edited text "File written on disk by a process outside JupyterLab inside an unfolded folder; its row appears only after about 30 s. Expected within one 10 s poll tick, which re-reads every visible unfolded folder. Cause under investigation." -> "File written on disk by a process outside JupyterLab inside an unfolded folder; its row appears only after about 30 s."
+  - log: 2026-11-20T12:42:34Z @kj regressed as DEF-UNFOLD-40-REFRESH-EXTERNAL-1
+  - log: 2026-11-20T12:50:01Z @kj visible-page check: live probes 5062/9333 ms in view and the server log read the folder at 12:47:07; no code cause for the reported wait; regression -1 rejected
+- [-] `DEF-UNFOLD-40-REFRESH-EXTERNAL-1` **Unfolded folder shows an external file only after about 30 s** - MEDIUM; A file written on disk inside an unfolded folder showed only after about 30 s with the page visible: the server log shows the tree poll reading the folder every 10 s and the resource monitor every 5 s through 12:46-12:48, so standby is ruled out; cause under investigation.
+  - test-tags: FUNCTIONAL
+  - repro: With unfolding on and the file browser on screen, write a file on disk into an unfolded folder; note when the row appears and compare with /var/log/jupyterlab.log reads of that folder.
+  - log: 2026-11-20T12:42:34Z @kj regression of DEF-UNFOLD-40-REFRESH-EXTERNAL
+  - log: 2026-11-20T12:42:34Z @kj edited text "File written on disk by a process outside JupyterLab inside an unfolded folder; its row appears only after about 30 s." -> "A file written on disk inside an unfolded folder showed only after about 30 s with the page visible: the server log shows the tree poll reading the folder every 10 s and the resource monitor every 5 s through 12:46-12:48, so standby is ruled out; cause under investigation."; repro added "With unfolding on and the file browser on screen, write a file on disk into an unfolded folder; note when the row appears and compare with /var/log/jupyterlab.log reads of that folder."
+  - log: 2026-11-20T12:42:47Z @kj edited test-tags added "FUNCTIONAL"
+  - log: 2026-11-20T12:50:01Z @kj measured: live visible-page probes in the same folder 5062 and 9333 ms, both in view; the server log reads the folder at 12:46:57 and 12:47:07, so the row was available one tick after the write
+  - log: 2026-11-20T12:50:01Z @kj rejected: not reproduced: live probes in the same folder on the visible page appeared in 5.1 s and 9.3 s (one poll tick); the server log shows the tree read the folder at 12:46:57 and 12:47:07, so a file written at 12:46:58 was available by 12:47:07.4
+- [x] `DEF-UNFOLD-41-READ-ERROR` **A failed unfolded-folder read blanks the folder** - MEDIUM; A non-404 contents read failure for an unfolded folder sets that folder's rows to empty, so a transient server error blanks the folder until the next successful read; docs/design.md and the refresh bar say the old rows stay.
+  - evidence: src/model.ts:575-581 else branch deleted; make test exit 0 (139 Jest, 77 pytest, auth); full Galata 194 passed, 2 flaky, 3 skipped, DEF-UNFOLD-40-REFRESH-EXTERNAL passed; the branch that blanked the rows no longer exists.
+  - test-tags: MANUAL
+  - root-cause: 2026-11-20T14:36:37Z @kj the non-404 catch in _fetchUnfolded ran fetched.set(folder, []), so _merge replaced the loaded rows with an empty list on any read error; the branch is deleted and the folder keeps its last rows.
+  - repro: Unfold a folder, then make GET /api/contents for it fail with a non-404 (server error); its rows disappear instead of staying.
+  - log: 2026-11-20T13:48:25Z @kj added
+  - log: 2026-11-20T14:36:37Z @kj edited test-tags added "MANUAL"
+  - log: 2026-11-20T14:36:37Z @kj closed
+  - log: 2026-11-20T14:36:41Z @kj edited evidence "src/model.ts:575-581 else branch deleted; make test exit 0 (139 Jest, 77 pytest, auth); full Galata 194 passed, 2 flaky, 3 skipped, DEF-UNFOLD-40 passed; the branch that blanked the rows no longer exists." -> "src/model.ts:575-581 else branch deleted; make test exit 0 (139 Jest, 77 pytest, auth); full Galata 194 passed, 2 flaky, 3 skipped, DEF-UNFOLD-40-REFRESH-EXTERNAL passed; the branch that blanked the rows no longer exists."
 
 ## Drag and drop paths `DRAG`
 

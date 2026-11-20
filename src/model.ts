@@ -575,8 +575,6 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
           if ((error as { response?: Response }).response?.status === 404) {
             this._unfolded.delete(folder);
             removed = true;
-          } else {
-            fetched.set(folder, []);
           }
         }
       })

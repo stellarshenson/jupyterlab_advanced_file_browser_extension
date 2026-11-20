@@ -2,6 +2,20 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.9] - 2026-11-20
+
+### Added
+
+- A Galata test measures how soon a file written on disk shows in an unfolded folder, on the visible page and on return to the page
+
+### Changed
+
+- Returning to the JupyterLab page refreshes every file browser at once, so a file added while the page was hidden shows on return instead of after the next 10 s poll
+
+### Fixed
+
+- An unfolded folder whose contents read fails with an error other than 404 keeps its rows instead of showing an empty folder (DEF-UNFOLD-41-READ-ERROR)
+
 ## [1.0.8] - 2026-11-20
 
 ### Added

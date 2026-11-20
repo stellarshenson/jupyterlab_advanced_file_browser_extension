@@ -201,6 +201,13 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - test-tags: FUNCTIONAL
   - log: 2026-11-19T15:41:20Z @kj added
   - log: 2026-11-19T15:55:17Z @kj closed
+- [x] `ACC-UNFOLD-161-VISIBILITY` **Returning to the page refreshes at once** - HIGH; A file written on disk inside an unfolded folder while the page is hidden appears at once when the page becomes visible, not after the next 10 s poll timer; measured 211 ms.
+  - evidence: ui-tests/tests/refresh.spec.ts VISIBILITY model_ms=211 dom_ms=217 within the 2000 ms bound; full Galata suite green at 195 passed
+  - test: ui-tests/tests/refresh.spec.ts: the VISIBILITY run writes a file, dispatches visibilitychange while visible, and expects the row within 2000 ms.
+  - test-tags: FUNCTIONAL
+  - mechanism: 2026-11-20T13:21:52Z @kj a document visibilitychange listener refreshes every tracked file browser through the existing poll
+  - log: 2026-11-20T13:21:52Z @kj added
+  - log: 2026-11-20T13:21:59Z @kj closed
 
 ## Unfolding switch `SWITCH`
 

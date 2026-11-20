@@ -130,6 +130,15 @@ const plugin: JupyterFrontEndPlugin<IFileBrowserFactory> = {
     };
 
     settings?.changed.connect(() => tracker.forEach(apply));
+    // Standby 'when-hidden' drops the poll while the page is hidden and resumes it only at the
+    // next timer, up to 10 s after the page is back; refresh every browser as it becomes visible.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        tracker.forEach(browser => {
+          void browser.model.refresh();
+        });
+      }
+    });
 
     const trans = translator.load('jupyterlab');
     const addToggle = (id: string, key: SettingKey, label: string): void => {
