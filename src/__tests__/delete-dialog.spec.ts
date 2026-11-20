@@ -81,9 +81,9 @@ describe('deleteButtons', () => {
         displayType
       }))
     ).toEqual([
-      { label: 'Cancel', accept: false, displayType: 'default' },
       { label: 'Delete Permanently', accept: true, displayType: 'warn' },
-      { label: 'Move to Trash', accept: true, displayType: 'default' }
+      { label: 'Cancel', accept: false, displayType: 'default' },
+      { label: 'Move to Trash', accept: true, displayType: 'warn' }
     ]);
     expect(buttons[defaultButton].label).toBe('Move to Trash');
   });
@@ -164,16 +164,12 @@ async function deleteMixed(
   // mockReset, not clearAllMocks, drops an answer an earlier case left unused.
   (showDialog as jest.Mock)
     .mockReset()
-    .mockResolvedValueOnce({
-      button: deleteButtons(true, trans).buttons.find(
-        ({ label }) => label === first
-      )
-    })
-    .mockResolvedValueOnce({
-      button: deleteButtons(true, trans, false).buttons.find(
-        ({ label }) => label === second
-      )
-    });
+    .mockImplementationOnce((options: Dialog.IOptions<unknown>) => ({
+      button: options.buttons!.find(({ label }) => label === first)
+    }))
+    .mockImplementationOnce((options: Dialog.IOptions<unknown>) => ({
+      button: options.buttons!.find(({ label }) => label === second)
+    }));
   await deleteItems(model, selected, trans);
   return (requestAPI as jest.Mock).mock.calls
     .filter(([endPoint]) => endPoint === 'delete')
@@ -197,8 +193,8 @@ describe('a selection with monitored and unmonitored items', () => {
 
     const options = (showDialog as jest.Mock).mock.calls[0][0];
     expect(labels(options)).toEqual([
-      'Cancel',
       'Delete Permanently',
+      'Cancel',
       'Move to Trash'
     ]);
     expect(warnings(options)).toEqual([
@@ -296,11 +292,11 @@ function serveRemoval(
       }
     }
   });
-  (showDialog as jest.Mock).mockResolvedValue({
-    button: deleteButtons(true, trans).buttons.find(
-      button => button.label === label
-    )
-  });
+  (showDialog as jest.Mock).mockImplementation(
+    (options: Dialog.IOptions<unknown>) => ({
+      button: options.buttons!.find(button => button.label === label)
+    })
+  );
   return polls;
 }
 
@@ -471,10 +467,12 @@ describe('the Delete Failed message', () => {
     );
     (showDialog as jest.Mock)
       .mockReset()
-      .mockResolvedValueOnce({ button: deleteButtons(true, trans).buttons[2] })
-      .mockResolvedValueOnce({
-        button: deleteButtons(true, trans, false).buttons[1]
-      });
+      .mockImplementationOnce((options: Dialog.IOptions<unknown>) => ({
+        button: options.buttons![2]
+      }))
+      .mockImplementationOnce((options: Dialog.IOptions<unknown>) => ({
+        button: options.buttons![1]
+      }));
 
     await deleteItems(model, mixed, trans);
 

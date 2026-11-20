@@ -136,7 +136,7 @@ Design-system values: children indent 16px per level; the caret is a text glyph 
 
 | Setting            | Type    | Default | Title              |
 | ------------------ | ------- | ------- | ------------------ |
-| `folderUnfolding`  | boolean | `false` | Folder unfolding   |
+| `folderUnfolding`  | boolean | `true`  | Folder unfolding   |
 | `unixStyleSorting` | boolean | `true`  | Unix style sorting |
 
 - `additionalProperties: false`; `jupyter.lab.setting-icon` `jupyterlab-advanced-file-browser-extension:folder-open` (the extension's own named icon); `jupyter.lab.setting-icon-label` `Advanced File Browser`
@@ -216,7 +216,7 @@ Ported files: `src/model.ts`, `src/listing.ts`, `style/icons/folder-open.svg`. E
 // src/model.ts (core)
 export namespace TreeFileBrowserModel {
   export interface IOptions extends FilterFileBrowserModel.IOptions {
-    unfolding?: boolean; // initial state, default false
+    unfolding?: boolean; // initial state, default true
   }
 }
 export class TreeFileBrowserModel extends FilterFileBrowserModel {
@@ -320,7 +320,7 @@ Test names start with the criterion id. Galata titles go in `test(...)`, Jest ti
 | ACC-UNFOLD-90-LEFT-SPACING | `ui-tests/tests/unfold.spec.ts`                                    | ACC-UNFOLD-90-LEFT-SPACING tree rows halve the stock left padding                           |
 | ACC-UNFOLD-22-NOTICE       | `jupyterlab_advanced_file_browser_extension/tests/test_licence.py` | `test_acc_unfold_22_notice`                                                                 |
 | ACC-SWITCH-23-ITEM         | `ui-tests/tests/switch.spec.ts`                                    | ACC-SWITCH-23-ITEM unfolding item in the column-header menu                                 |
-| ACC-SWITCH-24-DEFAULT      | `ui-tests/tests/switch.spec.ts`                                    | ACC-SWITCH-24-DEFAULT unfolding is off with fresh settings                                  |
+| ACC-SWITCH-24-DEFAULT      | `ui-tests/tests/switch.spec.ts`                                    | ACC-SWITCH-24-DEFAULT unfolding is on with fresh settings                                   |
 | ACC-SWITCH-25-CHECK        | `ui-tests/tests/switch.spec.ts`                                    | ACC-SWITCH-25-CHECK item checked exactly while unfolding is on                              |
 | ACC-SWITCH-26-ON           | `ui-tests/tests/switch.spec.ts`                                    | ACC-SWITCH-26-ON switching on shows triangles without a reload                              |
 | ACC-SWITCH-27-OFF          | `ui-tests/tests/switch.spec.ts`                                    | ACC-SWITCH-27-OFF switching off restores the stock listing                                  |

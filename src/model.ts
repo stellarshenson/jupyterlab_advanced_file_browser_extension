@@ -20,7 +20,7 @@ import type { Signal } from '@lumino/signaling';
 export namespace TreeFileBrowserModel {
   export interface IOptions extends FilterFileBrowserModel.IOptions {
     /**
-     * Whether folders unfold in place; default false.
+     * Whether folders unfold in place; default true.
      */
     unfolding?: boolean;
 
@@ -38,7 +38,7 @@ export namespace TreeFileBrowserModel {
 export class TreeFileBrowserModel extends FilterFileBrowserModel {
   constructor(options: TreeFileBrowserModel.IOptions) {
     super(options);
-    this._unfolding = options.unfolding ?? false;
+    this._unfolding = options.unfolding ?? true;
     this._stateDB = options.state ?? null;
     this.shell = options.shell ?? null;
   }
@@ -665,7 +665,7 @@ export class TreeFileBrowserModel extends FilterFileBrowserModel {
     return this.manager.services.contents.localPath(path);
   }
 
-  private _unfolding = false;
+  private _unfolding = true;
   private _unfolded = new Set<string>();
   private _loaded = new Map<string, Contents.IModel[]>();
   /** The top folder as last read, without the unfolded folders' rows. */

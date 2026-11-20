@@ -34,7 +34,7 @@ const PLUGIN_ID =
 /**
  * The schema defaults, used as they are when the settings fail to load.
  */
-const DEFAULTS = { folderUnfolding: false, unixStyleSorting: true };
+const DEFAULTS = { folderUnfolding: true, unixStyleSorting: true };
 
 type SettingKey = keyof typeof DEFAULTS;
 

@@ -24,7 +24,7 @@
       "type": "boolean",
       "title": "Folder unfolding",
       "description": "Show a triangle on each folder row that unfolds the folder in place as a tree.",
-      "default": false
+      "default": true
     },
     "unixStyleSorting": {
       "type": "boolean",

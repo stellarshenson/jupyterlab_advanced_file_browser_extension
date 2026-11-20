@@ -38,11 +38,9 @@ test('ACC-COMPAT-69-TOKEN IDefaultFileBrowser resolves in both switch states', a
   page
 }) => {
   for (const on of [false, true]) {
-    if (on) {
-      // The browser is built at start-up, so build it again with unfolding on
-      await setUnfolding(page, true);
-      await page.reload();
-    }
+    // The browser is built at start-up, so build it again in this state
+    await setUnfolding(page, on);
+    await page.reload();
     const resolved = await page.evaluate(async () => {
       const app = window.jupyterapp as any;
       const plugins: any[] = Array.from(app.pluginRegistry._plugins.values());

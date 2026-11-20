@@ -2,6 +2,26 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.8] - 2026-11-20
+
+### Added
+
+- Folder unfolding is on by default for a fresh JupyterLab; a saved setting keeps its value
+- The folder tree exposes its fold state to assistive technology: the row name node carries `aria-expanded` true on an unfolded folder and false on a folded folder, and no row carries it when unfolding is off
+- A Galata test proves the hover tooltip on file and folder rows and inside an unfolded folder
+
+### Changed
+
+- Move to Trash is a red warn button like Delete Permanently, and the Delete dialog orders the confirm buttons Delete Permanently, Cancel and Move to Trash so the destructive action stands away from the default
+- The tree's Move to Trash action is identified by the button the dialog returned, not by its translated label
+- The Galata suite runs at eight workers outside CI; a worker per spec file pushed page starts past Galata's 15 s app-start wait
+- The compat spec sets the unfolding state it tests, and the crumbs spec probes favourites in the running lab
+
+### Fixed
+
+- A Move to Trash click could be routed to permanent deletion if the trash button's label changed; the action now follows the button object
+- The shared Playwright browser store held no build every Galata run needed
+
 ## [1.0.7] - 2026-11-18
 
 ### Added

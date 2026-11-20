@@ -96,18 +96,45 @@ test('ACC-SWITCH-23-ITEM unfolding item in the column-header menu', async ({
   ).toBe(true);
 });
 
-test('ACC-SWITCH-24-DEFAULT unfolding is off with fresh settings', async ({
+test('ACC-SWITCH-24-DEFAULT unfolding is on with fresh settings', async ({
   page
 }) => {
-  expect(await triangles(page)).toEqual({ a: null, 'b.txt': null });
+  expect(await triangles(page)).toEqual({ a: false, 'b.txt': null });
   const menu = await openHeaderMenu(page);
-  await expectChecked(menu, false);
+  await expectChecked(menu, true);
+});
+
+test('ACC-UNFOLD-160-FOLDSTATE the tree exposes its fold state to assistive technology', async ({
+  page,
+  tmpPath
+}) => {
+  const nameNode = async (path: string) =>
+    (await rowLocator(page, path)).locator('.jp-DirListing-itemText');
+
+  await expect(await nameNode(`${tmpPath}/a`)).toHaveAttribute(
+    'aria-expanded',
+    'false'
+  );
+  await expect(await nameNode(`${tmpPath}/b.txt`)).not.toHaveAttribute(
+    'aria-expanded'
+  );
+
+  await unfold(page, `${tmpPath}/a`);
+  await expect(await nameNode(`${tmpPath}/a`)).toHaveAttribute(
+    'aria-expanded',
+    'true'
+  );
+
+  await clickSwitch(page, false);
+  await expect(await nameNode(`${tmpPath}/a`)).not.toHaveAttribute(
+    'aria-expanded'
+  );
 });
 
 test('ACC-SWITCH-25-CHECK item checked exactly while unfolding is on', async ({
   page
 }) => {
-  for (const on of [true, false]) {
+  for (const on of [false, true]) {
     await clickSwitch(page, on);
     const menu = await openHeaderMenu(page);
     await expectChecked(menu, on);
@@ -119,6 +146,7 @@ test('ACC-SWITCH-25-CHECK item checked exactly while unfolding is on', async ({
 test('ACC-SWITCH-26-ON switching on shows triangles without a reload', async ({
   page
 }) => {
+  await clickSwitch(page, false);
   // A page reload drops this mark.
   await page.evaluate(() => ((window as any).switchNoReload = true));
   await clickSwitch(page, true);
@@ -132,7 +160,6 @@ test('ACC-SWITCH-27-OFF switching off restores the stock listing', async ({
   page,
   tmpPath
 }) => {
-  await clickSwitch(page, true);
   await unfold(page, `${tmpPath}/a`);
   await rowLocator(page, `${tmpPath}/a/x.txt`);
 
@@ -160,13 +187,13 @@ test('ACC-SWITCH-28-SAVED the choice survives a reload', async ({
   page,
   tmpPath
 }) => {
-  await clickSwitch(page, true);
+  await clickSwitch(page, false);
   await page.reload();
   // The browser restores the folder it showed before the reload.
   await rowLocator(page, `${tmpPath}/a`);
   await expect
     .poll(() => triangles(page), { timeout: SERVER_TIMEOUT })
-    .toEqual({ a: false, 'b.txt': null });
+    .toEqual({ a: null, 'b.txt': null });
   const saved = await page.evaluate(
     async ({ id, key }) => {
       const registry: any = await window.galata.getPlugin(
@@ -176,5 +203,5 @@ test('ACC-SWITCH-28-SAVED the choice survives a reload', async ({
     },
     { id: PLUGIN_ID, key: SETTING.unfolding }
   );
-  expect(saved).toBe(true);
+  expect(saved).toBe(false);
 });

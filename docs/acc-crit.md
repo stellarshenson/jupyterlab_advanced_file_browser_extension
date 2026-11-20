@@ -195,12 +195,19 @@ A triangle on each folder row folds or unfolds the folder in place as a tree; po
   - mechanism: 2026-11-10T15:30:01Z @kj style/base.css sets padding-left to calc(var(--jp-dirlisting-padding-width) / 2) on the rows of a listing that holds the tree indent.
   - log: 2026-11-10T15:30:01Z @kj added
   - log: 2026-11-10T15:36:58Z @kj closed
+- [x] `ACC-UNFOLD-160-FOLDSTATE` **Fold state exposed to assistive technology** - MEDIUM; the row's name node carries aria-expanded true on an unfolded folder and false on a folded folder, and file rows carry no aria-expanded; with unfolding off no row carries it
+  - evidence: Galata ui-tests/tests/switch.spec.ts ACC-UNFOLD-160-FOLDSTATE the tree exposes its fold state to assistive technology passed in the full suite - 192 passed, 0 failed, 3 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/aria-galata.log
+  - test: ui-tests/tests/switch.spec.ts: with fresh settings assert aria-expanded false on the folder row and absent on the file row; unfold and assert true; switch unfolding off and assert absent
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-19T15:41:20Z @kj added
+  - log: 2026-11-19T15:55:17Z @kj closed
 
 ## Unfolding switch `SWITCH`
 
-The column-header menu item that turns unfolding on and off; off by default
+The column-header menu item that turns unfolding on and off; on by default
 
 - log: 2026-11-06T13:53:19Z @kj category created
+- log: 2026-11-19T12:31:28Z @kj description "The column-header menu item that turns unfolding on and off; off by default" -> "The column-header menu item that turns unfolding on and off; on by default"
 
 - [x] `ACC-SWITCH-23-ITEM` **Switch in the column-header menu** - HIGH; right-click on the column header shows a checkable unfolding item in the same menu as Show Last Modified Column, Show Date Created Column, Show File Size Column, Show File Checkboxes, Sort Notebooks Above Files and Unix Style Sorting
   - evidence: `ui-tests/tests/switch.spec.ts`: ACC-SWITCH-23-ITEM unfolding item in the column-header menu passed, `tmp/workflows/functional-v1/logs/suite-1.log`
@@ -208,13 +215,18 @@ The column-header menu item that turns unfolding on and off; off by default
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T13:53:19Z @kj added
   - log: 2026-11-06T16:28:00Z @kj closed: ACC-SWITCH-23-ITEM unfolding item in the column-header menu passed
-- [x] `ACC-SWITCH-24-DEFAULT` **Off by default** - HIGH; with no saved setting, unfolding is off: no triangles and the item unchecked
-  - evidence: `ui-tests/tests/switch.spec.ts`: ACC-SWITCH-24-DEFAULT unfolding is off with fresh settings passed, `tmp/workflows/functional-v1/logs/suite-1.log`
-  - test: ui-tests/tests/switch.spec.ts: fresh settings folder; assert no triangle and the item unchecked
+- [x] `ACC-SWITCH-24-DEFAULT` **On by default** - HIGH; with no saved setting, unfolding is on: triangles on folder rows and the menu item checked; a saved setting keeps its value
+  - evidence: Galata ui-tests/tests/switch.spec.ts ACC-SWITCH-24-DEFAULT unfolding is on with fresh settings passed in the full suite - 193 passed, 0 failed, 1 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/final-galata.log; make test green - Jest 139/139, pytest 77, auth gate, tmp/workflows/folding-default-v1/logs/final-make-test.log; installed labextension schema carries default true after make install BUMP=none
+  - test: ui-tests/tests/switch.spec.ts: fresh settings folder; assert a triangle on the folder row and the item checked
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T13:53:19Z @kj added
   - log: 2026-11-06T13:53:41Z @kj default off: Star Colonel decided 2026-11-06
   - log: 2026-11-06T16:28:00Z @kj closed: ACC-SWITCH-24-DEFAULT unfolding is off with fresh settings passed
+  - log: 2026-11-19T12:31:27Z @kj amended title "Off by default" -> "On by default"; text "with no saved setting, unfolding is off: no triangles and the item unchecked" -> "with no saved setting, unfolding is on: triangles on folder rows and the menu item checked; a saved setting keeps its value"
+  - log: 2026-11-19T12:31:27Z @kj edited test "ui-tests/tests/switch.spec.ts: fresh settings folder; assert no triangle and the item unchecked" -> "ui-tests/tests/switch.spec.ts: fresh settings folder; assert a triangle on the folder row and the item checked"
+  - log: 2026-11-19T12:31:28Z @kj reopened: reopened: owner ordered folding on by default 2026-11-19; evidence retired: `ui-tests/tests/switch.spec.ts`: ACC-SWITCH-24-DEFAULT unfolding is off with fresh settings passed, `tmp/workflows/functional-v1/logs/suite-1.log`
+  - log: 2026-11-19T14:13:16Z @kj closed
+  - log: 2026-11-19T15:24:21Z @kj edited evidence "Galata ui-tests/tests/switch.spec.ts ACC-SWITCH-24-DEFAULT unfolding is on with fresh settings passed in the full suite - 191 passed, 0 failed, 3 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/galata-full-3.log; make test green - Jest 139/139, pytest 77, auth gate, tmp/workflows/folding-default-v1/logs/make-test.log; installed labextension schema carries default true after make install BUMP=none" -> "Galata ui-tests/tests/switch.spec.ts ACC-SWITCH-24-DEFAULT unfolding is on with fresh settings passed in the full suite - 193 passed, 0 failed, 1 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/final-galata.log; make test green - Jest 139/139, pytest 77, auth gate, tmp/workflows/folding-default-v1/logs/final-make-test.log; installed labextension schema carries default true after make install BUMP=none"
 - [x] `ACC-SWITCH-25-CHECK` **Item shows the state** - MEDIUM; the menu item is checked exactly while unfolding is on
   - evidence: `ui-tests/tests/switch.spec.ts`: ACC-SWITCH-25-CHECK item checked exactly while unfolding is on passed, `tmp/workflows/functional-v1/logs/suite-1.log`
   - test: ui-tests/tests/switch.spec.ts: toggle twice; assert the checked state after each toggle
@@ -234,11 +246,13 @@ The column-header menu item that turns unfolding on and off; off by default
   - log: 2026-11-06T13:53:19Z @kj added
   - log: 2026-11-06T16:28:00Z @kj closed: ACC-SWITCH-27-OFF switching off restores the stock listing passed
 - [x] `ACC-SWITCH-28-SAVED` **Choice saved** - MEDIUM; the choice is a setting of this extension and survives a page reload
-  - evidence: `ui-tests/tests/switch.spec.ts`: ACC-SWITCH-28-SAVED the choice survives a reload passed, `tmp/workflows/functional-v1/logs/suite-1.log`
-  - test: ui-tests/tests/switch.spec.ts: turn the item on, reload; assert triangles and the setting value true
+  - evidence: Galata ui-tests/tests/switch.spec.ts ACC-SWITCH-28-SAVED the choice survives a reload passed in the full suite - 193 passed, 0 failed, 1 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/final-galata.log
+  - test: ui-tests/tests/switch.spec.ts: turn the item off, reload; assert no triangles, the item unchecked and the saved setting false
   - test-tags: FUNCTIONAL
   - log: 2026-11-06T13:53:19Z @kj added
   - log: 2026-11-06T16:28:00Z @kj closed: ACC-SWITCH-28-SAVED the choice survives a reload passed
+  - log: 2026-11-19T15:05:23Z @kj edited test "ui-tests/tests/switch.spec.ts: turn the item on, reload; assert triangles and the setting value true" -> "ui-tests/tests/switch.spec.ts: turn the item off, reload; assert no triangles, the item unchecked and the saved setting false"
+  - log: 2026-11-19T15:24:22Z @kj edited evidence "`ui-tests/tests/switch.spec.ts`: ACC-SWITCH-28-SAVED the choice survives a reload passed, `tmp/workflows/functional-v1/logs/suite-1.log`" -> "Galata ui-tests/tests/switch.spec.ts ACC-SWITCH-28-SAVED the choice survives a reload passed in the full suite - 193 passed, 0 failed, 1 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/final-galata.log"
 
 ## Current folder `FOLDER`
 
@@ -873,8 +887,8 @@ Delete dialog with Move to Trash and Delete Permanently, the large-removal warni
 
 - log: 2026-11-13T18:28:39Z @kj category created
 
-- [x] `ACC-DELETE-122-THREE-OPTIONS` **Three options with trash on** - HIGH; with the server's delete_to_trash on, the file browser's Delete dialog offers Cancel, Delete Permanently and Move to Trash; the dialog title is Delete
-  - evidence: Galata 'ACC-DELETE-122-THREE-OPTIONS the Delete dialog offers Cancel, Delete Permanently and Move to Trash' (three buttons, header 'Delete') passed first attempt in tmp/workflows/delete-v1/logs/gate13-default.log and gate13-venv.log; Jest 'deleteItems titles the Delete dialog Delete with the trash on' passed in gate13-jest-junit.xml
+- [x] `ACC-DELETE-122-THREE-OPTIONS` **Three options with trash on** - HIGH; with the server's delete_to_trash on, the file browser's Delete dialog offers Delete Permanently, Cancel and Move to Trash; the dialog title is Delete
+  - evidence: Galata ui-tests/tests/delete.spec.ts ACC-DELETE-122-THREE-OPTIONS three buttons and the header Delete passed in the full suite - 191 passed, 0 failed, 4 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/reorder-galata.log; Jest deleteItems titles the Delete dialog Delete with the trash on, 139/139, tmp/workflows/folding-default-v1/logs/reorder-make-test.log
   - test: server with delete_to_trash on, select a file, press Delete, assert the three button labels and the title Delete
   - test-tags: FUNCTIONAL
   - log: 2026-11-13T18:28:39Z @kj added
@@ -887,6 +901,8 @@ Delete dialog with Move to Trash and Delete Permanently, the large-removal warni
   - log: 2026-11-16T05:42:03Z @kj owner decision 2026-11-16, round 15: a Galata run outside the runner creates ~/galata-home-XXXXXX; a Playwright globalTeardown removes the folder that run created
   - log: 2026-11-16T07:14:37Z @kj owner decision 2026-11-16, review round 16 finding 2: fix; playwright.config.js registers the exit removal of the galata-home folder it creates, so a test server that fails to start leaves no folder; global-teardown.js removed
   - log: 2026-11-16T10:07:52Z @kj owner decision 2026-11-16, review round 1 deferred finding (focus after Delete subtracted the removed rows twice): accept the round 2 fix; focus lands on the row that takes the removed rows' place, src/listing.ts:207-214
+  - log: 2026-11-19T16:42:29Z @kj amended text "with the server's delete_to_trash on, the file browser's Delete dialog offers Cancel, Delete Permanently and Move to Trash; the dialog title is Delete" -> "with the server's delete_to_trash on, the file browser's Delete dialog offers Delete Permanently, Cancel and Move to Trash; the dialog title is Delete"
+  - log: 2026-11-19T16:42:29Z @kj edited evidence "Galata 'ACC-DELETE-122-THREE-OPTIONS the Delete dialog offers Cancel, Delete Permanently and Move to Trash' (three buttons, header 'Delete') passed first attempt in tmp/workflows/delete-v1/logs/gate13-default.log and gate13-venv.log; Jest 'deleteItems titles the Delete dialog Delete with the trash on' passed in gate13-jest-junit.xml" -> "Galata ui-tests/tests/delete.spec.ts ACC-DELETE-122-THREE-OPTIONS three buttons and the header Delete passed in the full suite - 191 passed, 0 failed, 4 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/reorder-galata.log; Jest deleteItems titles the Delete dialog Delete with the trash on, 139/139, tmp/workflows/folding-default-v1/logs/reorder-make-test.log"
 - [x] `ACC-DELETE-123-TRASH-DEFAULT` **Move to Trash is the default** - HIGH; with trash on, Move to Trash is the focused button, so Enter moves the selected items to the trash
   - evidence: Galata 'ACC-DELETE-123-TRASH-DEFAULT Enter moves the selection to the trash' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest deleteButtons trash-on case (Move to Trash the default) - delete-dialog.spec.ts PASS in logs/gate2-make-test.log
   - test: open the dialog, press Enter, assert the file left the listing and sits in the trash folder
@@ -916,12 +932,18 @@ Delete dialog with Move to Trash and Delete Permanently, the large-removal warni
   - test-tags: FUNCTIONAL
   - log: 2026-11-13T18:28:39Z @kj added
   - log: 2026-11-13T21:26:31Z @kj closed
-- [x] `ACC-DELETE-127-BUTTON-STYLE` **Destructive button marked** - LOW; Delete Permanently is a warn button in --jp-error-color1; Move to Trash is the filled accept button
-  - evidence: Galata 'ACC-DELETE-127-BUTTON-STYLE Delete Permanently is the warn button, Move to Trash the accept button' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest deleteButtons cases - delete-dialog.spec.ts PASS in logs/gate2-make-test.log
-  - test: open the dialog with trash on, assert jp-mod-warn on Delete Permanently and jp-mod-accept on Move to Trash
+- [x] `ACC-DELETE-127-BUTTON-STYLE` **Destructive buttons marked** - MEDIUM; both confirm buttons are warn buttons in --jp-error-color1; Move to Trash is not the blue accept button and stays the default action when the trash is monitored
+  - evidence: Galata ui-tests/tests/delete.spec.ts ACC-DELETE-127-BUTTON-STYLE both confirm buttons are warn buttons passed in the full suite - 193 passed, 0 failed, 1 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/final-galata.log; Jest deleteButtons expects displayType warn on Move to Trash, 139/139, tmp/workflows/folding-default-v1/logs/final-make-test.log
+  - test: open the dialog with trash on, assert jp-mod-warn on Delete Permanently and on Move to Trash and both filled with --jp-error-color1
   - test-tags: FUNCTIONAL
   - log: 2026-11-13T18:28:39Z @kj added
   - log: 2026-11-13T21:26:31Z @kj closed
+  - log: 2026-11-19T13:45:03Z @kj reopened: owner ordered 2026-11-19: Move to Trash red, not blue; evidence retired: Galata 'ACC-DELETE-127-BUTTON-STYLE Delete Permanently is the warn button, Move to Trash the accept button' passed in logs/gate2-default.log and logs/gate2-venv.log; Jest deleteButtons cases - delete-dialog.spec.ts PASS in logs/gate2-make-test.log
+  - log: 2026-11-19T13:45:04Z @kj amended title "Destructive button marked" -> "Destructive buttons marked"; text "Delete Permanently is a warn button in --jp-error-color1; Move to Trash is the filled accept button" -> "both confirm buttons are warn buttons in --jp-error-color1; Move to Trash is not the blue accept button and stays the default action when the trash is monitored"
+  - log: 2026-11-19T13:45:04Z @kj edited importance "LOW" -> "MEDIUM"; test "open the dialog with trash on, assert jp-mod-warn on Delete Permanently and jp-mod-accept on Move to Trash" -> "open the dialog with trash on, assert jp-mod-warn on Delete Permanently and on Move to Trash, no jp-mod-accept, and Move to Trash is the default button"
+  - log: 2026-11-19T14:31:48Z @kj edited test "open the dialog with trash on, assert jp-mod-warn on Delete Permanently and on Move to Trash, no jp-mod-accept, and Move to Trash is the default button" -> "open the dialog with trash on, assert jp-mod-warn on Delete Permanently and on Move to Trash, both filled with --jp-error-color1, and Move to Trash is the default button"
+  - log: 2026-11-19T15:24:21Z @kj closed
+  - log: 2026-11-19T16:42:29Z @kj edited test "open the dialog with trash on, assert jp-mod-warn on Delete Permanently and on Move to Trash, both filled with --jp-error-color1, and Move to Trash is the default button" -> "open the dialog with trash on, assert jp-mod-warn on Delete Permanently and on Move to Trash and both filled with --jp-error-color1"
 - [x] `ACC-DELETE-128-LARGE-WARN` **Large-removal warning** - HIGH; with trash on and the selection totalling more than the large-removal threshold, the Delete dialog shows one warning line: Moving large files to the trash is not advised
   - evidence: Galata 'ACC-DELETE-128-LARGE-WARN a selection above the threshold shows one warning line' passed in logs/gate2-default.log and logs/gate2-venv.log; pytest test_size_stops_past_the_threshold PASSED in logs/gate2-make-test.log
   - test: lower the threshold in a test build, select a folder above it, open the dialog, assert the warning text
@@ -1180,8 +1202,13 @@ A hover tooltip on every file and folder row shows the item's details on more th
 
 - log: 2026-11-18T11:41:10Z @kj category created
 
-- [ ] `ACC-TIPS-159-DETAILS` **Details on hover** - CRITICAL; every file row and every folder row in the file browser, also inside an unfolded folder, shows a hover tooltip with the item's details on more than one line: the name, the full path and the last modified time, and for a file the size
-  - test: Galata: hover a file row, a folder row and a row inside an unfolded folder; assert a tooltip with more than one line showing name, path, modified time and, for a file, size
+- [x] `ACC-TIPS-159-DETAILS` **Details on hover** - CRITICAL; every file row and every folder row, also inside an unfolded folder, shows a hover tooltip with details on more than one line: the name, the containing directory as stock renders it (cut at 50 characters, ending with ...), the last modified time, and for a file the size
+  - evidence: Galata ui-tests/tests/tooltips.spec.ts ACC-TIPS-159-DETAILS every row tooltip shows name, path, modified time and file size passed in the full suite - 193 passed, 0 failed, 1 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/final-galata.log
+  - test: Galata: hover a file row, a folder row and a row inside an unfolded folder; assert a tooltip with more than one line showing the name, the containing directory cut at 50 characters, the modified time and, for a file, the size
   - test-tags: FUNCTIONAL
   - log: 2026-11-18T11:41:10Z @kj added
+  - log: 2026-11-19T14:13:16Z @kj closed
+  - log: 2026-11-19T15:05:23Z @kj edited test "Galata: hover a file row, a folder row and a row inside an unfolded folder; assert a tooltip with more than one line showing name, path, modified time and, for a file, size" -> "Galata: hover a file row, a folder row and a row inside an unfolded folder; assert a tooltip with more than one line showing the name, the containing directory cut at 50 characters, the modified time and, for a file, the size"
+  - log: 2026-11-19T15:05:27Z @kj amended text "every file row and every folder row in the file browser, also inside an unfolded folder, shows a hover tooltip with the item's details on more than one line: the name, the full path and the last modified time, and for a file the size" -> "every file row and every folder row, also inside an unfolded folder, shows a hover tooltip with details on more than one line: the name, the containing directory as stock renders it (cut at 50 characters, ending with ...), the last modified time, and for a file the size"
+  - log: 2026-11-19T15:24:21Z @kj edited evidence "Galata ui-tests/tests/tooltips.spec.ts ACC-TIPS-159-DETAILS every row tooltip shows name, path, modified time and file size passed in the full suite - 191 passed, 0 failed, 3 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/galata-full-3.log" -> "Galata ui-tests/tests/tooltips.spec.ts ACC-TIPS-159-DETAILS every row tooltip shows name, path, modified time and file size passed in the full suite - 193 passed, 0 failed, 1 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/final-galata.log"
 

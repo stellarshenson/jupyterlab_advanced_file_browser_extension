@@ -4,14 +4,13 @@
  * `a/b` and acts on the crumb of `a`, so the menu must use the crumb's path, not
  * the current folder.
  *
- * ACC-FOLDER-96 needs @jlab-enhanced/favorites installed, so it runs only
- * through `run-galata.sh --venv <venv>` whose lab holds it, as ACC-COMPAT-74
- * does. ACC-FOLDER-97 and ACC-FOLDER-92's fourth label need the opposite, the
- * default runner mode where no other labextension loads.
+ * ACC-FOLDER-96 needs @jlab-enhanced/favorites loaded by the lab; ACC-FOLDER-97 and
+ * ACC-FOLDER-92's fourth label need its absence. Which one holds is probed in the running
+ * lab, as `src/crumbsMenu.ts` decides it, because the default runner loads the image's
+ * /opt/conda labextensions as well as a venv's.
  */
 import { expect, IJupyterLabPageFixture, test } from '@jupyterlab/galata';
 import type { Locator } from '@playwright/test';
-import * as fs from 'fs';
 
 import {
   browserPaths,
@@ -24,19 +23,20 @@ import {
   visibleRows
 } from './helpers';
 
-const FAVORITES = '@jlab-enhanced/favorites';
+/** The settings plugin of @jlab-enhanced/favorites, the id `src/crumbsMenu.ts` reads. */
+const FAVORITES = '@jlab-enhanced/favorites:favorites';
 
-const VENV = process.env.GALATA_VENV ?? '';
-
-/** Whether the venv of `run-galata.sh --venv` holds the labextension `name`. */
-function venvHolds(name: string): boolean {
-  return (
-    VENV !== '' &&
-    fs.existsSync(`${VENV}/share/jupyter/labextensions/${name}/package.json`)
-  );
+/** Whether the running lab has the favourites plugin, as the crumb menu asks it. */
+async function labHasFavourites(
+  page: IJupyterLabPageFixture
+): Promise<boolean> {
+  return page.evaluate(async (plugin: string) => {
+    const registry: any = await (window as any).galata.getPlugin(
+      '@jupyterlab/apputils-extension:settings'
+    );
+    return plugin in registry.plugins;
+  }, FAVORITES);
 }
-
-const hasFavourites = venvHolds(FAVORITES);
 
 /** Enter `path` through the file browser's go-to-path command. */
 async function goTo(page: IJupyterLabPageFixture, path: string): Promise<void> {
@@ -96,7 +96,8 @@ test('ACC-FOLDER-92-CRUMB-MENU right-click on a folder crumb shows the four item
 }) => {
   await insideAB(page, tmpPath);
   const menu = await openCrumbMenu(page, `${tmpPath}/a`);
-  // Add to Favourite needs the favourites extension, absent in the default run
+  // Add to Favourite needs the favourites extension in the lab
+  const hasFavourites = await labHasFavourites(page);
   const expected = hasFavourites
     ? ['Open in Terminal', 'Copy Path', 'Open', 'Add to Favourite']
     : ['Open in Terminal', 'Copy Path', 'Open'];
@@ -160,15 +161,14 @@ test('ACC-FOLDER-95-CRUMB-OPEN Open enters the crumb folder', async ({
 });
 
 test.describe('beside @jlab-enhanced/favorites', () => {
-  test.skip(
-    !hasFavourites,
-    `needs ${FAVORITES} in the venv of run-galata.sh --venv (GALATA_VENV)`
-  );
-
   test('ACC-FOLDER-96-CRUMB-FAV Add to Favourite lists the crumb folder, staying in a/b', async ({
     page,
     tmpPath
   }) => {
+    test.skip(
+      !(await labHasFavourites(page)),
+      `needs ${FAVORITES} loaded by the lab`
+    );
     await insideAB(page, tmpPath);
     const before = await browserPaths(page);
     const menu = await openCrumbMenu(page, `${tmpPath}/a`);
@@ -181,15 +181,14 @@ test.describe('beside @jlab-enhanced/favorites', () => {
 });
 
 test.describe('without @jlab-enhanced/favorites', () => {
-  test.skip(
-    hasFavourites,
-    `runs where no other labextension loads, not the venv of run-galata.sh --venv`
-  );
-
   test('ACC-FOLDER-97-FAV-ABSENT the crumb menu omits Add to Favourite', async ({
     page,
     tmpPath
   }) => {
+    test.skip(
+      await labHasFavourites(page),
+      `runs where the lab does not load ${FAVORITES}`
+    );
     await insideAB(page, tmpPath);
     const menu = await openCrumbMenu(page, `${tmpPath}/a`);
     await expect(menuItem(menu, COMMAND.crumbAddToFavourite)).toBeHidden();

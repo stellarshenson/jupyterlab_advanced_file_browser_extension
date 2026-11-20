@@ -37,6 +37,10 @@ module.exports = {
   // Under load a parallel worker's tmpPath teardown can 404 the page's start-up listing of the
   // shared server root ("Directory not found" dialog); one retry absorbs that race
   retries: 1,
+  // One worker per spec file (17) starts that many JupyterLab pages against the one server;
+  // measured start-up listings then take over 10 s and pages exceed Galata's fixed 15 s app-start
+  // wait, so outside CI the suite runs at eight; CI keeps Playwright's default for its smaller runner
+  workers: process.env.CI ? undefined : 8,
   // It needs its own server: playwright-all-volumes.config.js
   testIgnore: '**/all-volumes.spec.ts',
   use: { ...baseConfig.use, baseURL: BASE_URL },

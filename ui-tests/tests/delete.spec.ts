@@ -34,7 +34,7 @@ import {
   visibleRows
 } from './helpers';
 
-const TRASH_ON = ['Cancel', 'Delete Permanently', 'Move to Trash'];
+const TRASH_ON = ['Delete Permanently', 'Cancel', 'Move to Trash'];
 const TRASH_OFF = ['Cancel', 'Delete'];
 /** The buttons where the trash management extension does not monitor the trash. */
 const UNMONITORED = ['Cancel', 'Delete Permanently'];
@@ -521,7 +521,7 @@ test('ACC-DELETE-126-TRASH-OFF trash off keeps Cancel and Delete, and Delete rem
   expect(trashedSince(mark)).not.toContain(file);
 });
 
-test('ACC-DELETE-127-BUTTON-STYLE Delete Permanently is the warn button, Move to Trash the accept button', async ({
+test('ACC-DELETE-127-BUTTON-STYLE both confirm buttons, Delete Permanently and Move to Trash, are warn buttons', async ({
   page,
   tmpPath
 }) => {
@@ -531,8 +531,9 @@ test('ACC-DELETE-127-BUTTON-STYLE Delete Permanently is the warn button, Move to
   const trash = button(page, 'Move to Trash');
 
   await expect(permanent).toHaveClass(/\bjp-mod-warn\b/);
-  await expect(trash).toHaveClass(/\bjp-mod-accept\b/);
-  await expect(trash).not.toHaveClass(/\bjp-mod-warn\b/);
+  await expect(trash).toHaveClass(/\bjp-mod-warn\b/);
+  // JupyterLab renders an accepting warn button with jp-mod-accept too; the
+  // warn rule comes later and wins, so the fill, not the class, proves the colour.
   const fill = (locator: typeof trash) =>
     locator.evaluate(node => getComputedStyle(node).backgroundColor);
   const error = await page.evaluate(() => {
@@ -543,8 +544,9 @@ test('ACC-DELETE-127-BUTTON-STYLE Delete Permanently is the warn button, Move to
     probe.remove();
     return color;
   });
+  expect(error).not.toBe('rgba(0, 0, 0, 0)');
   expect(await fill(permanent)).toBe(error);
-  expect(await fill(trash)).not.toBe('rgba(0, 0, 0, 0)');
+  expect(await fill(trash)).toBe(error);
 });
 
 test('ACC-DELETE-128-LARGE-WARN a selection above the threshold shows one warning line', async ({

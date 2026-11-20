@@ -685,6 +685,9 @@ export class TreeDirListing extends DirListing {
           `.${INDENT_CLASS}, .${TOGGLE_CLASS}, .${SPACER_CLASS}`
         )
         .forEach(element => element.remove());
+      node
+        .querySelector<HTMLElement>(`.${ITEM_TEXT_CLASS}`)
+        ?.removeAttribute('aria-expanded');
       return;
     }
 
@@ -719,6 +722,13 @@ export class TreeDirListing extends DirListing {
       isFolder &&
       this.model.isUnfolded(item.path) &&
       item.path !== this._pendingFold;
+    // The stock renderer gives this node role=button when its row is focused.
+    const text = node.querySelector<HTMLElement>(`.${ITEM_TEXT_CLASS}`);
+    if (isFolder) {
+      text?.setAttribute('aria-expanded', expanded ? 'true' : 'false');
+    } else {
+      text?.removeAttribute('aria-expanded');
+    }
     marker.className = isFolder ? TOGGLE_CLASS : SPACER_CLASS;
     marker.classList.toggle(EXPANDED_CLASS, expanded);
     const glyph = isFolder ? (expanded ? '▾' : '▸') : '';

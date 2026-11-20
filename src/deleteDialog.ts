@@ -44,10 +44,11 @@ export function deleteButtons(
   const cancel = Dialog.cancelButton({ label: trans.__('Cancel') });
   return trash && monitored
     ? {
+        // Both confirm buttons are red, so the destructive one stands far left, Cancel between it and the default.
         buttons: [
-          cancel,
           Dialog.warnButton({ label: trans.__('Delete Permanently') }),
-          Dialog.okButton({ label: trans.__('Move to Trash') })
+          cancel,
+          Dialog.warnButton({ label: trans.__('Move to Trash') })
         ],
         defaultButton: 2
       }
@@ -369,15 +370,18 @@ export async function deleteItems(
       () => undefined
     );
   }
+  const dialog = deleteButtons(trashOn, trans, trash);
   const result = await showDialog({
     title: trans.__('Delete'),
     body,
-    ...deleteButtons(trashOn, trans, trash)
+    ...dialog
   });
   if (!result.button.accept) {
     return;
   }
-  const toTrash = result.button.displayType !== 'warn';
+  // The last button is Move to Trash only when the dialog offered it.
+  const toTrash =
+    trash && result.button === dialog.buttons[dialog.buttons.length - 1];
   const results = [await run(model, toTrash ? trashed : paths, toTrash, trans)];
   if (toTrash && others.length) {
     // The listing drops the trashed rows before the question about the others.
