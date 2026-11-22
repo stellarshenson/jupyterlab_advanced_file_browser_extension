@@ -8,6 +8,8 @@
  */
 import { expect, IJupyterLabPageFixture } from '@jupyterlab/galata';
 import type { JSHandle, Locator } from '@playwright/test';
+import { mkdirSync, writeFileSync } from 'fs';
+import { join } from 'path';
 
 export const PLUGIN_ID =
   '@stellarshenson/jupyterlab-advanced-file-browser-extension:plugin';
@@ -29,6 +31,10 @@ export const COMMAND = {
   crumbAddToFavourite: 'advanced-file-browser:crumb-add-to-favourite',
   coreOpenFolderInTerminal: 'terminal:open-folder-in-terminal'
 } as const;
+
+/** The request that starts every copy and move of a Paste or a drop; ServerConnection appends a cache-busting query. */
+export const COPY_ROUTE =
+  /\/jupyterlab-advanced-file-browser-extension\/copy(\?|$)/;
 
 /** Timeout of a wait that follows a server round trip (contents fetch, terminal start). */
 export const SERVER_TIMEOUT = 15000;
@@ -415,6 +421,30 @@ export async function serverRoot(
       JSON.parse(document.getElementById('jupyter-config-data')!.textContent!)
         .advancedFileBrowserServerRoot
   );
+}
+
+/** The absolute disk path of the server path `path`. */
+export async function onDisk(
+  page: IJupyterLabPageFixture,
+  path: string
+): Promise<string> {
+  return join(await serverRoot(page), path);
+}
+
+/** Write `count` one-byte files below the server folder `path`, 1000 to a subfolder, straight to disk. */
+export async function writeTree(
+  page: IJupyterLabPageFixture,
+  path: string,
+  count: number
+): Promise<void> {
+  const dir = await onDisk(page, path);
+  for (let k = 0; k * 1000 < count; k++) {
+    const folder = join(dir, `d${k}`);
+    mkdirSync(folder, { recursive: true });
+    for (let i = 0; i < Math.min(1000, count - k * 1000); i++) {
+      writeFileSync(join(folder, `f${i}`), 'x');
+    }
+  }
 }
 
 /**

@@ -14,6 +14,7 @@ import { IEditorTracker } from '@jupyterlab/fileeditor';
 import { INotebookTracker } from '@jupyterlab/notebook';
 import { ISettingRegistry } from '@jupyterlab/settingregistry';
 import { IStateDB } from '@jupyterlab/statedb';
+import { IStatusBar } from '@jupyterlab/statusbar';
 import { ITerminalTracker } from '@jupyterlab/terminal';
 import { ITranslator } from '@jupyterlab/translation';
 
@@ -51,14 +52,15 @@ const plugin: JupyterFrontEndPlugin<IFileBrowserFactory> = {
   autoStart: true,
   provides: IFileBrowserFactory,
   requires: [IDocumentManager, ITranslator, ISettingRegistry],
-  optional: [IStateDB, JupyterLab.IInfo],
+  optional: [IStateDB, JupyterLab.IInfo, IStatusBar],
   activate: async (
     app: JupyterFrontEnd,
     docManager: IDocumentManager,
     translator: ITranslator,
     settingRegistry: ISettingRegistry,
     state: IStateDB | null,
-    info: JupyterLab.IInfo | null
+    info: JupyterLab.IInfo | null,
+    statusBar: IStatusBar | null
   ): Promise<IFileBrowserFactory> => {
     console.log(
       'JupyterLab extension @stellarshenson/jupyterlab-advanced-file-browser-extension is activated!'
@@ -141,6 +143,10 @@ const plugin: JupyterFrontEndPlugin<IFileBrowserFactory> = {
     });
 
     const trans = translator.load('jupyterlab');
+    // Without a status bar, Hide still hides a copy or move; nothing opens its dialog again.
+    if (statusBar) {
+      (await import('./copyDialog')).addCopyStatus(statusBar, trans);
+    }
     const addToggle = (id: string, key: SettingKey, label: string): void => {
       app.commands.addCommand(id, {
         label,

@@ -466,6 +466,7 @@ async def test_trash_progress_of_two_items_rises_by_whole_items(
     assert (data / "Trash" / "files" / "c" / "g").exists()
 
 
+@pytest.mark.usefixtures("frozen_gc")
 async def test_trash_of_many_items_leaves_the_server_loop_answering(
     jp_fetch, jp_root_dir, jp_serverapp, tmp_path, monkeypatch
 ):
@@ -585,6 +586,7 @@ async def _slow_job(jp_fetch, monkeypatch, paths, fails: str = ""):
     return json.loads(response.body)["id"], calls
 
 
+@pytest.mark.usefixtures("frozen_gc")
 async def test_a_contents_delete_waits_for_a_trash_job_s_move_and_the_loop_answers(
     jp_fetch, jp_root_dir, jp_serverapp, tmp_path, monkeypatch
 ):

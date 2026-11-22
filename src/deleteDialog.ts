@@ -12,10 +12,10 @@ import { Panel, Widget } from '@lumino/widgets';
 import { isBelow, type TreeFileBrowserModel } from './model';
 import { requestAPI } from './request';
 
-const PROGRESS_DELAY_MS = 1000;
+export const PROGRESS_DELAY_MS = 1000;
 /** The shortest time the progress dialog stays once shown. */
-const PROGRESS_MIN_MS = 500;
-const POLL_MS = 250;
+export const PROGRESS_MIN_MS = 500;
+export const POLL_MS = 250;
 /** The paths a message names before it counts the rest: Delete Failed, and the question about the items not moved to the trash. */
 const ERROR_CAP = 10;
 
@@ -84,7 +84,7 @@ export function progressTitle(
 }
 
 /** The first ERROR_CAP of `lines`, then the count of the rest. */
-function capped(lines: string[], trans: TranslationBundle): string {
+export function capped(lines: string[], trans: TranslationBundle): string {
   const shown = lines.slice(0, ERROR_CAP).join('; ');
   const rest = lines.length - ERROR_CAP;
   return rest > 0 ? trans.__('%1; and %2 more', shown, rest) : shown;
@@ -116,7 +116,7 @@ class Progress {
   async close(): Promise<void> {
     window.clearTimeout(this._timer);
     await this._shown;
-    this._dialog?.dispose();
+    this._dialog?.reject();
   }
 
   private _show(): void {
@@ -161,7 +161,7 @@ class Progress {
     );
     this._dialog = dialog;
     this._paint();
-    // Disposing an open dialog rejects its launch promise.
+    // close() rejects the dialog, so its launch answers Cancel; the catch covers a dispose elsewhere.
     dialog.launch().catch(() => undefined);
   }
 

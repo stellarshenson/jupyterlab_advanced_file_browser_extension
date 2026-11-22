@@ -27,6 +27,8 @@ Adds features to the JupyterLab file browser: folders that unfold in place as a 
 - **Core patches recommended** - `jupyterlab_core_patches_extension` with its `jupyterlab_file_delete_trash_fix` switch on is recommended for Move to Trash on other mounts, where it moves each item into the trash of its own mount; without it, the stock JupyterLab trash behaviour applies, and the server logs one start line saying the fix is not installed or switched off
 - **Large removal warning** - With the trash on, a selection larger than 10 GiB shows a warning that moving large files to the trash is not advised; the 10 GiB threshold is not a setting
 - **Removal progress** - A removal still running after 1 second shows a progress dialog with a spinner and a progress bar; its Hide button closes the dialog and the removal keeps running
+- **Copy and move progress** - A copy or move still running after 1 second, from a Paste after Copy or Cut or from a drag onto a folder, shows a progress dialog with a total bar, a bar for the current file, counters for files, bytes, speed, elapsed time and time left, and a one-line warning when the copy or move goes to another volume; it runs in a worker thread of the server, so the interface does not freeze
+- **Cancel and Hide** - Cancel stops the copy or move and keeps the files already finished; Hide or Escape closes the dialog and moves the operation to one status bar item; a click on that item opens the dialog, or a menu of the operations when several run in parallel
 
 ## Settings
 

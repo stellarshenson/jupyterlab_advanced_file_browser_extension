@@ -8,8 +8,7 @@
  */
 
 import { showErrorMessage } from '@jupyterlab/apputils';
-import { PathExt } from '@jupyterlab/coreutils';
-import { renameFile } from '@jupyterlab/docmanager';
+import { PageConfig, PathExt } from '@jupyterlab/coreutils';
 import { DirListing, FileBrowser } from '@jupyterlab/filebrowser';
 import type { Contents } from '@jupyterlab/services';
 import { classes, LabIcon } from '@jupyterlab/ui-components';
@@ -20,6 +19,7 @@ import type { Signal } from '@lumino/signaling';
 import { Widget } from '@lumino/widgets';
 
 import folderOpenSvgstr from '../style/icons/folder-open.svg';
+import { transfer } from './copyDialog';
 import { deleteItems } from './deleteDialog';
 import { isBelow, type TreeFileBrowserModel } from './model';
 
@@ -213,7 +213,7 @@ export class TreeDirListing extends DirListing {
     );
   }
 
-  paste(): Promise<void> {
+  async paste(): Promise<void> {
     // A folder copied into itself or below makes copytree recurse; a move there fails.
     // The one rule that applies with unfolding off as well.
     const base = this.model.path;
@@ -228,9 +228,7 @@ export class TreeDirListing extends DirListing {
     const dropped = internals._clipboard.filter(
       path => path === base || isBelow(base, path)
     );
-    internals._clipboard = internals._clipboard.filter(
-      path => !dropped.includes(path)
-    );
+    const paths = internals._clipboard.filter(path => !dropped.includes(path));
     // With unfolding on, no message for the current folder when it is copied beside or cut while
     // selected (pasted onto itself); stock showed Paste Error for a folder that was entered.
     const skipped = dropped.filter(
@@ -238,50 +236,46 @@ export class TreeDirListing extends DirListing {
         path !== base ||
         !(this.model.unfolding && (beside || (isCut && !!this.selection[base])))
     );
-    if (this.model.unfolding) {
-      // The stock paste of an emptied clipboard clears the cut state without a render.
-      this.update();
-    }
-    const pasted = super.paste().then(() => {
-      // A folder skipped as into-itself goes back once the stock paste ends, unless a Copy or
-      // Cut ran since, as stock puts a failed cut item back for a retry.
-      if (skipped.length && this._clipboardEpoch === revision) {
-        internals._clipboard.push(...skipped);
-        internals._isCut = isCut;
-        this.update();
-      }
-    });
+    // As stock, the clipboard holds no pasted item while the operations run, so a second Paste
+    // does not repeat them; a skipped folder stays for a retry. The render clears the cut state.
+    internals._clipboard = skipped;
+    internals._isCut = isCut && skipped.length > 0;
+    this.update();
     const trans = this.translator.load('jupyterlab');
+    const title = trans._p('showErrorMessage', 'Paste Error');
     if (skipped.length) {
       void showErrorMessage(
-        trans._p('showErrorMessage', 'Paste Error'),
+        title,
         trans.__(
           'Cannot paste %1 into itself or a folder inside it',
           skipped.map(path => `"${PathExt.basename(path)}"`).join(', ')
         )
       );
     }
-    if (!beside) {
-      return pasted;
+    const notDone = await Promise.all([
+      paths.length
+        ? transfer(this.model, paths, base, isCut, title, trans)
+        : [],
+      // A copied folder that is the selected current folder (not the entered one) lands beside
+      // it, as the stock a-Copy1.
+      beside
+        ? transfer(
+            this.model,
+            [base],
+            PathExt.dirname(base),
+            false,
+            title,
+            trans
+          )
+        : []
+    ]);
+    // As stock, the paths not done go back for a retry unless a Copy or Cut ran since.
+    const back = ([] as string[]).concat(...notDone);
+    if (back.length && this._clipboardEpoch === revision) {
+      internals._clipboard.push(...back);
+      internals._isCut = isCut;
+      this.update();
     }
-    // A copied folder that is the selected current folder (not the entered one) lands beside it,
-    // as the stock a-Copy1.
-    const copied = this.model.manager.copy(base, PathExt.dirname(base)).then(
-      () => undefined,
-      async error => {
-        // As in the stock paste, the failed path goes back unless a Copy or Cut ran since;
-        // it waits for the stock paste, which replaces the clipboard when it ends.
-        await pasted;
-        if (this._clipboardEpoch === revision) {
-          internals._clipboard.push(base);
-        }
-        void showErrorMessage(
-          trans._p('showErrorMessage', 'Paste Error'),
-          error
-        );
-      }
-    );
-    return Promise.all([pasted, copied]).then(() => undefined);
   }
 
   duplicate(): Promise<void> {
@@ -427,10 +421,6 @@ export class TreeDirListing extends DirListing {
   }
 
   protected evtDrop(event: Drag.Event): void {
-    if (!this.model.unfolding) {
-      super.evtDrop(event);
-      return;
-    }
     event.preventDefault();
     event.stopPropagation();
     const { _items, _sortedItems, _selectTimer } = this._internals;
@@ -452,43 +442,41 @@ export class TreeDirListing extends DirListing {
       target = target.parentElement;
     }
 
-    // A folder row takes the drop itself, a file row passes it to its folder.
+    // A folder row takes the drop itself, a file row passes it to its folder, the area below
+    // the rows to the top folder.
     const item = _sortedItems[_items.indexOf(target)];
     const basePath = !item
       ? this.model.topPath
       : item.type === 'directory'
         ? item.path
         : PathExt.dirname(item.path);
-    const manager = this.model.manager;
 
     if (event.ctrlKey && event.proposedAction === 'move') {
       event.dropAction = 'copy';
     } else {
       event.dropAction = event.proposedAction;
     }
-    const promises: Promise<Contents.IModel | null>[] = [];
-    for (const path of outermost(
+    // Skipped, for copy and move alike: a folder dropped into itself or below itself, and, as
+    // stock, an item dropped into its own folder (not moving).
+    const { contents } = this.model.manager.services;
+    const paths = outermost(
       event.mimeData.getData(CONTENTS_MIME) as string[]
-    )) {
-      const name = PathExt.basename(manager.services.contents.localPath(path));
-      const newPath = PathExt.join(basePath, name);
-      // The server's copytree recurses for a folder dropped into itself or below itself.
-      if (newPath === path || basePath === path || isBelow(basePath, path)) {
-        continue;
-      }
-      promises.push(
-        event.dropAction === 'copy'
-          ? manager.copy(path, basePath)
-          : renameFile(manager, path, newPath)
-      );
-    }
+    ).filter(
+      path =>
+        basePath !== path &&
+        !isBelow(basePath, path) &&
+        PathExt.join(basePath, PathExt.basename(contents.localPath(path))) !==
+          path
+    );
     const trans = this.translator.load('jupyterlab');
-    Promise.all(promises).catch(error => {
-      void showErrorMessage(
-        trans._p('showErrorMessage', 'Error while copying/moving files'),
-        error
-      );
-    });
+    void transfer(
+      this.model,
+      paths,
+      basePath,
+      event.dropAction === 'move',
+      trans._p('showErrorMessage', 'Error while copying/moving files'),
+      trans
+    );
   }
 
   protected updateNodes(
@@ -1008,6 +996,49 @@ export namespace TreeFileBrowser {
 export class TreeFileBrowser extends FileBrowser {
   constructor(options: TreeFileBrowser.IOptions) {
     super(options);
+    // The stock crumb drop moves each item through renameFile; here it is one transfer, with
+    // the stock steps and destinations.
+    const crumbs = this.crumbs as unknown as {
+      _evtDrop(event: Drag.Event): void;
+    };
+    crumbs._evtDrop = (event: Drag.Event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (event.proposedAction === 'none') {
+        event.dropAction = 'none';
+        return;
+      }
+      if (!event.mimeData.hasData(CONTENTS_MIME)) {
+        return;
+      }
+      event.dropAction = event.proposedAction;
+      let target = event.target as HTMLElement;
+      while (target && target.parentElement) {
+        if (target.classList.contains(DROP_TARGET_CLASS)) {
+          target.classList.remove(DROP_TARGET_CLASS);
+          break;
+        }
+        target = target.parentElement;
+      }
+      const preferred = PageConfig.getOption('preferredPath');
+      const destination = target.classList.contains('jp-BreadCrumbs-home')
+        ? '/'
+        : target.classList.contains('jp-BreadCrumbs-preferred')
+          ? `/${preferred}`
+          : target.dataset.path;
+      if (!destination) {
+        return;
+      }
+      const trans = this.translator.load('jupyterlab');
+      void transfer(
+        this.model,
+        event.mimeData.getData(CONTENTS_MIME) as string[],
+        destination,
+        true,
+        trans.__('Move Error'),
+        trans
+      );
+    };
   }
 
   declare readonly model: TreeFileBrowserModel;

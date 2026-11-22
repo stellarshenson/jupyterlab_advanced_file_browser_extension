@@ -21,6 +21,7 @@ import {
   codeCell,
   menuItem,
   notebookFixture,
+  onDisk,
   openDocument,
   openEditor,
   openFolder,
@@ -31,7 +32,8 @@ import {
   serverRoot,
   setUnfolding,
   unfold,
-  visibleRows
+  visibleRows,
+  writeTree
 } from './helpers';
 
 const TRASH_ON = ['Delete Permanently', 'Cancel', 'Move to Trash'];
@@ -66,30 +68,6 @@ test.afterEach(async ({ page, tmpPath }) => {
     force: true
   });
 });
-
-/** The absolute disk path of the server path `path`. */
-async function onDisk(
-  page: IJupyterLabPageFixture,
-  path: string
-): Promise<string> {
-  return join(await serverRoot(page), path);
-}
-
-/** Write `count` one-byte files below the server folder `path`, 1000 to a subfolder, straight to disk. */
-async function writeTree(
-  page: IJupyterLabPageFixture,
-  path: string,
-  count: number
-): Promise<void> {
-  const dir = await onDisk(page, path);
-  for (let k = 0; k * 1000 < count; k++) {
-    const folder = join(dir, `d${k}`);
-    mkdirSync(folder, { recursive: true });
-    for (let i = 0; i < Math.min(1000, count - k * 1000); i++) {
-      writeFileSync(join(folder, `f${i}`), 'x');
-    }
-  }
-}
 
 /** The info file names of the trash, a mark for `trashedSince`. */
 function trashMark(): Set<string> {

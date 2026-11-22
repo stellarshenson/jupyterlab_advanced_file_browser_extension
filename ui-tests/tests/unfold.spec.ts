@@ -9,6 +9,7 @@ import {
   browserHandle,
   browserPaths,
   clickTriangle,
+  COPY_ROUTE,
   dragRow,
   IRow,
   rowLocator,
@@ -480,9 +481,14 @@ test('ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays', async 
   await expect
     .poll(() => paths(page, tmpPath))
     .toEqual(['a', 'a/b', 'a/x.txt']);
+  // A copy or move starts at the extension's copy route, a stock one at the contents API
   const writes: string[] = [];
   page.on('request', request => {
-    if (request.method() !== 'GET' && request.url().includes('/api/contents')) {
+    if (
+      request.method() !== 'GET' &&
+      (request.url().includes('/api/contents') ||
+        COPY_ROUTE.test(request.url()))
+    ) {
       writes.push(`${request.method()} ${request.url()}`);
     }
   });
@@ -499,6 +505,36 @@ test('ACC-UNFOLD-78-SELFDROP a folder Ctrl-dropped on its own row stays', async 
   expect(await page.contents.directoryExists(`${tmpPath}/a/b/a`)).toBe(false);
   expect(await page.contents.directoryExists(`${tmpPath}/a/a`)).toBe(false);
   await expect(page.locator('.jp-Dialog')).toHaveCount(0);
+});
+
+test('a file dropped or Ctrl-dropped on the row of its own folder stays', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['a/', 'a/x.txt']);
+  await unfold(page, `${tmpPath}/a`);
+  await expect.poll(() => paths(page, tmpPath)).toEqual(['a', 'a/x.txt']);
+  const writes: string[] = [];
+  page.on('request', request => {
+    if (
+      request.method() !== 'GET' &&
+      (request.url().includes('/api/contents') ||
+        COPY_ROUTE.test(request.url()))
+    ) {
+      writes.push(`${request.method()} ${request.url()}`);
+    }
+  });
+
+  // As stock evtDrop, an item whose folder is the drop target is not moving: no copy, no move
+  for (const ctrl of [true, false]) {
+    await dragRow(page, `${tmpPath}/a/x.txt`, `${tmpPath}/a`, ctrl);
+    // A refresh sent after the drop answers after any request the drop sent
+    await (await browserHandle(page)).evaluate(b => b.model.refresh());
+    expect(writes, ctrl ? 'Ctrl-drop' : 'drop').toEqual([]);
+  }
+  expect(await page.contents.fileExists(`${tmpPath}/a/x-Copy1.txt`)).toBe(
+    false
+  );
 });
 
 test('DEF-UNFOLD-18-DROP-HIGHLIGHT a dragged folder does not highlight its own subfolder', async ({

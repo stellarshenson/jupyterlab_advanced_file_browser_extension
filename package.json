@@ -68,6 +68,7 @@
         "@jupyterlab/services": "^7.6.0",
         "@jupyterlab/settingregistry": "^4.6.0",
         "@jupyterlab/statedb": "^4.6.0",
+        "@jupyterlab/statusbar": "^4.6.0",
         "@jupyterlab/terminal": "^4.6.5",
         "@jupyterlab/translation": "^4.6.0",
         "@jupyterlab/ui-components": "^4.6.0",

@@ -81,8 +81,9 @@
   text-overflow: ellipsis;
 }
 
-/* Delete dialog: the large-removal warning, an inline warning message */
-.jp-AdvancedFileBrowser-deleteWarning {
+/* Delete dialog: the large-removal warning, an inline warning message; the copy dialog's cross-volume line */
+.jp-AdvancedFileBrowser-deleteWarning,
+.jp-AdvancedFileBrowser-copyWarning {
   margin-top: 12px;
   padding: 8px 12px;
   border: 1px solid color-mix(in srgb, var(--jp-warn-color1) 35%, transparent);
@@ -92,25 +93,29 @@
   font-size: var(--jp-ui-font-size1);
 }
 
-/* Delete progress: the compact spinner dialog of the design system */
-.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-content {
+/* Delete and copy progress: the compact spinner dialog of the design system */
+.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-content,
+.jp-AdvancedFileBrowser-copyDialog .jp-Dialog-content {
   min-width: 240px;
   min-height: 0;
   padding: 16px 20px 8px;
   resize: none;
 }
 
-.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-header {
+.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-header,
+.jp-AdvancedFileBrowser-copyDialog .jp-Dialog-header {
   padding-bottom: 8px;
   font-size: var(--jp-ui-font-size2);
   font-weight: 600;
 }
 
-.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-footer {
+.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-footer,
+.jp-AdvancedFileBrowser-copyDialog .jp-Dialog-footer {
   padding: 8px 12px;
 }
 
-.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-button {
+.jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-button,
+.jp-AdvancedFileBrowser-copyDialog .jp-Dialog-button {
   height: 28px;
 }
 
@@ -138,14 +143,16 @@
 }
 
 /* Determinate bar: a 6px track, the fill bound to the fraction, the percentage right-aligned */
-.jp-AdvancedFileBrowser-deleteBar {
+.jp-AdvancedFileBrowser-deleteBar,
+.jp-AdvancedFileBrowser-copyBar {
   display: grid;
   grid-template-columns: 1fr 42px;
   align-items: center;
   gap: 12px;
 }
 
-.jp-AdvancedFileBrowser-deleteTrack {
+.jp-AdvancedFileBrowser-deleteTrack,
+.jp-AdvancedFileBrowser-copyTrack {
   display: block;
   height: 6px;
   overflow: hidden;
@@ -154,16 +161,171 @@
   background: var(--jp-layout-color0);
 }
 
-.jp-AdvancedFileBrowser-deleteFill {
+.jp-AdvancedFileBrowser-deleteFill,
+.jp-AdvancedFileBrowser-copyFill {
   display: block;
   width: 0;
   height: 100%;
   background: var(--jp-brand-color1);
 }
 
-.jp-AdvancedFileBrowser-deletePercent {
+.jp-AdvancedFileBrowser-deletePercent,
+.jp-AdvancedFileBrowser-copyPercent {
   color: var(--jp-ui-font-color2);
   font-size: var(--jp-ui-font-size1);
   font-variant-numeric: tabular-nums;
   text-align: right;
+}
+
+/* Copy progress: 460px, the window less 16px each side when narrower (docs/mockups/copy-move-progress.html);
+   the window, not 100%, which the stock 3px dialog border narrows */
+.jp-AdvancedFileBrowser-copyDialog .jp-Dialog-content {
+  width: 460px;
+  max-width: calc(100vw - 32px);
+}
+
+.jp-AdvancedFileBrowser-copyBody {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0;
+}
+
+.jp-AdvancedFileBrowser-copyWarning {
+  margin-top: 0;
+  padding: 3px 8px;
+  font-size: var(--jp-ui-font-size0);
+}
+
+.jp-AdvancedFileBrowser-copyGrid {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 6px 10px;
+  align-items: center;
+}
+
+.jp-AdvancedFileBrowser-copyKey,
+.jp-AdvancedFileBrowser-copyStatKey {
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size0);
+}
+
+/* A long path loses its start, so the file name stays (the mockup's cut()): the RTL box puts the
+   overflow and the ellipsis on the left; the LRM marks keep digits, dots and slashes at the ends of the
+   path in their places */
+.jp-AdvancedFileBrowser-copyPath {
+  overflow: hidden;
+  font-family: var(--jp-code-font-family);
+  font-size: var(--jp-ui-font-size0);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  direction: rtl;
+  text-align: left;
+}
+
+.jp-AdvancedFileBrowser-copyPath::before,
+.jp-AdvancedFileBrowser-copyPath::after {
+  content: '\200e';
+}
+
+.jp-AdvancedFileBrowser-copyStats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--jp-border-color2);
+  font-variant-numeric: tabular-nums;
+}
+
+.jp-AdvancedFileBrowser-copyStatKey {
+  display: block;
+}
+
+/* The status bar item of the hidden operations: title, a 60px bar, the percentage */
+.jp-AdvancedFileBrowser-copyStatus {
+  gap: 6px;
+  cursor: pointer;
+}
+
+.jp-AdvancedFileBrowser-copyStatus .jp-AdvancedFileBrowser-copyTrack {
+  width: 60px;
+}
+
+/* The operations menu: two lines a row, title, 70px bar and percentage, then the file count and time ago */
+.jp-AdvancedFileBrowser-copyMenu {
+  min-width: min(320px, calc(100vw - 32px));
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 4px 0;
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-AdvancedFileBrowser-copyMenuRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 70px 36px;
+  gap: 2px 8px;
+  align-items: center;
+  width: 100%;
+  padding: 4px 10px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: var(--jp-ui-font-size1);
+  text-align: left;
+  cursor: pointer;
+}
+
+.jp-AdvancedFileBrowser-copyMenuRow:hover,
+.jp-AdvancedFileBrowser-copyMenuRow:focus-visible {
+  background: var(--jp-layout-color2);
+  outline: none;
+}
+
+.jp-AdvancedFileBrowser-copyMenuTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jp-AdvancedFileBrowser-copyMenuDetail {
+  grid-column: 1 / -1;
+  color: var(--jp-ui-font-color2);
+  font-size: var(--jp-ui-font-size0);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Narrow windows drop parts step by step (ACC-COPY-187 to 189) */
+@media (width < 600px) {
+  .jp-AdvancedFileBrowser-copyStatusTitle {
+    display: none;
+  }
+}
+
+@media (width < 480px) {
+  .jp-AdvancedFileBrowser-copySpeed,
+  .jp-AdvancedFileBrowser-copyElapsed {
+    display: none;
+  }
+}
+
+@media (width < 400px) {
+  .jp-AdvancedFileBrowser-copyFile,
+  .jp-AdvancedFileBrowser-copyStatus .jp-AdvancedFileBrowser-copyTrack {
+    display: none;
+  }
+}
+
+@media (width < 360px) {
+  .jp-AdvancedFileBrowser-copyPaths {
+    display: none;
+  }
+
+  .jp-AdvancedFileBrowser-copyMenuRow {
+    grid-template-columns: minmax(0, 1fr) 36px;
+  }
+
+  .jp-AdvancedFileBrowser-copyMenuRow .jp-AdvancedFileBrowser-copyTrack {
+    display: none;
+  }
 }

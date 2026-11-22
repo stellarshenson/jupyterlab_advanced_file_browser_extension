@@ -1,3 +1,6 @@
+// Paste ends in transfer, the copy and move job of copyDialog; these tests observe that seam.
+jest.mock('../copyDialog', () => ({ transfer: jest.fn() }));
+
 import * as dialog from '@jupyterlab/apputils/lib/dialog';
 import { PathExt } from '@jupyterlab/coreutils';
 import { DocumentManager } from '@jupyterlab/docmanager';
@@ -10,6 +13,7 @@ import { nullTranslator } from '@jupyterlab/translation';
 import type { Signal } from '@lumino/signaling';
 import { Widget } from '@lumino/widgets';
 
+import { transfer } from '../copyDialog';
 import { outermost, TreeDirListing, treeOrder } from '../listing';
 import { TreeFileBrowserModel } from '../model';
 
@@ -57,6 +61,14 @@ const paths = (items: Iterable<Contents.IModel>) =>
 
 const selection = (listing: TreeDirListing) =>
   (listing as unknown as { selection: Record<string, boolean> }).selection;
+
+/** The paths, destination and move flag of each transfer call. */
+const transfers = () =>
+  (transfer as jest.Mock).mock.calls.map(([, paths, to, move]) => [
+    paths,
+    to,
+    move
+  ]);
 
 describe('treeOrder', () => {
   it('ACC-UNFOLD-17-SORTHEAD treeOrder keeps the Last Modified descending order inside each level', () => {
@@ -141,6 +153,7 @@ describe('TreeFileBrowserModel', () => {
   let listing: TreeDirListing;
 
   beforeEach(async () => {
+    (transfer as jest.Mock).mockReset().mockResolvedValue([]);
     const services = new ServiceManagerMock();
     await services.contents.save('a', { type: 'directory' });
     await services.contents.save('a/x.txt', { type: 'file' });
@@ -213,18 +226,18 @@ describe('TreeFileBrowserModel', () => {
     ] = true;
     listing.copy();
     model.setCurrentFolder('a');
-    let finish: (value: Contents.IModel) => void = () => undefined;
-    const copy = jest
-      .spyOn(model.manager, 'copy')
-      .mockImplementation(() => new Promise(resolve => (finish = resolve)));
+    let finish: (notDone: string[]) => void = () => undefined;
+    (transfer as jest.Mock).mockImplementation(
+      () => new Promise(resolve => (finish = resolve))
+    );
 
     const pasted = listing.paste();
     model.setCurrentFolder('b');
 
     expect(model.path).toBe('b');
-    expect(copy.mock.calls).toEqual([['a', '']]);
+    expect(transfers()).toEqual([[['a'], '', false]]);
 
-    finish(row('a-Copy1', 'directory'));
+    finish([]);
     await pasted;
   });
 
@@ -234,10 +247,6 @@ describe('TreeFileBrowserModel', () => {
     const internals = listing as unknown as {
       selection: Record<string, boolean>;
     };
-    const copy = jest
-      .spyOn(model.manager, 'copy')
-      .mockResolvedValue(row('a-Copy1', 'directory'));
-    const rename = jest.spyOn(model.manager, 'rename');
     const showError = jest
       .spyOn(dialog, 'showErrorMessage')
       .mockResolvedValue(undefined);
@@ -257,8 +266,7 @@ describe('TreeFileBrowserModel', () => {
 
       await listing.paste();
 
-      expect(copy).not.toHaveBeenCalled();
-      expect(rename).not.toHaveBeenCalled();
+      expect(transfer).not.toHaveBeenCalled();
       expect(showError.mock.calls).toEqual([message]);
     }
     showError.mockRestore();
@@ -274,13 +282,14 @@ describe('TreeFileBrowserModel', () => {
     internals.selection['a'] = true;
     listing.copy();
     model.setCurrentFolder('a');
-    let fail: (error: Error) => void = () => undefined;
-    jest
-      .spyOn(model.manager, 'copy')
-      .mockImplementation(() => new Promise((_, reject) => (fail = reject)));
+    // transfer reports its failure and resolves with the paths not done.
+    let fail: (notDone: string[]) => void = () => undefined;
+    (transfer as jest.Mock).mockImplementation(
+      () => new Promise(resolve => (fail = resolve))
+    );
 
     let pasted = listing.paste();
-    fail(new Error('Permission denied'));
+    fail(['a']);
     await pasted;
 
     expect(internals._clipboard).toEqual(['a']);
@@ -290,7 +299,7 @@ describe('TreeFileBrowserModel', () => {
     listing.clearSelectedItems();
     internals.selection['b.txt'] = true;
     listing.copy();
-    fail(new Error('Permission denied'));
+    fail(['a']);
     await pasted;
 
     expect(internals._clipboard).toEqual(['b.txt']);
@@ -306,12 +315,6 @@ describe('TreeFileBrowserModel', () => {
       _clipboard: string[];
       _isCut: boolean;
     };
-    const copy = jest
-      .spyOn(model.manager, 'copy')
-      .mockResolvedValue(row('c/a', 'directory'));
-    const rename = jest
-      .spyOn(model.manager, 'rename')
-      .mockResolvedValue(row('c/a', 'directory'));
     const showError = jest
       .spyOn(dialog, 'showErrorMessage')
       .mockResolvedValue(undefined);
@@ -322,8 +325,7 @@ describe('TreeFileBrowserModel', () => {
 
     for (const isCut of [false, true]) {
       showError.mockClear();
-      copy.mockClear();
-      rename.mockClear();
+      (transfer as jest.Mock).mockClear();
       listing.clearSelectedItems();
       internals.selection['a'] = true;
       if (isCut) {
@@ -336,8 +338,7 @@ describe('TreeFileBrowserModel', () => {
 
       await listing.paste();
 
-      expect(copy).not.toHaveBeenCalled();
-      expect(rename).not.toHaveBeenCalled();
+      expect(transfer).not.toHaveBeenCalled();
       expect(showError.mock.calls).toEqual([message]);
       expect(internals._clipboard).toEqual(['a']);
       expect(internals._isCut).toBe(isCut);
@@ -345,8 +346,7 @@ describe('TreeFileBrowserModel', () => {
       model.setCurrentFolder('c');
       await listing.paste();
 
-      expect(copy.mock.calls).toEqual(isCut ? [] : [['a', 'c']]);
-      expect(rename.mock.calls).toEqual(isCut ? [['a', 'c/a']] : []);
+      expect(transfers()).toEqual([[['a'], 'c', isCut]]);
     }
     showError.mockRestore();
   });

@@ -9,6 +9,9 @@ used to turn an absolute path into a path relative to that terminal.
 report its progress. ``delete/trash-check`` says for each item of a selection whether
 the trash management extension monitors its trash, so Move to Trash may be offered.
 
+``copy`` and ``copy/<id>`` start a copy or a move of a selection into a folder as a job on a
+thread of its own, report its progress and cancel it.
+
 ``AdvancedFileBrowser`` holds the server options of this extension.
 """
 import asyncio
@@ -19,14 +22,17 @@ import inspect
 import json
 import os
 import re
+import shutil
 import stat
 import subprocess
 import sys
 import threading
+import time
 import uuid
 
 from jupyter_core.paths import is_hidden
 from jupyter_server.base.handlers import APIHandler
+from jupyter_server.services.contents.manager import copy_pat
 from jupyter_server.utils import ensure_async, to_api_path, url_path_join
 import tornado
 from traitlets import Bool
@@ -41,21 +47,39 @@ except (ImportError, AttributeError):  # Windows: the module calls os.getuid on 
 # Not a setting; the Galata server config lowers it by assigning this module name.
 LARGE_REMOVAL_BYTES = 10 * 1024 ** 3
 
+# A copy job reads and writes this many bytes per step, so Cancel stops it within one step. Not
+# settings; the Galata server config and pytest slow a copy down by assigning these module names.
+COPY_CHUNK_BYTES = 1024 ** 2
+COPY_PAUSE_SECONDS = 0
+
+# A copy job that ended this long ago leaves the table at the next start, read or not: a reloaded
+# page never reads its job. The margin covers a background tab, whose timers Chrome throttles to
+# one per minute.
+_ENDED_JOB_SECONDS = 600
+
 # The mount table of this process, read as core patches reads it.
 _MOUNTINFO = "/proc/self/mountinfo"
 
-# The Delete Failed reasons in this extension's words, by the errno of the failure.
+# The Delete Failed and copy failure reasons in this extension's words, by the errno of the failure.
 _REASONS = {
     errno.EACCES: "permission denied",
     errno.EPERM: "permission denied",
     errno.ENOENT: "not found",
     errno.EBUSY: "in use",
+    errno.EEXIST: "already exists",
+    errno.ENOSPC: "no space left",
+    errno.EROFS: "read-only volume",
 }
 
 # shortcut: a job leaves memory only through the GET that reports it done, so a job whose
 # page closed mid-removal stays; add an expiry if abandoned jobs ever accumulate.
 _jobs: dict[str, dict] = {}
 _tasks: set[asyncio.Task] = set()
+
+# Copy jobs by id; an ended one leaves through the GET that reports it done, or at a later start.
+_copy_jobs: dict[str, dict] = {}
+# Held while a copy job picks a free name and makes it, so two jobs into one folder take two names.
+_NAMING = threading.Lock()
 
 # The callers waiting for their move to the trash, first come first served (_trash_turn), so the
 # items of Move to Trash jobs on their worker threads and a contents API delete on the server loop
@@ -459,9 +483,9 @@ def _bottom_up(top: str, onerror=None):
 
 
 def _reason(error: BaseException | None) -> str:
-    """The Delete Failed reason for `error`, never the library's message, which can hold an
-    absolute server path: an HTTPError of the contents manager's delete by its status, or by
-    the OSError behind it (send2trash failed); an OSError by its errno."""
+    """The Delete Failed or copy failure reason for `error`, never the library's message, which
+    can hold an absolute server path: an HTTPError of the contents manager's delete by its
+    status, or by the OSError behind it (send2trash failed); an OSError by its errno."""
     if isinstance(error, tornado.web.HTTPError):
         reason = {403: "permission denied", 404: "not found"}.get(error.status_code)
         return reason or _reason(error.__cause__)
@@ -533,10 +557,10 @@ async def _trash(job: dict, contents_manager, paths: list[str], os_paths: list[s
 
 
 def _emit_on_loop(contents_manager, loop: asyncio.AbstractEventLoop) -> None:
-    """Make the manager's emit, called from a trash worker thread, run on the server `loop`:
-    jupyter_events starts each listener as a task of the calling thread's loop, and the listener
-    of the events websocket writes to it, which only the server loop may do. A call on the
-    server loop's thread runs at once, as before."""
+    """Make the manager's emit, called from a trash worker thread or a copy job's thread, run on
+    the server `loop`: jupyter_events starts each listener as a task of the calling thread's
+    loop, and the listener of the events websocket writes to it, which only the server loop may
+    do. A call on the server loop's thread runs at once, as before."""
     emit = contents_manager.emit
     if getattr(emit, "loop", None) is loop:
         return
@@ -745,6 +769,329 @@ class DeleteJobHandler(APIHandler):
             self.finish(json.dumps({key: value for key, value in job.items() if key != "errors"}))
 
 
+class _Cancelled(Exception):
+    """Cancel was asked for while a copy job ran."""
+
+
+def _reserve(src: str, info: os.stat_result, target: str) -> None:
+    """Make `target` for the copy of `src`: a folder, the link itself, or an empty file to fill.
+    An existing `target` raises EEXIST, so a name goes to one copy only."""
+    if stat.S_ISDIR(info.st_mode):
+        os.mkdir(target)
+    elif stat.S_ISLNK(info.st_mode):
+        os.symlink(os.readlink(src), target)
+    else:
+        os.close(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL))
+
+
+def _copy_file(job: dict, src: str, target: str, size: int, root: str) -> None:
+    """Copy the bytes of `src` into `target`, COPY_CHUNK_BYTES per step, counting into `job`. A
+    failed or cancelled copy removes `target`, so no partial file stays."""
+    job["from"], job["to"] = to_api_path(src, root), to_api_path(target, root)
+    job["file_size"], job["file_bytes"] = size, 0
+    try:
+        with open(src, "rb") as reader, open(target, "wb") as writer:
+            while chunk := reader.read(COPY_CHUNK_BYTES):
+                writer.write(chunk)
+                job["bytes"] += len(chunk)
+                job["file_bytes"] += len(chunk)
+                if job["cancelled"]:
+                    raise _Cancelled
+                if COPY_PAUSE_SECONDS:
+                    time.sleep(COPY_PAUSE_SECONDS)
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.unlink(target)
+        raise
+
+
+async def _transfer(
+    job: dict,
+    contents_manager,
+    paths: list[str],
+    sources: list[str],
+    dest: str,
+    to: str,
+    move: bool,
+    log,
+) -> None:
+    """Copy, or move, the items `sources` (API `paths`) into the folder `dest` (API `to`), counting
+    into `job`; links are copied as links, never followed. It runs on its own thread's event loop
+    (CopyHandler)."""
+    root = os.path.abspath(contents_manager.root_dir)
+    verb = "Move" if move else "Copy"
+
+    def fail(src: str, error) -> None:
+        # The library's message reaches the server log only, as in _remove.
+        log.warning("%s of %s failed: %s", verb, src, error)
+        reason = error if isinstance(error, str) else _reason(error)
+        job["errors"].append({"path": to_api_path(src, root), "message": reason})
+
+    def stamp(src: str, target: str) -> None:
+        try:
+            shutil.copystat(src, target, follow_symlinks=False)
+        except OSError:
+            # As copy2_safe of the contents manager: the copy stands without the times and mode.
+            log.debug("copystat on %s failed", target, exc_info=True)
+
+    def put(src: str, info: os.stat_result, target: str) -> None:
+        """Fill `target`, made by _reserve, from the file or link `src`; a move then unlinks `src`."""
+        # shortcut: the bytes are copied as they are, without the contents manager's save hooks
+        # or a notebook check, as its folder copy does; go through save if a deployment's hooks
+        # must see single-file copies.
+        if stat.S_ISREG(info.st_mode):
+            _copy_file(job, src, target, info.st_size, root)
+        stamp(src, target)
+        job["files"] += 1
+        if move:
+            os.unlink(src)
+
+    def copy_folder(src: str, target: str) -> bool:
+        """Copy what the folder `src` holds into the folder `target`, top-down; whether every entry
+        was copied. A move removes each source folder that its entries left empty."""
+        complete = True
+        made = []
+
+        def walk_error(error: OSError) -> None:
+            nonlocal complete
+            complete = False
+            fail(error.filename, error)
+
+        try:
+            for folder, folders, names in os.walk(src, onerror=walk_error):
+                out = target if folder == src else os.path.join(target, os.path.relpath(folder, src))
+                made.append((folder, out))
+                for name in list(folders):
+                    if os.path.islink(os.path.join(folder, name)):
+                        folders.remove(name)
+                        names.append(name)
+                        continue
+                    try:
+                        os.mkdir(os.path.join(out, name))
+                    except OSError as error:
+                        complete = False
+                        fail(os.path.join(folder, name), error)
+                        folders.remove(name)
+                for name in names:
+                    if job["cancelled"]:
+                        raise _Cancelled
+                    entry = os.path.join(folder, name)
+                    try:
+                        info = os.lstat(entry)
+                        if stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
+                            _reserve(entry, info, os.path.join(out, name))
+                            put(entry, info, os.path.join(out, name))
+                        else:
+                            # A FIFO, socket or device: opening a FIFO would block this thread.
+                            complete = False
+                            fail(entry, "not a regular file")
+                    except OSError as error:
+                        complete = False
+                        fail(entry, error)
+        finally:
+            # Deepest first and after the writes inside, as copytree does, so each folder keeps the
+            # mtime of its source.
+            for folder, out in reversed(made):
+                stamp(folder, out)
+                if move:
+                    with contextlib.suppress(OSError):  # kept while it holds an entry not moved
+                        os.rmdir(folder)
+        return complete
+
+    try:
+        # The totals rise while the walk runs; Cancel stops it, and the item loop then reports
+        # every path not done.
+        for path, _ in (entry for top in sources for entry in _bottom_up(top)):
+            if job["cancelled"]:
+                break
+            try:
+                info = os.lstat(path)
+            except OSError:
+                continue  # the copy reports it
+            if stat.S_ISREG(info.st_mode):
+                job["bytes_total"] += info.st_size
+            if stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode):
+                job["files_total"] += 1
+        for index, (path, src) in enumerate(zip(paths, sources)):
+            complete = False
+            try:
+                if job["cancelled"]:
+                    raise _Cancelled
+                info = os.lstat(src)
+                folder = stat.S_ISDIR(info.st_mode)
+                if not (folder or stat.S_ISREG(info.st_mode) or stat.S_ISLNK(info.st_mode)):
+                    fail(src, "not a regular file")
+                else:
+                    with _NAMING:
+                        name = os.path.basename(src)
+                        if not move:
+                            # The contents manager's own naming: the name, then -Copy1, -Copy2.
+                            name = await ensure_async(
+                                contents_manager.increment_filename(
+                                    copy_pat.sub(".", name), to, insert="-Copy"
+                                )
+                            )
+                        target = os.path.join(dest, name)
+                        _reserve(src, info, target)
+                    new_path = to_api_path(target, root)
+                    if folder:
+                        complete = copy_folder(src, target)
+                    else:
+                        put(src, info, target)
+                        complete = True
+                    if complete and move:
+                        # As ContentsManager.rename, with the checkpoint step guarded.
+                        if _has_checkpoint_folder(contents_manager, src):
+                            await ensure_async(
+                                contents_manager.checkpoints.rename_all_checkpoints(path, new_path)
+                            )
+                        contents_manager.emit(
+                            data={"action": "rename", "path": new_path, "source_path": path}
+                        )
+                    elif complete and not folder:
+                        # As ContentsManager.copy; a folder copy emits none, as its _copy_dir.
+                        contents_manager.emit(
+                            data={"action": "copy", "path": new_path, "source_path": path}
+                        )
+            except _Cancelled:
+                job["not_done"].extend(paths[index:])
+                break
+            except Exception as error:
+                fail(src, error)
+            if not complete:
+                job["not_done"].append(path)
+    except Exception:
+        log.exception("%s of %s failed", verb, paths)
+    finally:
+        job["ended"] = time.monotonic()
+        job["done"] = True
+
+
+class CopyHandler(APIHandler):
+    """Start a copy of ``paths`` into the folder ``to``, or a move when the body says
+    ``"move": true``. A move of an item on the destination's volume is left to the stock rename,
+    which the answer's ``rename`` lists; the rest runs as a job: 202 with its id, or 200 with id
+    null when nothing is left for one."""
+
+    @tornado.web.authenticated
+    async def post(self):
+        contents_manager = self.contents_manager
+        paths = _request_paths(self)
+        body = self.get_json_body()
+        to, move = body.get("to"), body.get("move") is True
+        if not isinstance(to, str):
+            raise tornado.web.HTTPError(400, "Expected the destination folder in to")
+        to = to.strip("/")
+        dest = contents_manager._get_os_path(to)
+        if not os.path.isdir(dest):
+            raise tornado.web.HTTPError(404, "No such directory: %s" % to)
+        sources = [contents_manager._get_os_path(path) for path in paths]
+        if not contents_manager.allow_hidden and any(
+            is_hidden(os_path, contents_manager.root_dir) for os_path in [dest, *sources]
+        ):
+            raise tornado.web.HTTPError(400, "Cannot copy or move a hidden file or directory")
+        # The real destination: a folder copied below itself, even through a link, would recurse.
+        real = os.path.realpath(dest)
+        device = os.stat(dest).st_dev
+        try:
+            mounts = _mounts()
+        except OSError:
+            mounts = []
+        mount = _mount_point(real, mounts)
+        rename, job_paths, job_sources, cross = [], [], [], move
+        for path, src in zip(paths, sources):
+            # A link is judged where it lies, by device and mount as well.
+            located = os.path.join(os.path.realpath(os.path.dirname(src)), os.path.basename(src))
+            if real == located or real.startswith(located + os.sep):
+                raise tornado.web.HTTPError(400, "Cannot copy %r into itself" % path)
+            try:
+                other = os.lstat(src).st_dev != device or _mount_point(located, mounts) != mount
+            except OSError:
+                other = None  # the job reports it
+            if move and other is False:
+                rename.append(path)
+            else:
+                job_paths.append(path)
+                job_sources.append(src)
+                cross = cross or bool(other)
+        if not job_paths:
+            self.finish(json.dumps({"id": None, "rename": rename}))
+            return
+        now = time.monotonic()
+        for job_id, job in list(_copy_jobs.items()):
+            if job["done"] and now - job["ended"] > _ENDED_JOB_SECONDS:
+                del _copy_jobs[job_id]
+        _emit_on_loop(contents_manager, asyncio.get_running_loop())
+        job_id = uuid.uuid4().hex
+        job = _copy_jobs[job_id] = {
+            "files_total": 0,
+            "bytes_total": 0,
+            "files": 0,
+            "bytes": 0,
+            "file_size": 0,
+            "file_bytes": 0,
+            "from": "",
+            "to": "",
+            "cross": cross,
+            "done": False,
+            "errors": [],
+            "not_done": [],
+            "started": now,
+            "ended": None,
+            "cancelled": False,
+        }
+        # A thread of its own with its own event loop, as _transfer awaits the contents manager's
+        # naming and checkpoint calls. Not the default executor, whose bounded workers the delete
+        # routes share and a long copy would hold; the contents manager's own file calls run on
+        # anyio's worker threads (anyio.to_thread.run_sync), not in that executor.
+        # shortcut: a server stop ends the daemon thread and leaves the file in progress partial,
+        # as an interrupted copytree does; clean up at start if such leftovers are reported.
+        threading.Thread(
+            target=asyncio.run,
+            args=(
+                _transfer(
+                    job, contents_manager, job_paths, job_sources, dest, to, move, self.log
+                ),
+            ),
+            daemon=True,
+        ).start()
+        self.set_status(202)
+        self.finish(json.dumps({"id": job_id, "rename": rename}))
+
+
+class CopyJobHandler(APIHandler):
+    """Progress of a copy job, its errors and the paths not done once done; DELETE cancels it."""
+
+    @tornado.web.authenticated
+    def get(self, job_id: str):
+        job = _copy_jobs.get(job_id)
+        if job is None:
+            raise tornado.web.HTTPError(404, "Unknown copy job")
+        # Read first: done is set last, so a job read as done holds its final counts.
+        done = job["done"]
+        report = {
+            key: value
+            for key, value in job.items()
+            if key not in ("errors", "not_done", "started", "ended", "cancelled")
+        }
+        report["done"] = done
+        report["elapsed"] = (job["ended"] or time.monotonic()) - job["started"]
+        if done:
+            del _copy_jobs[job_id]
+            report["errors"], report["not_done"] = job["errors"], job["not_done"]
+        self.finish(json.dumps(report))
+
+    @tornado.web.authenticated
+    def delete(self, job_id: str):
+        job = _copy_jobs.get(job_id)
+        if job is None:
+            raise tornado.web.HTTPError(404, "Unknown copy job")
+        # The job stops at its next step or file.
+        job["cancelled"] = True
+        self.set_status(204)
+        self.finish()
+
+
 def setup_route_handlers(web_app, options: AdvancedFileBrowser):
     host_pattern = ".*$"
     base_url = web_app.settings["base_url"]
@@ -757,6 +1104,7 @@ def setup_route_handlers(web_app, options: AdvancedFileBrowser):
         "([^/]+)"  # terminal_name parameter
     )
     delete_route = url_path_join(base_url, "jupyterlab-advanced-file-browser-extension", "delete")
+    copy_route = url_path_join(base_url, "jupyterlab-advanced-file-browser-extension", "copy")
     handlers = [
         (hello_route_pattern, HelloRouteHandler),
         (terminal_cwd_route, TerminalCwdHandler),
@@ -768,6 +1116,8 @@ def setup_route_handlers(web_app, options: AdvancedFileBrowser):
         ),
         (delete_route, DeleteHandler),
         (url_path_join(delete_route, "([0-9a-f]{32})"), DeleteJobHandler),
+        (copy_route, CopyHandler),
+        (url_path_join(copy_route, "([0-9a-f]{32})"), CopyJobHandler),
     ]
 
     web_app.add_handlers(host_pattern, handlers)

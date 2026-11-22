@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Copy and move progress</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<style>
+  /* Page chrome tokens; the mocked lab below keeps the JupyterLab theme colours. */
+  :root {
+    --bg: #f6f7f8;
+    --surface: #ffffff;
+    --ink: #1f2429;
+    --muted: #5c656d;
+    --line: #dfe4e8;
+    --accent: #1e88e5;
+    --accent-bg: #1565c0;
+    --accent-ink: #ffffff;
+    --stage: #eef1f3;
+    --scroll-thumb: #c3ccd4;
+    --grid-dot: rgba(23, 28, 33, 0.1);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #15181b;
+      --surface: #1d2125;
+      --ink: #e7eaed;
+      --muted: #9aa4ad;
+      --line: #2b3238;
+      --accent: #64b5f6;
+      --accent-bg: #64b5f6;
+      --accent-ink: #0f1317;
+      --stage: #101315;
+      --scroll-thumb: #3a444d;
+      --grid-dot: rgba(232, 237, 241, 0.08);
+    }
+  }
+  html { scrollbar-color: var(--scroll-thumb) transparent; scrollbar-width: thin; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 4px; corner-shape: squircle; border: 2px solid transparent; background-clip: padding-box; }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 28px max(16px, env(safe-area-inset-left, 0px)) 48px;
+  }
+  .wrap { max-width: 820px; margin: 0 auto; }
+  h1 { margin: 0 0 4px; font-size: 24px; font-weight: 650; letter-spacing: -0.02em; }
+  .lede { margin: 0 0 16px; max-width: 70ch; color: var(--muted); }
+  .tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 18px; }
+  .seg { display: flex; border: 1px solid var(--line); border-radius: 4px; corner-shape: squircle; overflow: hidden; background: var(--surface); }
+  .seg-btn { font: inherit; font-size: 12px; font-weight: 600; padding: 7px 12px; background: transparent; color: var(--muted); border: 0; cursor: pointer; }
+  .seg-btn[aria-pressed="true"] { background: var(--accent-bg); color: var(--accent-ink); }
+  .icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--line); border-radius: 4px; corner-shape: squircle; background: var(--surface); color: var(--ink); cursor: pointer; }
+  .icon-btn svg { fill: currentColor; }
+  .seg-btn:focus-visible, .icon-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .stage {
+    background-color: var(--stage);
+    background-image: radial-gradient(var(--grid-dot) 1px, transparent 1px);
+    background-size: 18px 18px;
+    border: 1px solid var(--line); border-radius: 4px; corner-shape: squircle;
+    padding: 28px;
+  }
+  .criteria { margin: 14px 0 0; color: var(--muted); font-size: 13px; }
+
+  /* ---------- the mocked lab: JupyterLab Light and Dark theme tokens ---------- */
+  .mockwrap {
+    color-scheme: light;
+    --jp-layout-color0: #ffffff;
+    --jp-layout-color1: #ffffff;
+    --jp-layout-color2: #eeeeee;
+    --jp-border-color1: #bdbdbd;
+    --jp-border-color2: #e0e0e0;
+    --jp-brand-color1: #1976d2;
+    --jp-reject-color-normal: #757575;
+    --jp-accept-color-normal: #1976d2;
+    --jp-layout-color3: #bdbdbd;
+    --jp-warn-color1: #f57c00;
+    --jp-ui-font-color1: rgba(0, 0, 0, 0.87);
+    --jp-ui-font-color2: rgba(0, 0, 0, 0.54);
+    --jp-ui-font-color3: rgba(0, 0, 0, 0.38);
+    --jp-dialog-background: rgba(0, 0, 0, 0.25);
+    --jp-icon3: #616161;
+  }
+  .mockwrap[data-theme='dark'] {
+    color-scheme: dark;
+    --jp-layout-color0: #111111;
+    --jp-layout-color1: #212121;
+    --jp-layout-color2: #424242;
+    --jp-layout-color3: #616161;
+    --jp-border-color1: #616161;
+    --jp-border-color2: #424242;
+    --jp-brand-color1: #2196f3;
+    --jp-warn-color1: #ff9800;
+    --jp-ui-font-color1: rgba(255, 255, 255, 0.87);
+    --jp-ui-font-color2: rgba(255, 255, 255, 0.54);
+    --jp-ui-font-color3: rgba(255, 255, 255, 0.38);
+    --jp-dialog-background: rgba(0, 0, 0, 0.6);
+    --jp-icon3: #bdbdbd;
+  }
+  .lab {
+    position: relative; display: flex; flex-direction: column; overflow: hidden;
+    border: 1px solid var(--jp-border-color1); border-radius: 2px;
+    background: var(--jp-layout-color0); color: var(--jp-ui-font-color1);
+    font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+  }
+  .lab-main { display: grid; grid-template-columns: 220px minmax(0, 1fr); min-height: 330px; }
+  .fb { background: var(--jp-layout-color1); border-right: 1px solid var(--jp-border-color2); }
+  .fb-crumbs { padding: 6px 10px; font-size: 12px; color: var(--jp-ui-font-color2); border-bottom: 1px solid var(--jp-border-color2); }
+  .fb-row { display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; white-space: nowrap; }
+  .fb-row svg { flex: 0 0 auto; }
+  .fb-row .ic3 { fill: var(--jp-icon3); }
+  .work { padding: 12px 16px; color: var(--jp-ui-font-color3); font-size: 12px; }
+  .sbar { display: flex; align-items: center; gap: 16px; height: 24px; padding: 0 10px; background: var(--jp-layout-color2); font-size: 12px; white-space: nowrap; }
+  .sbar .push { margin-left: auto; }
+  .backdrop { position: absolute; inset: 0; background: var(--jp-dialog-background); }
+
+  .dlg {
+    position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+    width: 460px; max-width: calc(100% - 24px); padding: 16px 20px 8px;
+    background: var(--jp-layout-color1); color: var(--jp-ui-font-color1); border-radius: 2px;
+    box-shadow: 0 10px 13px -6px rgba(0, 0, 0, 0.2), 0 20px 31px 3px rgba(0, 0, 0, 0.14), 0 8px 38px 7px rgba(0, 0, 0, 0.12);
+  }
+  .dlg-head { padding-bottom: 8px; font-size: 15.6px; font-weight: 600; }
+  .dlg-body { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+  .dlg-foot { display: flex; justify-content: flex-end; gap: 8px; padding: 8px 0 4px; }
+  .mbtn { display: inline-flex; align-items: center; height: 28px; padding: 0 14px; border-radius: 2px; color: #ffffff; background: var(--jp-reject-color-normal); }
+  /* The Delete dialog's warning colours, one short line */
+  .xvol { padding: 3px 8px; border: 1px solid color-mix(in srgb, var(--jp-warn-color1) 35%, transparent); border-radius: 2px; background: color-mix(in srgb, var(--jp-warn-color1) 15%, transparent); font-size: 12px; }
+  /* The Delete dialog's determinate bar: 6px track, fill, right-aligned percentage */
+  .bar { display: grid; grid-template-columns: minmax(0, 1fr) 42px; align-items: center; gap: 12px; }
+  .track { display: block; height: 6px; overflow: hidden; border: 1px solid var(--jp-border-color2); border-radius: 2px; background: var(--jp-layout-color0); }
+  .fill { display: block; width: 0; height: 100%; background: var(--jp-brand-color1); }
+  .pct { color: var(--jp-ui-font-color2); font-variant-numeric: tabular-nums; text-align: right; }
+  .grid { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 6px 10px; align-items: center; font-size: 12px; }
+  .key { color: var(--jp-ui-font-color2); }
+  .path { font-family: ui-monospace, Menlo, Consolas, monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 12px; padding-top: 8px; border-top: 1px solid var(--jp-border-color2); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .stats .k { display: block; font-size: 11px; color: var(--jp-ui-font-color2); }
+  .mbtn.accept { background: var(--jp-accept-color-normal); }
+
+  .variant { display: flex; flex-direction: column; gap: 8px; }
+  .variant + .variant { margin-top: 26px; }
+  .variant-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 13px; font-weight: 600; }
+  .variant-head .sub { font-weight: 400; color: var(--muted); }
+  .lab.short .lab-main { min-height: 170px; }
+  /* One status bar item for every hidden operation; the menu opens above it */
+  .sb-wrap { position: relative; display: inline-flex; height: 100%; }
+  .sb-copy { display: inline-flex; align-items: center; gap: 6px; height: 100%; padding: 0 6px; }
+  .sb-copy.jp-mod-clicked { background: var(--jp-layout-color3); }
+  .sb-copy .track { width: 60px; }
+  .sb-copy .caret { fill: var(--jp-icon3); }
+  .menu {
+    position: absolute; bottom: calc(100% + 2px); left: 0; width: 320px; padding: 4px 0;
+    background: var(--jp-layout-color0); color: var(--jp-ui-font-color1);
+    border: 1px solid var(--jp-border-color1);
+    box-shadow: 0 3px 5px -1px rgba(0, 0, 0, 0.2), 0 6px 10px 0 rgba(0, 0, 0, 0.14), 0 1px 18px 0 rgba(0, 0, 0, 0.12);
+  }
+  .menu-row { display: grid; grid-template-columns: minmax(0, 1fr) 70px 36px; align-items: center; gap: 8px; padding: 4px 10px; font-size: 13px; }
+  .menu-row.jp-mod-active { background: var(--jp-layout-color2); }
+  .menu-row .pct { font-size: 12px; }
+  .menu-row .detail { grid-column: 1 / -1; margin-top: -2px; font-size: 11px; color: var(--jp-ui-font-color2); font-variant-numeric: tabular-nums; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Copy and move progress</h1>
+  <p class="lede">The decided progress dialog: the Midnight Commander layout with Cancel and Hide. A copy or move still running 1 s after it starts opens it; Hide moves it to one status bar item, and a click on that item opens the dialog again, or the operations menu when several run. A second copy or move runs in parallel and hides the dialog shown before. Each menu row shows the file count and how long ago the operation started. The sample is 3 items: one 2.00 GiB file, then a folder of 19 998 small files, then one note; it plays in a loop. A move on one volume is a rename and ends before the dialog opens. The mocked lab uses the JupyterLab Light and Dark theme colours.</p>
+  <div class="tools">
+    <div class="seg" role="group" aria-label="Theme">
+      <button class="seg-btn" type="button" data-theme-btn="light" aria-pressed="true">Light</button>
+      <button class="seg-btn" type="button" data-theme-btn="dark" aria-pressed="false">Dark</button>
+    </div>
+    <div class="seg" role="group" aria-label="Operation">
+      <button class="seg-btn" type="button" data-mode="copy-same" aria-pressed="false">Copy, one volume</button>
+      <button class="seg-btn" type="button" data-mode="copy-cross" aria-pressed="true">Copy, cross-volume</button>
+      <button class="seg-btn" type="button" data-mode="move-cross" aria-pressed="false">Move, cross-volume</button>
+    </div>
+    <div class="seg" role="group" aria-label="Hidden operations">
+      <button class="seg-btn" type="button" data-hidden="1" aria-pressed="false">1 hidden</button>
+      <button class="seg-btn" type="button" data-hidden="3" aria-pressed="true">3 hidden</button>
+    </div>
+    <button class="icon-btn" id="play" type="button" aria-label="Pause the sample" title="Pause the sample"><svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="3" y="2" width="3" height="10" rx="1"/><rect x="8" y="2" width="3" height="10" rx="1"/></svg></button>
+  </div>
+
+  <div class="stage">
+    <div class="mockwrap" data-theme="light" id="mock">
+      <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+        <symbol id="ic-folder" viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8z"/></symbol>
+        <symbol id="ic-md" viewBox="0 0 22 22"><path fill="#7B1FA2" d="M5 14.9h12l-6.1 6zm9.4-6.8c0-1.3-.1-2.9-.1-4.5-.4 1.4-.9 2.9-1.3 4.3l-1.3 4.3h-2L8.5 7.9c-.4-1.3-.7-2.9-1-4.3-.1 1.6-.1 3.2-.2 4.6L7 12.4H4.8l.7-11h3.3L10 5c.4 1.2.7 2.7 1 3.9.3-1.2.7-2.6 1-3.9l1.2-3.7h3.3l.6 11h-2.4z"/></symbol>
+      </svg>
+      <div class="variant" data-label="progress dialog">
+      <div class="variant-head">Progress dialog <span class="sub">opens 1 s after a copy or move starts</span></div>
+      <div class="lab">
+        <div class="lab-main">
+          <div class="fb">
+            <div class="fb-crumbs" data-f="crumbs">/ mnt / nas / backup /</div>
+            <div class="fb-row"><svg width="16" height="16" class="ic3"><use href="#ic-folder"/></svg>2026-10</div>
+            <div class="fb-row"><svg width="16" height="16" class="ic3"><use href="#ic-folder"/></svg>2026-11</div>
+            <div class="fb-row"><svg width="16" height="16"><use href="#ic-md"/></svg>README.md</div>
+          </div>
+          <div class="work">Untitled.ipynb (example) - the notebook and its kernel keep answering while the copy or move runs; the server works in a worker thread</div>
+        </div>
+        <div class="sbar"><span>Simple</span><span>Python 3 (ipykernel) | Idle</span><span class="push">Ln 1, Col 1</span></div>
+        <div class="backdrop"></div>
+        <div class="dlg">
+          <div class="dlg-head" data-f="title">Copying 3 items</div>
+          <div class="dlg-body">
+            <div class="xvol" data-f="xvol">Cross-volume copy</div>
+            <div class="grid">
+              <span class="key">From</span><span class="path" data-f="from"></span>
+              <span class="key">To</span><span class="path" data-f="to"></span>
+            </div>
+            <div class="grid">
+              <span class="key">File</span><div class="bar"><span class="track"><span class="fill" data-f="fileFill"></span></span><span class="pct" data-f="filePct">0%</span></div>
+              <span class="key">Total</span><div class="bar"><span class="track"><span class="fill" data-f="totalFill"></span></span><span class="pct" data-f="totalPct">0%</span></div>
+            </div>
+            <div class="stats">
+              <span><span class="k">Files</span><span data-f="files"></span></span>
+              <span><span class="k">Bytes</span><span data-f="bytes"></span></span>
+              <span><span class="k">Speed</span><span data-f="speed"></span></span>
+              <span><span class="k">Elapsed</span><span data-f="elapsed"></span></span>
+              <span><span class="k">Left</span><span data-f="left"></span></span>
+            </div>
+          </div>
+          <div class="dlg-foot" data-label="dialog buttons"><span class="mbtn">Cancel</span><span class="mbtn accept">Hide</span></div>
+        </div>
+      </div>
+      </div>
+
+      <div class="variant" data-label="after Hide">
+      <div class="variant-head">After Hide <span class="sub">one status bar item for every hidden operation</span></div>
+      <div class="lab short">
+        <div class="lab-main">
+          <div class="fb">
+            <div class="fb-crumbs" data-f="crumbs">/ mnt / nas / backup /</div>
+            <div class="fb-row"><svg width="16" height="16" class="ic3"><use href="#ic-folder"/></svg>2026-10</div>
+            <div class="fb-row"><svg width="16" height="16" class="ic3"><use href="#ic-folder"/></svg>2026-11</div>
+            <div class="fb-row"><svg width="16" height="16"><use href="#ic-md"/></svg>README.md</div>
+          </div>
+          <div class="work">Untitled.ipynb (example)</div>
+        </div>
+        <div class="sbar"><span>Simple</span><span>Python 3 (ipykernel) | Idle</span><span class="sb-wrap">
+          <span class="menu" id="ops-menu" data-label="operations menu">
+            <span class="menu-row jp-mod-active"><span data-f="op0Title">Copying 3 items</span><span class="track"><span class="fill" data-f="op0Fill"></span></span><span class="pct" data-f="op0Pct">0%</span><span class="detail"><span>20 000 files</span> · <span data-f="op0Ago"></span></span></span>
+            <span class="menu-row"><span data-f="op1Title">Moving 1 item</span><span class="track"><span class="fill" data-f="op1Fill"></span></span><span class="pct" data-f="op1Pct">0%</span><span class="detail"><span>1 file</span> · <span data-f="op1Ago"></span></span></span>
+            <span class="menu-row"><span data-f="op2Title">Copying 2 items</span><span class="track"><span class="fill" data-f="op2Fill"></span></span><span class="pct" data-f="op2Pct">0%</span><span class="detail"><span>340 files</span> · <span data-f="op2Ago"></span></span></span>
+          </span>
+          <span class="sb-copy" data-label="status bar item"><span data-f="sbTitle">3 operations</span><span class="track"><span class="fill" data-f="sbFill"></span></span><span class="pct" data-f="sbPct">0%</span><svg class="caret" id="sb-caret" width="16" height="16" viewBox="0 0 18 18"><path d="M5.2 10.5 9 6.8l3.8 3.8H5.2z"/></svg></span>
+        </span><span class="push">Ln 1, Col 1</span></div>
+      </div>
+      </div>
+    </div>
+  </div>
+  <p class="criteria">Acceptance criteria: the COPY category, ACC-COPY-162 onwards, in docs/acc-crit.md.</p>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  // The sample: one 2.00 GiB file, 19 998 small files (1.40 GiB), one note; 20 000 files in all.
+  var GiB = 1073741824, MiB = 1048576;
+  var BIG = 2 * GiB, SMALL_N = 19998, SMALL = 1.4 * GiB, NOTE = 6144;
+  var TOTAL = BIG + SMALL + NOTE, FILES = SMALL_N + 2, RATE = 98 * MiB, STEP = 0.2, HOLD = 3;
+  var avg = SMALL / SMALL_N;
+  var MODES = {
+    'copy-same': { title: 'Copying 3 items', warn: '', dest: 'backup/' },
+    'copy-cross': { title: 'Copying 3 items', warn: 'Cross-volume copy', dest: 'mnt/nas/backup/' },
+    'move-cross': { title: 'Moving 3 items', warn: 'Cross-volume move', dest: 'mnt/nas/backup/' }
+  };
+  var mock = document.getElementById('mock');
+  var play = document.getElementById('play');
+  var mode = MODES['copy-cross'];
+  var t = 0, done = 0, held = 0, speed = RATE, paused = false, hidden = 3;
+  // Two more operations running beside the sample, each in a loop.
+  var OTHERS = [
+    { total: 8 * GiB, rate: 60 * MiB, done: 3.1 * GiB, started: 250 },
+    { total: 0.5 * GiB, rate: 25 * MiB, done: 0.1 * GiB, started: 70 }
+  ];
+  var clockAll = 0;
+  function ago(sec) {
+    sec = Math.floor(sec);
+    if (sec < 60) { return sec + ' s ago'; }
+    if (sec < 3600) { return Math.floor(sec / 60) + ' min ago'; }
+    return Math.floor(sec / 3600) + ' h ago';
+  }
+  var menu = document.getElementById('ops-menu');
+  var caret = document.getElementById('sb-caret');
+
+  function each(f, fn) { Array.prototype.forEach.call(mock.querySelectorAll('[data-f="' + f + '"]'), fn); }
+  function put(f, v) { each(f, function (el) { el.textContent = v; }); }
+  function bar(f, p) { each(f + 'Fill', function (el) { el.style.width = p + '%'; }); put(f + 'Pct', p + '%'); }
+  function gib(b) { return (b / GiB).toFixed(2); }
+  function clock(s) { s = Math.max(0, Math.ceil(s)); var r = s % 60; return Math.floor(s / 60) + ':' + (r < 10 ? '0' : '') + r; }
+  function group(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' '); }
+  function cut(s, n) { return s.length > n ? '…' + s.slice(s.length - n + 1) : s; }
+  function current(b) {
+    if (b < BIG) { return { i: 1, name: 'model.safetensors', file: b / BIG }; }
+    var rest = b - BIG;
+    if (rest < SMALL) {
+      var k = Math.floor(rest / avg);
+      return { i: k + 2, name: 'datasets/raw/part-' + String(k + 1).padStart(5, '0') + '.parquet', file: (rest - k * avg) / avg };
+    }
+    return { i: FILES, name: 'notes.md', file: Math.min(1, (rest - SMALL) / NOTE) };
+  }
+  function paint() {
+    var end = done >= TOTAL;
+    var c = end ? { i: FILES, name: 'notes.md', file: 1 } : current(done);
+    var left = end ? 0 : (TOTAL - done) / speed;
+    bar('total', end ? 100 : Math.floor((done / TOTAL) * 100));
+    bar('file', end ? 100 : Math.floor(c.file * 100));
+    put('title', mode.title);
+    put('xvol', mode.warn);
+    each('xvol', function (el) { el.hidden = !mode.warn; });
+    put('crumbs', '/ ' + mode.dest.replace(/\//g, ' / '));
+    put('from', cut('projects/vision/' + c.name, 54));
+    put('to', cut(mode.dest + c.name, 54));
+    put('files', group(c.i) + ' / ' + group(FILES));
+    put('bytes', gib(done) + ' / ' + gib(TOTAL) + ' GiB');
+    put('speed', (end ? 0 : speed / MiB).toFixed(0) + ' MiB/s');
+    put('elapsed', clock(t));
+    put('left', clock(left));
+    var main = end ? 100 : Math.floor((done / TOTAL) * 100);
+    put('op0Title', mode.title);
+    bar('op0', main);
+    OTHERS.forEach(function (o, i) {
+      bar('op' + (i + 1), Math.floor((o.done / o.total) * 100));
+      put('op' + (i + 1) + 'Ago', ago(o.started + clockAll));
+    });
+    put('op0Ago', ago(t));
+    var all = OTHERS.reduce(function (a, o) { return [a[0] + o.done, a[1] + o.total]; }, [Math.min(done, TOTAL), TOTAL]);
+    put('sbTitle', hidden === 1 ? mode.title : hidden + ' operations');
+    bar('sb', hidden === 1 ? main : Math.floor((all[0] / all[1]) * 100));
+    menu.hidden = hidden === 1;
+    caret.style.display = hidden === 1 ? 'none' : '';
+    caret.parentNode.classList.toggle('jp-mod-clicked', hidden !== 1);
+  }
+  function tick() {
+    if (paused) { return; }
+    if (done >= TOTAL) {
+      held += STEP;
+      if (held >= HOLD) { t = 0; done = 0; held = 0; }
+    } else {
+      t += STEP;
+      speed = RATE * (1 + 0.08 * Math.sin(t * 1.3));
+      done = Math.min(TOTAL, done + speed * STEP);
+    }
+    clockAll += STEP;
+    OTHERS.forEach(function (o) { o.done = (o.done + o.rate * STEP) % o.total; });
+    paint();
+  }
+  function press(attr, value) {
+    Array.prototype.forEach.call(document.querySelectorAll('[' + attr + ']'), function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute(attr) === value));
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll('[data-mode]'), function (b) {
+    b.addEventListener('click', function () {
+      mode = MODES[b.getAttribute('data-mode')];
+      press('data-mode', b.getAttribute('data-mode'));
+      t = 0; done = 0; held = 0;
+      paint();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-hidden]'), function (b) {
+    b.addEventListener('click', function () {
+      hidden = Number(b.getAttribute('data-hidden'));
+      press('data-hidden', b.getAttribute('data-hidden'));
+      paint();
+    });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll('[data-theme-btn]'), function (b) {
+    b.addEventListener('click', function () {
+      mock.setAttribute('data-theme', b.getAttribute('data-theme-btn'));
+      press('data-theme-btn', b.getAttribute('data-theme-btn'));
+    });
+  });
+  var PAUSE = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><rect x="3" y="2" width="3" height="10" rx="1"/><rect x="8" y="2" width="3" height="10" rx="1"/></svg>';
+  var PLAY = '<svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true"><path d="M4 2.5v9a.6.6 0 0 0 .9.5l7-4.5a.6.6 0 0 0 0-1l-7-4.5a.6.6 0 0 0-.9.5z"/></svg>';
+  play.addEventListener('click', function () {
+    paused = !paused;
+    play.innerHTML = paused ? PLAY : PAUSE;
+    var label = paused ? 'Play the sample' : 'Pause the sample';
+    play.setAttribute('aria-label', label);
+    play.title = label;
+  });
+  paint();
+  setInterval(tick, STEP * 1000);
+})();
+</script>
+</body>
+</html>

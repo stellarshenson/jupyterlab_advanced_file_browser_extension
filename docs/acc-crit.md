@@ -1219,3 +1219,208 @@ A hover tooltip on every file and folder row shows the item's details on more th
   - log: 2026-11-19T15:05:27Z @kj amended text "every file row and every folder row in the file browser, also inside an unfolded folder, shows a hover tooltip with the item's details on more than one line: the name, the full path and the last modified time, and for a file the size" -> "every file row and every folder row, also inside an unfolded folder, shows a hover tooltip with details on more than one line: the name, the containing directory as stock renders it (cut at 50 characters, ending with ...), the last modified time, and for a file the size"
   - log: 2026-11-19T15:24:21Z @kj edited evidence "Galata ui-tests/tests/tooltips.spec.ts ACC-TIPS-159-DETAILS every row tooltip shows name, path, modified time and file size passed in the full suite - 191 passed, 0 failed, 3 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/galata-full-3.log" -> "Galata ui-tests/tests/tooltips.spec.ts ACC-TIPS-159-DETAILS every row tooltip shows name, path, modified time and file size passed in the full suite - 193 passed, 0 failed, 1 flaky, 3 skipped, tmp/workflows/folding-default-v1/logs/final-galata.log"
 
+## Copy progress `COPY`
+
+A copy or move of large or many items shows its progress in a dialog and runs off the server's event loop
+
+Design: docs/mockups/copy-move-progress.html
+
+- log: 2026-11-21T21:01:36Z @kj category created
+- log: 2026-11-21T21:08:58Z @kj description "A Paste that copies large or many items shows its progress in a dialog and runs off the server's event loop" -> "A copy or move of large or many items shows its progress in a dialog and runs off the server's event loop"
+- log: 2026-11-21T21:19:17Z @kj added note "Design: docs/mockups/copy-move-progress.html"
+
+- [x] `ACC-COPY-162-PROGRESS-SHOW` **Progress dialog for a slow copy or move** - HIGH; a Paste after Copy or Cut, or a drag of rows onto a folder, not finished 1 s after it starts shows a progress dialog; one that finishes sooner shows none
+  - evidence: Galata copy.spec.ts 'ACC-COPY-162-PROGRESS-SHOW a slow Copy-Paste, a Cut-Paste across volumes and a breadcrumb drop back show the dialog; a small Paste shows none' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed); Galata copy.spec.ts 'ACC-COPY-162-PROGRESS-SHOW a slow Ctrl-drag of a row onto a folder row shows the dialog and the copy lands in that folder' passed (copy-goal-tests.log 77 passed, 0 failed, 0 flaky)
+  - test: ui-tests/tests/copy.spec.ts: with the test server's copy constants (32 KiB steps, 10 ms pause), Copy-Paste a 16 MiB file and a folder of 300 small files, Cut-Paste the 16 MiB file into the /dev/shm link, drag it back onto the home breadcrumb; assert the progress dialog each time; Copy-Paste one small file, assert no dialog; 'ACC-COPY-162-PROGRESS-SHOW a slow Ctrl-drag of a row onto a folder row shows the dialog and the copy lands in that folder': Ctrl-drag a 16 MiB file row onto a folder row, assert the progress dialog and the full-size copy in that folder
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:01:36Z @kj added
+  - log: 2026-11-21T21:08:58Z @kj edited title "Progress dialog for a slow Paste" -> "Progress dialog for a slow copy or move"; text "a Paste not finished 1 s after it starts shows a progress dialog; a Paste that finishes sooner shows none" -> "HIGH; a Paste after Copy or Cut, or a drag of rows onto a folder, not finished 1 s after it starts shows a progress dialog; one that finishes sooner shows none"; test "Galata: paste a copy of a 2 GiB file and of a folder of 20000 small files, assert the progress dialog for each; paste one small file, assert no dialog" -> "Galata: Copy-Paste a 2 GiB file and a folder of 20000 small files, Cut-Paste the 2 GiB file to another volume, drag it back; assert the progress dialog each time; paste one small file, assert no dialog"
+  - log: 2026-11-21T21:46:30Z @kj edited test "Galata: Copy-Paste a 2 GiB file and a folder of 20000 small files, Cut-Paste the 2 GiB file to another volume, drag it back; assert the progress dialog each time; paste one small file, assert no dialog" -> "ui-tests/tests/copy.spec.ts: with the test server's copy constants (32 KiB steps, 10 ms pause), Copy-Paste a 16 MiB file and a folder of 300 small files, Cut-Paste the 16 MiB file into the /dev/shm link, drag it back onto the home breadcrumb; assert the progress dialog each time; Copy-Paste one small file, assert no dialog"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"; reason: the test line names both sizes and every path the criterion covers
+  - log: 2026-11-22T09:08:54Z @kj closed
+  - log: 2026-11-22T09:29:32Z @kj edited test "ui-tests/tests/copy.spec.ts: with the test server's copy constants (32 KiB steps, 10 ms pause), Copy-Paste a 16 MiB file and a folder of 300 small files, Cut-Paste the 16 MiB file into the /dev/shm link, drag it back onto the home breadcrumb; assert the progress dialog each time; Copy-Paste one small file, assert no dialog" -> "ui-tests/tests/copy.spec.ts: with the test server's copy constants (32 KiB steps, 10 ms pause), Copy-Paste a 16 MiB file and a folder of 300 small files, Cut-Paste the 16 MiB file into the /dev/shm link, drag it back onto the home breadcrumb; assert the progress dialog each time; Copy-Paste one small file, assert no dialog; 'ACC-COPY-162-PROGRESS-SHOW a slow Ctrl-drag of a row onto a folder row shows the dialog and the copy lands in that folder': Ctrl-drag a 16 MiB file row onto a folder row, assert the progress dialog and the full-size copy in that folder"; evidence "Galata copy.spec.ts 'ACC-COPY-162-PROGRESS-SHOW a slow Copy-Paste, a Cut-Paste across volumes and a breadcrumb drop back show the dialog; a small Paste shows none' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)" -> "Galata copy.spec.ts 'ACC-COPY-162-PROGRESS-SHOW a slow Copy-Paste, a Cut-Paste across volumes and a breadcrumb drop back show the dialog; a small Paste shows none' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed); Galata copy.spec.ts 'ACC-COPY-162-PROGRESS-SHOW a slow Ctrl-drag of a row onto a folder row shows the dialog and the copy lands in that folder' passed (copy-goal-tests.log 77 passed, 0 failed, 0 flaky)"; reason: the row drop onto a folder row had no test; the new test and its pass are added to the existing lines
+- [x] `ACC-COPY-163-PROGRESS-BAR` **Progress bar in the copy and move dialog** - HIGH; the progress dialog shows a progress bar with its percentage of bytes copied or moved, which only rises and reaches 100 when the copy or move ends
+  - evidence: Galata copy.spec.ts 'ACC-COPY-163-PROGRESS-BAR the Total percentage only rises and ends at 100' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: ui-tests/tests/copy.spec.ts: Copy-Paste and Cut-Paste a 16 MiB file into the /dev/shm link, record every Total percentage the dialog paints until it closes, assert they never fall and the last is 100
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:01:36Z @kj added
+  - log: 2026-11-21T21:08:58Z @kj edited title "Progress bar in the copy dialog" -> "Progress bar in the copy and move dialog"; text "the copy progress dialog shows a progress bar with its percentage of bytes copied, which only rises and reaches 100 when the Paste ends" -> "HIGH; the progress dialog shows a progress bar with its percentage of bytes copied or moved, which only rises and reaches 100 when the copy or move ends"; test "Galata: paste a copy of a 2 GiB file, sample the percentage until the dialog closes, assert it never falls and ends at 100" -> "Galata: Copy-Paste and Cut-Paste a 2 GiB file to another volume, sample the percentage until the dialog closes, assert it never falls and ends at 100"
+  - log: 2026-11-21T21:46:30Z @kj edited test "Galata: Copy-Paste and Cut-Paste a 2 GiB file to another volume, sample the percentage until the dialog closes, assert it never falls and ends at 100" -> "ui-tests/tests/copy.spec.ts: Copy-Paste and Cut-Paste a 16 MiB file into the /dev/shm link, record every Total percentage the dialog paints until it closes, assert they never fall and the last is 100"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:54Z @kj closed
+- [x] `ACC-COPY-164-BACKGROUND` **Copy and move run off the event loop** - CRITICAL; the server copies or moves the items in a worker thread, never on its event loop, so while a large copy or move runs the file browser, open notebooks and kernels keep answering
+  - evidence: pytest test_copy.py::test_acc_copy_164_background_copy_and_cross_volume_move_leave_the_server_loop_answering PASSED (final-make-test.log, 107 passed); Galata copy.spec.ts 'ACC-COPY-164-BACKGROUND a folder lists within 2 s during a copy' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: pytest tests/test_copy.py: with the copy constants monkeypatched, start a copy and a cross-volume move (into a /dev/shm link) of a 4 MiB file, assert while each runs that a contents GET answers within 500 ms and a 10 ms sleep on the server loop wakes within 100 ms; ui-tests/tests/copy.spec.ts: during a copy of a 16 MiB file open a folder and assert its listing within 2 s
+  - test-tags: FUNCTIONAL, UNIT
+  - log: 2026-11-21T21:01:36Z @kj added
+  - log: 2026-11-21T21:08:58Z @kj edited title "Copy runs off the event loop" -> "Copy and move run off the event loop"; text "the server copies the pasted items in a worker thread, never on its event loop, so while a large copy runs the file browser, open notebooks and kernels keep answering" -> "CRITICAL; the server copies or moves the items in a worker thread, never on its event loop, so while a large copy or move runs the file browser, open notebooks and kernels keep answering"; test "pytest: start a copy of a 2 GiB file, assert a contents GET answers within 500 ms while it runs; Galata: during that copy open a folder and assert its listing within 2 s" -> "pytest: start a copy and a cross-volume move of a 2 GiB file, assert a contents GET answers within 500 ms while each runs; Galata: during that copy open a folder and assert its listing within 2 s"
+  - log: 2026-11-21T21:46:30Z @kj edited test "pytest: start a copy and a cross-volume move of a 2 GiB file, assert a contents GET answers within 500 ms while each runs; Galata: during that copy open a folder and assert its listing within 2 s" -> "pytest tests/test_copy.py: with the copy constants monkeypatched, start a copy and a cross-volume move (into a /dev/shm link) of a 4 MiB file, assert while each runs that a contents GET answers within 500 ms and a 10 ms sleep on the server loop wakes within 100 ms; ui-tests/tests/copy.spec.ts: during a copy of a 16 MiB file open a folder and assert its listing within 2 s"; test-tags "UNIT, FUNCTIONAL" -> "FUNCTIONAL, UNIT"; reason: the test line names both sizes and every path the criterion covers
+  - log: 2026-11-22T09:08:55Z @kj closed
+- [x] `ACC-COPY-165-PROGRESS-TITLE` **Progress dialog title** - LOW; the progress dialog title names the action and the item count: Copying N items, or Moving N items
+  - evidence: Galata copy.spec.ts 'ACC-COPY-165-PROGRESS-TITLE Copying 3 items and Moving 3 items' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: ui-tests/tests/copy.spec.ts: Copy-Paste 3 items, one a 16 MiB file, and Cut-Paste them into the /dev/shm link, assert the titles Copying 3 items and Moving 3 items
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:08:58Z @kj added
+  - log: 2026-11-21T21:46:31Z @kj edited test "Galata: Copy-Paste 3 items and Cut-Paste 3 items to another volume, assert the titles Copying 3 items and Moving 3 items" -> "ui-tests/tests/copy.spec.ts: Copy-Paste 3 items, one a 16 MiB file, and Cut-Paste them into the /dev/shm link, assert the titles Copying 3 items and Moving 3 items"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:55Z @kj closed
+- [x] `ACC-COPY-166-CROSS-VOLUME` **Cross-volume warning** - MEDIUM; when the destination is on another volume than the source, the progress dialog shows a one-line warning: Cross-volume copy, or Cross-volume move; on one volume it shows none
+  - evidence: Galata copy.spec.ts 'ACC-COPY-166-CROSS-VOLUME the warning line across volumes and none on one' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: ui-tests/tests/copy.spec.ts: Copy-Paste and Cut-Paste a 16 MiB file into the /dev/shm link (another device in the sandbox), assert the warning line Cross-volume copy and Cross-volume move; Copy-Paste it within the server root, assert no warning
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:08:58Z @kj added
+  - log: 2026-11-21T21:46:31Z @kj edited test "Galata: Copy-Paste and Cut-Paste a 2 GiB file to another volume, assert the warning line; Copy-Paste it on the same volume, assert no warning" -> "ui-tests/tests/copy.spec.ts: Copy-Paste and Cut-Paste a 16 MiB file into the /dev/shm link (another device in the sandbox), assert the warning line Cross-volume copy and Cross-volume move; Copy-Paste it within the server root, assert no warning"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:55Z @kj closed
+- [x] `ACC-COPY-167-FROM-TO` **From and To lines** - MEDIUM; the progress dialog shows From and To lines: the source and destination path of the file being copied or moved, relative to the server root
+  - evidence: Galata copy.spec.ts 'ACC-COPY-167-FROM-TO From and To name one file under the source and the destination' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: Galata: during a copy of a folder, assert From and To name the same file under the source and the destination folder
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:13:21Z @kj added
+  - log: 2026-11-22T09:08:56Z @kj closed
+- [x] `ACC-COPY-168-FILE-BAR` **File bar for the current file** - MEDIUM; above the Total bar the progress dialog shows a File bar with the percentage of the current file done; it starts at 0 for each file and reaches 100 when that file is done
+  - evidence: Galata copy.spec.ts 'ACC-COPY-168-FILE-BAR the File percentage rises to 100' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed); Galata copy.spec.ts 'ACC-COPY-168-FILE-BAR the File percentage goes back to 0 when the next file starts' passed (copy-goal-tests.log 77 passed, 0 failed, 0 flaky) and failed with the server's file_bytes reset removed (copy-goal-2-broken.log)
+  - test: ui-tests/tests/copy.spec.ts: copy a 16 MiB file, record every File percentage painted, assert it rises to 100; 'ACC-COPY-168-FILE-BAR the File percentage goes back to 0 when the next file starts': copy a folder of two 16 MiB files, assert the File percentage falls once, below 50, when the second file starts, and ends at 100
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:13:21Z @kj added
+  - log: 2026-11-21T21:46:31Z @kj edited test "Galata: copy a 2 GiB file, sample the File percentage, assert it rises to 100" -> "ui-tests/tests/copy.spec.ts: copy a 16 MiB file, record every File percentage painted, assert it rises to 100"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:56Z @kj closed
+  - log: 2026-11-22T09:29:32Z @kj edited test "ui-tests/tests/copy.spec.ts: copy a 16 MiB file, record every File percentage painted, assert it rises to 100" -> "ui-tests/tests/copy.spec.ts: copy a 16 MiB file, record every File percentage painted, assert it rises to 100; 'ACC-COPY-168-FILE-BAR the File percentage goes back to 0 when the next file starts': copy a folder of two 16 MiB files, assert the File percentage falls once, below 50, when the second file starts, and ends at 100"; evidence "Galata copy.spec.ts 'ACC-COPY-168-FILE-BAR the File percentage rises to 100' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)" -> "Galata copy.spec.ts 'ACC-COPY-168-FILE-BAR the File percentage rises to 100' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed); Galata copy.spec.ts 'ACC-COPY-168-FILE-BAR the File percentage goes back to 0 when the next file starts' passed (copy-goal-tests.log 77 passed, 0 failed, 0 flaky) and failed with the server's file_bytes reset removed (copy-goal-2-broken.log)"; reason: the reset of the File bar for the next file had no test; the new test and its pass are added to the existing lines
+- [x] `ACC-COPY-169-COUNTERS` **Counters under the bars** - MEDIUM; under the bars the progress dialog shows five counters: Files done of total, Bytes done of total in GiB, Speed in MiB/s, Elapsed and Left as m:ss
+  - evidence: Galata copy.spec.ts 'ACC-COPY-169-COUNTERS five counters, Files and Bytes only rise' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: ui-tests/tests/copy.spec.ts: during a copy of a folder of 300 small files and one 16 MiB file, assert the five counters and that Files and Bytes only rise
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:13:21Z @kj added
+  - log: 2026-11-21T21:46:31Z @kj edited test "Galata: during a copy of a folder of 20000 files, assert the five counters and that Files and Bytes only rise" -> "ui-tests/tests/copy.spec.ts: during a copy of a folder of 300 small files and one 16 MiB file, assert the five counters and that Files and Bytes only rise"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:56Z @kj closed
+- [-] `ACC-COPY-170-CANCEL-ONLY` **Cancel is the only button** - MEDIUM; Cancel is the only button of the progress dialog: no Hide, no Skip file, no close control
+  - overridden-by: ACC-COPY-174-BUTTONS
+  - test: Galata: during a copy of a 2 GiB file, assert the dialog footer holds one button, Cancel, and the header no close control
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:13:22Z @kj added
+  - log: 2026-11-21T21:15:44Z @kj rejected: owner 2026-11-21: Hide is back; replaced by ACC-COPY-174-BUTTONS
+- [x] `ACC-COPY-171-CANCEL` **Cancel stops the copy or move** - HIGH; Cancel stops the copy or move, removes the partial copy of the file in progress and keeps every file already done; a move keeps the source of every file not yet moved
+  - evidence: pytest test_copy.py::test_acc_copy_171_cancel_keeps_done_files_and_unmoved_sources[copy] and [cross-volume-move] PASSED (final-make-test.log, 107 passed); Galata copy.spec.ts 'ACC-COPY-171-CANCEL Cancel closes the dialog and leaves no partial file' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: pytest tests/test_copy.py: with the copy constants monkeypatched, cancel a copy and a cross-volume move of a folder of three 1 MiB files part way, assert no partial file at the destination, the done files present, and for the move the unmoved sources present; ui-tests/tests/copy.spec.ts: Cancel during a copy of a 16 MiB file, assert the dialog closes and no partial file is listed or on disk
+  - test-tags: FUNCTIONAL, UNIT
+  - log: 2026-11-21T21:13:22Z @kj added
+  - log: 2026-11-21T21:46:31Z @kj edited test "pytest: cancel a copy and a cross-volume move part way, assert no partial file at the destination, the done files present, and for the move the unmoved sources present; Galata: Cancel during a copy of a 2 GiB file, assert the dialog closes and no partial file is listed" -> "pytest tests/test_copy.py: with the copy constants monkeypatched, cancel a copy and a cross-volume move of a folder of three 1 MiB files part way, assert no partial file at the destination, the done files present, and for the move the unmoved sources present; ui-tests/tests/copy.spec.ts: Cancel during a copy of a 16 MiB file, assert the dialog closes and no partial file is listed or on disk"; test-tags "UNIT, FUNCTIONAL" -> "FUNCTIONAL, UNIT"; reason: the test line names both sizes and every path the criterion covers
+  - log: 2026-11-22T09:08:56Z @kj closed
+- [x] `ACC-COPY-172-PROGRESS-END` **Progress dialog closes at the end** - MEDIUM; when the copy or move ends, the progress dialog closes and the listing shows the new items
+  - evidence: Galata copy.spec.ts 'ACC-COPY-172-PROGRESS-END the dialog closes and the copy is listed' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: ui-tests/tests/copy.spec.ts: Copy-Paste a 16 MiB file, wait for the dialog to close, assert the file is listed in the destination folder
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:13:22Z @kj added
+  - log: 2026-11-21T21:46:31Z @kj edited test "Galata: Copy-Paste a 2 GiB file, wait for the dialog to close, assert the file is listed in the destination folder" -> "ui-tests/tests/copy.spec.ts: Copy-Paste a 16 MiB file, wait for the dialog to close, assert the file is listed in the destination folder"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:57Z @kj closed
+- [x] `ACC-COPY-173-FAIL` **Edge: copy or move fails part way** - MEDIUM; a copy or move that fails part way closes the progress dialog and shows an error naming each path not done, relative to the server root, with a short reason; files already done stay
+  - evidence: pytest test_copy.py::test_acc_copy_173_fail_reports_each_path_not_done_with_a_reason PASSED (final-make-test.log, 107 passed); Galata copy.spec.ts 'ACC-COPY-173-FAIL the error names each path not done and the done files are listed' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: pytest: make one destination subfolder read-only, copy a folder into it, assert the failed paths and reasons; Galata: assert the error lines and that the done files are listed
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-21T21:13:23Z @kj added
+  - log: 2026-11-22T09:08:57Z @kj closed
+- [x] `ACC-COPY-174-BUTTONS` **Hide and Cancel buttons** - MEDIUM; the progress dialog has two buttons, Cancel and Hide: no Skip file, no close control
+  - evidence: Galata copy.spec.ts 'ACC-COPY-174-BUTTONS Cancel and Hide only and no close control' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - overrides: ACC-COPY-170-CANCEL-ONLY
+  - test: ui-tests/tests/copy.spec.ts: during a copy of a 16 MiB file, assert the footer holds Cancel and Hide only and the header no close control
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:15:44Z @kj added
+  - log: 2026-11-21T21:46:31Z @kj edited test "Galata: during a copy of a 2 GiB file, assert the footer holds Cancel and Hide only and the header no close control" -> "ui-tests/tests/copy.spec.ts: during a copy of a 16 MiB file, assert the footer holds Cancel and Hide only and the header no close control"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:57Z @kj closed
+- [x] `ACC-COPY-175-HIDE` **Hide keeps the operation running** - MEDIUM; Hide closes the progress dialog and the copy or move goes on to the end
+  - evidence: Galata copy.spec.ts 'ACC-COPY-175-HIDE Hide closes the dialog and the copy completes' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: ui-tests/tests/copy.spec.ts: Hide during a copy of a 16 MiB file, assert the dialog closes and the file is listed complete at the end
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:15:45Z @kj added
+  - log: 2026-11-21T21:46:32Z @kj edited test "Galata: Hide during a copy of a 2 GiB file, assert the dialog closes and the file is listed complete at the end" -> "ui-tests/tests/copy.spec.ts: Hide during a copy of a 16 MiB file, assert the dialog closes and the file is listed complete at the end"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:57Z @kj closed
+- [-] `ACC-COPY-176-STATUS-ITEM` **Status bar item for a hidden operation** - HIGH; each hidden copy or move that still runs has its own status bar item: its dialog title, a progress bar and the percentage; the item goes when the operation ends
+  - overridden-by: ACC-COPY-180-STATUS-ONE
+  - test: Galata: Hide during a copy of a 2 GiB file, assert one status bar item with Copying 1 item, a bar and a rising percentage, and no item after the end
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:15:45Z @kj added
+  - log: 2026-11-21T21:16:40Z @kj rejected: owner 2026-11-21: one status bar item with a menu for several operations; replaced by ACC-COPY-180-STATUS-ONE
+- [-] `ACC-COPY-177-STATUS-REOPEN` **Status bar item opens the dialog** - MEDIUM; a click on a status bar item opens the progress dialog of that copy or move again
+  - overridden-by: ACC-COPY-181-STATUS-CLICK
+  - test: Galata: Hide during a copy, click its status bar item, assert its progress dialog is shown again
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:15:45Z @kj added
+  - log: 2026-11-21T21:16:41Z @kj rejected: owner 2026-11-21: several operations open a menu first; replaced by ACC-COPY-181-STATUS-CLICK
+- [x] `ACC-COPY-178-PARALLEL` **Copies and moves run in parallel** - HIGH; a copy or move started while another runs starts at once as a separate operation, never queued behind the first
+  - evidence: pytest test_copy.py::test_acc_copy_178_parallel_two_copies_rise_together_and_take_two_names PASSED (final-make-test.log, 107 passed); Galata copy.spec.ts 'ACC-COPY-178-PARALLEL a second Paste during a copy runs at once and both reach 100' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: pytest tests/test_copy.py: with the copy constants monkeypatched, start two copies of one 4 MiB file into its own folder, assert both report rising bytes before either ends and they end as x-Copy1 and x-Copy2; ui-tests/tests/copy.spec.ts: start a second Paste during a copy of a 16 MiB file, assert both reach 100
+  - test-tags: FUNCTIONAL, UNIT
+  - log: 2026-11-21T21:15:45Z @kj added
+  - log: 2026-11-21T21:46:32Z @kj edited test "pytest: start two copies of a 2 GiB file, assert both report rising bytes before either ends; Galata: start a second Paste during a copy, assert both reach 100" -> "pytest tests/test_copy.py: with the copy constants monkeypatched, start two copies of one 4 MiB file into its own folder, assert both report rising bytes before either ends and they end as x-Copy1 and x-Copy2; ui-tests/tests/copy.spec.ts: start a second Paste during a copy of a 16 MiB file, assert both reach 100"; test-tags "UNIT, FUNCTIONAL" -> "FUNCTIONAL, UNIT"; reason: the test line names both sizes and every path the criterion covers
+  - log: 2026-11-22T09:08:58Z @kj closed
+- [x] `ACC-COPY-179-ONE-DIALOG` **One progress dialog at a time** - MEDIUM; at most one progress dialog is shown: when a second operation's dialog opens, or a hidden operation's dialog is opened from the status bar or its menu, the dialog shown before hides to the status bar
+  - evidence: Galata copy.spec.ts 'ACC-COPY-179-ONE-DIALOG a second dialog hides the first to the status bar and the menu swaps them back' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: ui-tests/tests/copy.spec.ts: start a second copy during a copy, assert one dialog with the second title and one status bar item for the first; Hide, open the operations menu and choose the first; assert its dialog
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:15:45Z @kj added
+  - log: 2026-11-21T21:46:32Z @kj edited text "at most one progress dialog is shown: when a second operation's dialog opens, or a status bar item is clicked, the dialog shown before hides to the status bar" -> "at most one progress dialog is shown: when a second operation's dialog opens, or a hidden operation's dialog is opened from the status bar or its menu, the dialog shown before hides to the status bar"; test "Galata: start a second copy during a copy, assert one dialog with the second title and one status bar item for the first; click that item, assert the dialogs swap" -> "ui-tests/tests/copy.spec.ts: start a second copy during a copy, assert one dialog with the second title and one status bar item for the first; Hide, open the operations menu and choose the first; assert its dialog"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:58Z @kj closed
+- [x] `ACC-COPY-180-STATUS-ONE` **One status bar item for hidden operations** - HIGH; while hidden copies or moves run, the status bar shows one item: for one operation its dialog title, a progress bar and the percentage; for several, N operations, a bar and the percentage of all their bytes together; the item goes when the last ends
+  - evidence: Galata copy.spec.ts 'ACC-COPY-180-STATUS-ONE one item for one and for three hidden operations, gone after the last' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - overrides: ACC-COPY-176-STATUS-ITEM
+  - test: Galata: Hide one copy, assert the item shows Copying 1 item and a percentage; start and hide two more, assert 3 operations; wait for all to end, assert no item
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:16:40Z @kj added
+  - log: 2026-11-22T09:08:58Z @kj closed
+- [x] `ACC-COPY-181-STATUS-CLICK` **Click on the status bar item** - MEDIUM; a click on the status bar item opens the progress dialog of the one hidden operation, or the operations menu when several run
+  - evidence: Galata copy.spec.ts 'ACC-COPY-181-STATUS-CLICK one hidden operation opens its dialog, three open the menu' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - overrides: ACC-COPY-177-STATUS-REOPEN
+  - test: Galata: with one hidden copy, click the item, assert its dialog; with three, click the item, assert the menu and no dialog
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:16:40Z @kj added
+  - log: 2026-11-22T09:08:59Z @kj closed
+- [x] `ACC-COPY-182-OPS-MENU` **Operations menu** - MEDIUM; the operations menu opens above the status bar item and lists each running copy or move with its dialog title, a progress bar and the percentage
+  - evidence: Galata copy.spec.ts 'ACC-COPY-182-OPS-MENU the menu above the item lists three rows with title, bar and percentage' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: Galata: with three hidden operations, click the item, assert a menu above it with three rows, each with a title, a bar and a percentage
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:16:41Z @kj added
+  - log: 2026-11-22T09:08:59Z @kj closed
+- [x] `ACC-COPY-183-MENU-PICK` **Menu row opens its dialog** - MEDIUM; choosing a row of the operations menu closes the menu and opens that operation's progress dialog
+  - evidence: Galata copy.spec.ts 'ACC-COPY-183-MENU-PICK a chosen row opens its dialog and closes the menu' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: Galata: with three hidden operations, open the menu, choose the second row, assert its dialog title and no menu
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:16:42Z @kj added
+  - log: 2026-11-22T09:08:59Z @kj closed
+- [x] `ACC-COPY-184-ESCAPE` **Escape hides the dialog** - MEDIUM; Escape on the progress dialog hides it as Hide does; only the Cancel button cancels the copy or move
+  - evidence: Galata copy.spec.ts 'ACC-COPY-184-ESCAPE Escape hides the dialog and the copy completes' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: ui-tests/tests/copy.spec.ts: press Escape during a copy of a 16 MiB file, assert the dialog closes, the status bar item shows and the file is listed complete at the end
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:19:17Z @kj added
+  - log: 2026-11-21T21:46:32Z @kj edited test "Galata: press Escape during a copy of a 2 GiB file, assert the dialog closes, the status bar item shows and the file is listed complete at the end" -> "ui-tests/tests/copy.spec.ts: press Escape during a copy of a 16 MiB file, assert the dialog closes, the status bar item shows and the file is listed complete at the end"; test-tags "FUNCTIONAL" -> "FUNCTIONAL"
+  - log: 2026-11-22T09:08:59Z @kj closed
+- [x] `ACC-COPY-185-MENU-DETAIL` **Menu rows tell operations apart** - MEDIUM; each operations menu row also shows the operation's file count and how long ago it started: 20 000 files, 3 min ago; under a minute in seconds, from an hour in hours
+  - evidence: Jest copy-dialog.spec.ts 'ACC-COPY-185-MENU-DETAIL timeAgo gives 45 s ago, 3 min ago and 2 h ago' passed (final-make-test.log, 153/153 passed); Galata copy.spec.ts 'ACC-COPY-185-MENU-DETAIL each row shows its file count and a time-ago text' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - related: ACC-COPY-182-OPS-MENU
+  - test: Jest: time-ago text for 45 s, 3 min and 2 h; Galata: with three hidden operations, open the menu, assert each row shows its file count and a time-ago text
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-21T21:21:39Z @kj added
+  - log: 2026-11-22T09:09:00Z @kj closed
+- [x] `ACC-COPY-186-NARROW-DIALOG` **Progress dialog fits a narrow window** - MEDIUM; the progress dialog fits the window at any width down to 320 px: it narrows to the window width less 16 px each side; no horizontal scroll, no text overlapping or cut off, except paths shortened with an ellipsis
+  - evidence: Galata copy.spec.ts 'ACC-COPY-186-NARROW-DIALOG the dialog fits the window down to 320 px' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - test: Galata: during a copy set the window to 1280, 470, 390, 350 and 320 px wide; assert the dialog box inside the window, no horizontal scroll, and no dialog element wider than its row
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:56:10Z @kj added
+  - log: 2026-11-22T09:09:00Z @kj closed
+- [x] `ACC-COPY-187-NARROW-STEPS` **Dialog drops parts step by step** - MEDIUM; as the window narrows the dialog drops, below 480 px wide, the Speed and Elapsed counters; below 400 px the File line and its bar; below 360 px the From and To paths; title, cross-volume warning, Total bar and percentage, Files, Bytes, Left, Cancel and Hide always stay
+  - evidence: Galata copy.spec.ts 'ACC-COPY-187-NARROW-STEPS the dialog drops Speed and Elapsed, then File, then From and To' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - related: ACC-COPY-169-COUNTERS
+  - test: Galata: during a copy set the window to 1280, 470, 390 and 350 px wide; at each width assert which parts show and which are hidden
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:56:21Z @kj added
+  - log: 2026-11-22T09:09:00Z @kj closed
+- [x] `ACC-COPY-188-NARROW-STATUS` **Status bar item shrinks step by step** - MEDIUM; as the window narrows the status bar item drops its title below 600 px wide and its bar below 400 px; the percentage always stays
+  - evidence: Galata copy.spec.ts 'ACC-COPY-188-NARROW-STATUS the status item drops its title, then its bar' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - related: ACC-COPY-180-STATUS-ONE
+  - test: Galata: with one hidden operation set the window to 1280, 590 and 390 px wide; assert title, bar and percentage, then bar and percentage, then the percentage only
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:56:21Z @kj added
+  - log: 2026-11-22T09:09:00Z @kj closed
+- [x] `ACC-COPY-189-NARROW-MENU` **Operations menu fits a narrow window** - MEDIUM; the operations menu is 320 px wide, or the window width less 16 px each side when narrower; below 360 px wide each row drops its bar and keeps the title, the percentage and the file count with the time ago
+  - evidence: Galata copy.spec.ts 'ACC-COPY-189-NARROW-MENU the menu fits the window and drops the row bars below 360 px' passed in both full runs (final-galata-def.log 222 passed, final-galata-venv.log 223 passed, 0 failed)
+  - related: ACC-COPY-182-OPS-MENU
+  - test: Galata: with three hidden operations open the menu at 1280 and 350 px wide; assert the menu inside the window, and each row's bar shown at 1280 and hidden at 350
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-21T21:56:22Z @kj added
+  - log: 2026-11-22T09:09:01Z @kj closed
+

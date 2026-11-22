@@ -3,6 +3,7 @@
  * follows the clicked row, and new items land there.
  */
 import { expect, IJupyterLabPageFixture, test } from '@jupyterlab/galata';
+import type { Route } from '@playwright/test';
 import { mkdirSync, writeFileSync } from 'fs';
 import { join } from 'path';
 import {
@@ -10,6 +11,7 @@ import {
   browserPaths,
   clickEmptyArea,
   clickTriangle,
+  COPY_ROUTE,
   rowLocator,
   SERVER_TIMEOUT,
   seedTree,
@@ -534,11 +536,20 @@ test('ACC-FOLDER-81-SELFPASTE a folder pasted inside itself stays', async ({
 }) => {
   await setup(page, tmpPath, true);
   await unfold(page, `${tmpPath}/a`);
-  // Each copy request names its source in `copy_from`; a move is a PATCH on the old path
+  // Each copy or move request of the extension names its sources in `paths`, a stock copy its
+  // source in `copy_from`; a move on one volume ends in a PATCH on the old path
   const writes: string[] = [];
   page.on('request', request => {
     const { pathname } = new URL(request.url());
-    if (request.method() === 'POST' && pathname.includes('/api/contents/')) {
+    if (request.method() === 'POST' && COPY_ROUTE.test(pathname)) {
+      const { paths, move } = request.postDataJSON();
+      writes.push(
+        ...paths.map((p: string) => `${move ? 'move' : 'copy'} ${p}`)
+      );
+    } else if (
+      request.method() === 'POST' &&
+      pathname.includes('/api/contents/')
+    ) {
       writes.push(`copy ${request.postDataJSON()?.copy_from}`);
     } else if (request.method() === 'PATCH') {
       writes.push(`move ${decodeURIComponent(pathname)}`);
@@ -617,20 +628,20 @@ test('ACC-FOLDER-86-STOCKPASTE unfolding off: a folder pasted inside itself stay
   tmpPath
 }) => {
   await setup(page, tmpPath, false);
-  // Each copy request names its source in `copy_from`; the copy of a is aborted, so a
-  // failing run leaves no a/b/a/b/... chain on the server
+  // A stock copy request names its source in `copy_from`, the extension's each source in
+  // `paths`; the copy of a is aborted, so a failing run leaves no a/b/a/b/... chain on the server
   const copies: string[] = [];
-  await page.route('**/api/contents/**', route => {
+  const recordCopy = (route: Route) => {
     const request = route.request();
-    const from =
-      request.method() === 'POST'
-        ? request.postDataJSON()?.copy_from
-        : undefined;
-    if (from) {
-      copies.push(from);
-    }
-    return from === `${tmpPath}/a` ? route.abort() : route.continue();
-  });
+    const body = request.method() === 'POST' ? request.postDataJSON() : null;
+    const from: string[] = body?.copy_from
+      ? [body.copy_from]
+      : (body?.paths ?? []);
+    copies.push(...from);
+    return from.includes(`${tmpPath}/a`) ? route.abort() : route.continue();
+  };
+  await page.route('**/api/contents/**', recordCopy);
+  await page.route(COPY_ROUTE, recordCopy);
 
   await clickRow(page, `${tmpPath}/a`);
   await (
@@ -657,12 +668,16 @@ test('ACC-FOLDER-87-SKIPMSG a folder skipped from Paste is reported', async ({
   tmpPath
 }) => {
   await setup(page, tmpPath, false);
-  // A move is a PATCH on the old path; a copy request names its source in `copy_from`
+  // A move is a request of the extension with `move` true, then on one volume a PATCH on the old
+  // path; a copy request names its sources in `paths`, or a stock one its source in `copy_from`
   const moves: string[] = [];
   const copies: string[] = [];
   page.on('request', request => {
     const { pathname } = new URL(request.url());
-    if (request.method() === 'PATCH') {
+    if (request.method() === 'POST' && COPY_ROUTE.test(pathname)) {
+      const { paths, move } = request.postDataJSON();
+      (move ? moves : copies).push(...paths);
+    } else if (request.method() === 'PATCH') {
       moves.push(decodeURIComponent(pathname));
     } else if (
       request.method() === 'POST' &&

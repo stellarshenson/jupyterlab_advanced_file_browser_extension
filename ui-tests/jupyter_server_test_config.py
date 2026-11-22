@@ -50,5 +50,11 @@ c.FileContentsManager.always_delete_dir = True
 # The server extension reads the constant at call time, in this process
 routes.LARGE_REMOVAL_BYTES = 1024**2
 
+# The copy progress (ACC-COPY-162 to 189) needs an operation past its 1 s dialog delay without
+# gigabytes: 32 KiB steps with a 10 ms pause, about 3.2 MiB/s, so a 16 MiB file takes about 5 s
+# and one small file about 10 ms
+routes.COPY_CHUNK_BYTES = 32 * 1024
+routes.COPY_PAUSE_SECONDS = 0.01
+
 # Uncomment to set server log level to debug level
 # c.ServerApp.log_level = "DEBUG"
