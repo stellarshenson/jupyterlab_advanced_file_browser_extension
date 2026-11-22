@@ -2,6 +2,21 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.10] - 2026-11-22
+
+### Added
+
+- A copy or move still running after 1 second, from a Paste after Copy or Cut or from a drag onto a folder, shows a progress dialog with a total bar, a bar for the current file, counters for files, bytes, speed, elapsed time and time left, and a one-line warning when it goes to another volume
+- Cancel stops the copy or move, keeps the files already finished and removes the partial file
+- Hide or Escape moves the operation to one status bar item; a click on the item opens the dialog again, or a menu of the operations when several run in parallel
+- A second copy or move runs in parallel with the first and hides the dialog of the first
+- Narrow windows drop parts of the dialog, the status bar item and the menu step by step, down to a 320 px window
+
+### Changed
+
+- Copies and moves to another volume run as server jobs in a worker thread, one per operation, so the interface does not freeze; a move on one volume stays a stock rename, and volumes are judged by device and mount, so bind mounts of one disk count as separate volumes
+- Paths on `zip:` and other drives keep the stock copy and rename calls, and their refusals are reported
+
 ## [1.0.9] - 2026-11-20
 
 ### Added
