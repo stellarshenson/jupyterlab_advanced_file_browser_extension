@@ -1463,6 +1463,7 @@ Design: docs/mockups/copy-move-progress.html
 - [x] `ACC-COPY-190-STATUS-RIGHT` **Status bar item on the right side** - MEDIUM; the copy and move status bar item sits in the right-hand group of the status bar, as its first item from the left, never among the left-hand items; its operations menu opens inside the window
   - evidence: Galata copy.spec.ts 'ACC-COPY-190-STATUS-RIGHT the status item is the first of the right-hand group and its menu opens inside the window' passed in both full Galata runs, 0 failed, 0 flaky: tmp/workflows/copy-chunks/logs/final-galata-def.log (227 passed) and tmp/workflows/copy-chunks/logs/final-galata-venv.log (228 passed)
   - related: ACC-COPY-180-STATUS-ONE
+  - overridden-by: ACC-COPY-202-STATUS-PLACE
   - test: Galata: Hide one copy, assert the status bar item is inside the right-hand group and left of every other right-hand item; open the menu with three operations, assert it lies inside the window
   - test-tags: FUNCTIONAL
   - log: 2026-11-22T14:21:23Z @kj added
@@ -1523,6 +1524,16 @@ Design: docs/mockups/copy-move-progress.html
   - test-tags: FUNCTIONAL
   - log: 2026-11-23T00:42:09Z @kj added
   - log: 2026-11-23T02:30:46Z @kj closed: fixed: a job hidden when it paused returns to the status bar after Retry or Skip file; a job whose dialog was open stays open
+- [x] `ACC-COPY-202-STATUS-PLACE` **Status bar item left of centre** - MEDIUM; the copy and move status bar item sits at the end of the left-hand group, after every other shown left item; never in the middle or the right-hand group
+  - evidence: copy.spec.ts:1229 ACC-COPY-202-STATUS-PLACE passed in both labs: item in the left group after the stock left items, left edge before the bar middle, menu inside the window; Galata 62/62 both labs (logs/galata-def.log, logs/galata-venv.log exit 0)
+  - overrides: ACC-COPY-190-STATUS-RIGHT
+  - test: Galata: the item sits in the left group with every other shown left item to its left
+  - test-tags: FUNCTIONAL
+  - log: 2026-11-23T10:27:13Z @kj added
+  - log: 2026-11-23T11:25:52Z @kj closed: met: the item sits in the left group after the stock items
+  - log: 2026-11-23T13:37:28Z @kj edited test "Galata: the item left edge lies before the middle of the status bar" -> "Galata: the item sits in the left group with every other shown left item to its left, or in the middle group"
+  - log: 2026-11-23T14:51:35Z @kj edited text "the copy and move status bar item sits in the left-hand group after the stock left items, or in the middle group; never in the right-hand group" -> "the copy and move status bar item sits at the end of the left-hand group, after every other shown left item; never in the middle or the right-hand group"; test "Galata: the item sits in the left group with every other shown left item to its left, or in the middle group" -> "Galata: the item sits in the left group with every other shown left item to its left"
+  - log: 2026-11-23T15:09:47Z @kj test tightened after the round-10 finding: the left group is asserted directly
 
 ## Documentation `DOCS`
 

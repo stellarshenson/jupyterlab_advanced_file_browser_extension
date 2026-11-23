@@ -440,6 +440,13 @@ describe('TreeFileBrowserModel', () => {
       }
     };
 
+    /** Let the model's queued work run: a bounded number of turns, no wall-clock wait. */
+    const drain = async (turns = 3) => {
+      for (let turn = 0; turn < turns; turn++) {
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    };
+
     /** Release the held reads `start` to `end` and let the model apply them. */
     const release = async (start: number, end: number) => {
       held.slice(start, end).forEach(read => read());
@@ -579,20 +586,20 @@ describe('TreeFileBrowserModel', () => {
       await model.toggle('a');
       holdReads();
       // The refresh each answer asks for runs on a later tick of the poll.
-      const settle = () => new Promise(resolve => setTimeout(resolve, 20));
-
       const top = await model.manager.services.contents.newUntitled({
         path: '',
         type: 'directory'
       });
-      await settle();
+      await reads(1);
+      await drain();
       expect(heldPaths).toEqual(['']);
       await release(0, 1);
       const nested = await model.manager.services.contents.newUntitled({
         path: 'a',
         type: 'file'
       });
-      await settle();
+      await reads(2);
+      await drain();
       expect(heldPaths).toEqual(['', 'a']);
       await release(1, 2);
 
@@ -610,20 +617,19 @@ describe('TreeFileBrowserModel', () => {
     it("a refresh asked for just before or just after a create's answer still reads the whole tree", async () => {
       await model.toggle('a');
       holdReads();
-      const settle = () => new Promise(resolve => setTimeout(resolve, 20));
 
       // Asked for before the answer: its tick runs during the create's read.
       void model.refresh();
       answer({ type: 'new', oldValue: null, newValue: row('a/n.txt', 'file') });
-      await settle();
+      await reads(3);
       expect(heldPaths).toEqual(['a', '', 'a']);
       await release(0, 3);
-      await settle();
+      await drain();
 
       // Asked for after the answer, while the tick the create asked for is pending.
       answer({ type: 'new', oldValue: null, newValue: row('a/m.txt', 'file') });
       void model.refresh();
-      await settle();
+      await reads(6);
       expect(heldPaths).toEqual(['a', '', 'a', 'a', '', 'a']);
     });
 
@@ -631,7 +637,6 @@ describe('TreeFileBrowserModel', () => {
       await model.toggle('a');
       holdReads();
       const contents = model.manager.services.contents;
-      const settle = () => new Promise(resolve => setTimeout(resolve, 20));
       // Removed at the server without a change signal, as the extension's Delete job does.
       const signal = contents.fileChanged as unknown as {
         emit: (change: unknown) => void;
@@ -642,7 +647,8 @@ describe('TreeFileBrowserModel', () => {
       signal.emit = emit;
       await contents.newUntitled({ path: '', type: 'directory' });
       // The tick the create asked for runs and joins the create's read of the top folder.
-      await settle();
+      await reads(1);
+      await drain();
       expect(heldPaths).toEqual(['']);
 
       const refreshing = model.refresh();
@@ -661,7 +667,6 @@ describe('TreeFileBrowserModel', () => {
       model.setCurrentFolder('a');
       holdReads();
       const contents = model.manager.services.contents;
-      const settle = () => new Promise(resolve => setTimeout(resolve, 20));
       // The 'new' answers of a Paste of five copies, while the first create read of a is held.
       const pasted: string[] = [];
       for (let i = 0; i < 5; i++) {
@@ -673,7 +678,8 @@ describe('TreeFileBrowserModel', () => {
         PathExt.basename(pasted[4]),
         true
       );
-      await settle();
+      await reads(2);
+      await drain();
       // The focused select starts the queued read at once.
       expect(heldPaths).toEqual(['a', 'a']);
 
@@ -684,7 +690,7 @@ describe('TreeFileBrowserModel', () => {
       await release(1, 2);
 
       expect(await settles(focused)).toBe(true);
-      await settle();
+      await drain();
       expect(heldPaths).toEqual(['a', 'a']);
       expect(paths(listing.sortedItems())).toEqual(
         expect.arrayContaining(pasted)
@@ -697,7 +703,6 @@ describe('TreeFileBrowserModel', () => {
       model.setCurrentFolder('a');
       holdReads();
       const contents = model.manager.services.contents;
-      const settle = () => new Promise(resolve => setTimeout(resolve, 20));
       // The first Paste copy starts the read of a; the two answered while it is held queue one read.
       const pasted: string[] = [];
       for (let i = 0; i < 3; i++) {
@@ -705,7 +710,8 @@ describe('TreeFileBrowserModel', () => {
           (await contents.newUntitled({ path: 'a', type: 'file' })).path
         );
       }
-      await settle();
+      await reads(1);
+      await drain();
       expect(heldPaths).toEqual(['a']);
 
       // New Folder: its answer while the Paste read is held, then its select before the rename editor.
@@ -714,14 +720,15 @@ describe('TreeFileBrowserModel', () => {
         type: 'directory'
       });
       const focused = listing.selectItemByName(created.name, true);
-      await settle();
+      await reads(2);
+      await drain();
       expect(heldPaths).toEqual(['a', 'a']);
       await release(1, 2);
 
       expect(await settles(focused)).toBe(true);
       expect(Object.keys(selection(listing))).toEqual([created.path]);
       await release(0, 1);
-      await settle();
+      await drain();
       expect(heldPaths).toEqual(['a', 'a']);
       expect(paths(listing.sortedItems())).toEqual(
         expect.arrayContaining([...pasted, created.path])
@@ -732,7 +739,6 @@ describe('TreeFileBrowserModel', () => {
       await model.toggle('a');
       holdReads();
       const contents = model.manager.services.contents;
-      const settle = () => new Promise(resolve => setTimeout(resolve, 20));
       // The Paste answers into a: the first starts a read of a, the next two queue one read.
       const pasted: string[] = [];
       for (let i = 0; i < 3; i++) {
@@ -740,7 +746,8 @@ describe('TreeFileBrowserModel', () => {
           (await contents.newUntitled({ path: 'a', type: 'file' })).path
         );
       }
-      await settle();
+      await reads(1);
+      await drain();
       expect(heldPaths).toEqual(['a']);
 
       // A New Folder in the top folder: its own read, and its select before the rename editor.
@@ -748,7 +755,8 @@ describe('TreeFileBrowserModel', () => {
         path: '',
         type: 'directory'
       });
-      await settle();
+      await reads(2);
+      await drain();
       expect(heldPaths).toEqual(['a', '']);
       const focused = listing.selectItemByName(created.name, true);
 
@@ -758,7 +766,8 @@ describe('TreeFileBrowserModel', () => {
           (await contents.newUntitled({ path: 'a', type: 'file' })).path
         );
       }
-      await settle();
+      await reads(2);
+      await drain();
       expect(heldPaths).toEqual(['a', '']);
 
       // The select waits for the top folder's read only.
@@ -775,7 +784,7 @@ describe('TreeFileBrowserModel', () => {
       expect(Object.keys(selection(listing))).toEqual([created.path]);
 
       await release(2, 3);
-      await settle();
+      await drain();
       expect(heldPaths).toEqual(['a', '', 'a']);
       expect(paths(listing.sortedItems())).toEqual(
         expect.arrayContaining([...pasted, created.path])

@@ -1,7 +1,7 @@
 import { Dialog, showErrorMessage } from '@jupyterlab/apputils';
 import { PathExt } from '@jupyterlab/coreutils';
 import { renameFile } from '@jupyterlab/docmanager';
-import type { Contents, ServerConnection } from '@jupyterlab/services';
+import { ServerConnection, type Contents } from '@jupyterlab/services';
 import { type IStatusBar, type Popup, showPopup } from '@jupyterlab/statusbar';
 import type { TranslationBundle } from '@jupyterlab/translation';
 import { caretUpIcon } from '@jupyterlab/ui-components';
@@ -87,6 +87,47 @@ interface IOperation {
 const operations: IOperation[] = [];
 /** Emitted on every poll and every state change of an operation. */
 const changed = new Signal<IOperation[], void>(operations);
+
+/**
+ * The started jobs, under one sessionStorage key: a reload loses the page's
+ * operations, not the server's jobs, so the stored ids bring them back.
+ */
+const JOBS_KEY = 'jupyterlab-advanced-file-browser-extension:copy-jobs';
+
+interface IJobRecord {
+  id: string;
+  title: string;
+  move: boolean;
+  started: number;
+}
+
+/** The stored jobs, or none when the storage refuses the read. */
+function readJobs(): IJobRecord[] {
+  try {
+    const stored = sessionStorage.getItem(JOBS_KEY);
+    return stored ? (JSON.parse(stored) as IJobRecord[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Store `jobs`; a storage that refuses the write leaves the page without persistence. */
+function writeJobs(jobs: IJobRecord[]): void {
+  try {
+    sessionStorage.setItem(JOBS_KEY, JSON.stringify(jobs));
+  } catch {
+    // A page that cannot persist still shows the operations it starts itself.
+  }
+}
+
+function rememberJob(op: IOperation): void {
+  const { id, title, move, started } = op;
+  writeJobs([...readJobs(), { id, title, move, started }]);
+}
+
+function forgetJob(id: string): void {
+  writeJobs(readJobs().filter(job => job.id !== id));
+}
 
 /** The progress dialog title: the action and the item count. */
 export function copyTitle(
@@ -464,7 +505,31 @@ async function follow(op: IOperation): Promise<IJob | null> {
     }
     closeDialog(op);
     operations.splice(operations.indexOf(op), 1);
+    // A done, cancelled or failed job leaves nothing for the next page load.
+    forgetJob(op.id);
     changed.emit(undefined);
+  }
+}
+
+/** Report the files a done job could not copy or move, under `title`. */
+function showJobErrors(
+  title: string,
+  move: boolean,
+  job: IJob,
+  cancelled: boolean,
+  trans: TranslationBundle
+): void {
+  // A cancelled job reports only the partial copies it left, which the user must delete.
+  const lines = (job.errors ?? [])
+    .filter(({ message }) => !cancelled || message === 'partial copy left')
+    .map(({ path, message }) => `${path}: ${message}`);
+  if (lines.length) {
+    void showErrorMessage(
+      title,
+      move
+        ? trans.__('Not moved: %1', capped(lines, trans))
+        : trans.__('Not copied: %1', capped(lines, trans))
+    );
   }
 }
 
@@ -580,6 +645,7 @@ export async function transfer(
       hideAfterPause: false
     };
     operations.push(op);
+    rememberJob(op);
     ran = follow(op).then(job => {
       const cancelled = op.state === 'cancelled';
       if (!model.isDisposed) {
@@ -616,18 +682,7 @@ export async function transfer(
           });
         }
       }
-      // A cancelled job reports only the partial copies it left, which the user must delete.
-      const lines = (job.errors ?? [])
-        .filter(({ message }) => !cancelled || message === 'partial copy left')
-        .map(({ path, message }) => `${path}: ${message}`);
-      if (lines.length) {
-        void showErrorMessage(
-          title,
-          move
-            ? trans.__('Not moved: %1', capped(lines, trans))
-            : trans.__('Not copied: %1', capped(lines, trans))
-        );
-      }
+      showJobErrors(title, move, job, cancelled, trans);
       return notDone.map(global);
     });
   }
@@ -647,10 +702,12 @@ export async function transfer(
  * of several, a bar and the percentage of their bytes; a click opens the dialog
  * of the one, or the operations menu of several.
  */
-export function addCopyStatus(
+export async function addCopyStatus(
   statusBar: IStatusBar,
-  trans: TranslationBundle
-): void {
+  serverSettings: ServerConnection.ISettings,
+  trans: TranslationBundle,
+  refresh: () => void
+): Promise<void> {
   const item = new Widget();
   item.addClass('jp-AdvancedFileBrowser-copyStatus');
   item.addClass('jp-StatusBar-GroupItem');
@@ -794,9 +851,10 @@ export function addCopyStatus(
     '@stellarshenson/jupyterlab-advanced-file-browser-extension:copy-status',
     {
       item,
-      align: 'right',
-      // The right-hand group shows its items from the highest rank on the left to the lowest on
-      // the right (the stock items rank -1 to 4), so the highest rank puts this item first.
+      align: 'left',
+      // The left-hand group runs from the lowest rank on the left to the highest on the right
+      // (the stock items rank 0 to 100), so the highest rank puts this item after them, right of
+      // the audio controls.
       rank: 1000,
       // The stock status bar hides priority 0 items at 630px and below; this one shrinks itself.
       priority: 1,
@@ -804,4 +862,57 @@ export function addCopyStatus(
       activeStateChanged: changed
     }
   );
+
+  // A reload dropped the operations, not the jobs: bring each stored job back as a hidden
+  // operation, which shows in the status bar and polls to its end.
+  for (const record of readJobs()) {
+    let report: IJob;
+    try {
+      report = await requestAPI<IJob>(`copy/${record.id}`, serverSettings);
+    } catch (error) {
+      // A job that left the table is forgotten; a failed read keeps its record for the next load.
+      if (
+        error instanceof ServerConnection.ResponseError &&
+        error.response.status === 404
+      ) {
+        forgetJob(record.id);
+      }
+      continue;
+    }
+    if (report.done) {
+      showJobErrors(record.title, record.move, report, false, trans);
+      refresh();
+      forgetJob(record.id);
+      continue;
+    }
+    const op: IOperation = {
+      id: record.id,
+      title: record.title,
+      move: record.move,
+      started: record.started,
+      state: 'hidden',
+      // A pause is left for the first report, whose branch opens the dialog.
+      job: report.paused ? null : report,
+      settings: serverSettings,
+      trans,
+      dialog: null,
+      view: null,
+      opened: 0,
+      hideAfterPause: false
+    };
+    operations.push(op);
+    changed.emit(undefined);
+    void follow(op).then(job => {
+      refresh();
+      if (job) {
+        showJobErrors(
+          op.title,
+          op.move,
+          job,
+          op.state === 'cancelled',
+          op.trans
+        );
+      }
+    });
+  }
 }

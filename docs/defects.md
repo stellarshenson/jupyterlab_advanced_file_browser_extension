@@ -198,6 +198,15 @@ With unfolding on, the current folder (model.path) follows the selected row, and
   - log: 2026-11-17T22:41:16Z @kj added
   - log: 2026-11-17T22:41:23Z @kj owner decision 2026-11-17: fix it as a new item; found by round 4 Apply (round4.json failures); committed code fails the same check 2 of 3 runs (logs/round4-r4ab.log)
   - log: 2026-11-18T02:08:00Z @kj closed
+- [x] `DEF-FOLDER-51-TEST-SETTLE` **ACC-FOLDER-158-NEW-INSTANT tests wait 20 ms and fail under load** - MINOR; six ACC-FOLDER-158-NEW-INSTANT tests in src/__tests__/tree-model.spec.ts wait a fixed 20 ms for the model's queued reads; at load average 46 the reads have not run and the held-path assertion fails; alone at load 13 the test passes; the wait must follow the reads, not the clock
+  - evidence: six ACC-FOLDER-158-NEW-INSTANT tests now wait on held reads (reads(n), drain()); tree-model.spec.ts PASS in logs-2/make-test.log, Jest 153/153, 0 failed, pytest 123 passed, auth gate green; load 49.06/30.40/26.60 start, 26.05/27.87/26.08 end (gates-2.json)
+  - repro: run make test at load average 46 on 64 cores: the ACC-FOLDER-158-NEW-INSTANT refresh/create join test fails in both runs; alone at load 13 it passes
+  - test-tags: UNIT
+  - root-cause: 2026-11-23T11:06:14Z @kj the fixed 20 ms settle races the model queued ticks; load delays the timers past 20 ms
+  - log: 2026-11-23T11:06:14Z @kj added
+  - log: 2026-11-23T11:06:23Z @kj edited text "six ACC-FOLDER-158 tests in src/__tests__/tree-model.spec.ts wait a fixed 20 ms for the model's queued reads; at load average 46 the reads have not run and the held-path assertion fails; alone at load 13 the test passes; the wait must follow the reads, not the clock" -> "six ACC-FOLDER-158-NEW-INSTANT tests in src/__tests__/tree-model.spec.ts wait a fixed 20 ms for the model's queued reads; at load average 46 the reads have not run and the held-path assertion fails; alone at load 13 the test passes; the wait must follow the reads, not the clock"; repro "run make test on a machine at load average 46 on 64 cores: the ACC-FOLDER-158 refresh/create join test fails in both runs; alone at load 13 it passes" -> "run make test at load average 46 on 64 cores: the ACC-FOLDER-158-NEW-INSTANT refresh/create join test fails in both runs; alone at load 13 it passes"
+  - log: 2026-11-23T11:06:28Z @kj edited title "ACC-FOLDER-158 tests wait 20 ms and fail under load" -> "ACC-FOLDER-158-NEW-INSTANT tests wait 20 ms and fail under load"
+  - log: 2026-11-23T11:25:56Z @kj closed: fixed: the ACC-FOLDER-158 waits follow the held reads, not 20 ms
 
 ## Open in Terminal `TERM`
 
@@ -496,4 +505,37 @@ Copy and move server jobs, the progress dialog and the Paste Error report
   - log: 2026-11-23T08:11:45Z @kj edited test-tags added "UNIT"
   - log: 2026-11-23T08:11:45Z @kj found by adversarial review round 5 (material false); owner 2026-11-23: fix it
   - log: 2026-11-23T09:07:52Z @kj closed: fixed: _pause shifts started on each 1 s pass of the wait loop
+- [x] `DEF-COPY-48-BUTTON-LABEL` **Progress dialog button labels sit low** - MEDIUM; in the copy progress dialog the Cancel and Hide labels sit below the middle of the button: 22 px above the label and 13 px below in a 49 px button at 175% zoom; the same 28px height rule covers the delete dialog buttons
+  - evidence: copy.spec.ts:1280 and delete.spec.ts:279 label-centre and line-height assertions for the closed defect passed in both labs (Galata 62/62, logs/galata-def.log and logs/galata-venv.log exit 0); logs-2/make-test.log: Jest 153/153, pytest 123 passed, auth gate green
+  - related: ACC-COPY-202-STATUS-PLACE
+  - repro: start a copy of a few files, press Hide, click the status bar item, look at Cancel and Hide
+  - test-tags: FUNCTIONAL, MANUAL
+  - root-cause: 2026-11-23T10:27:18Z @kj cause unknown; a bare Chrome page with the 28px height rule centres the label, so the shift comes from the live page
+  - log: 2026-11-23T10:27:18Z @kj added
+  - log: 2026-11-23T11:25:27Z @kj closed: fixed: line-height 28px added to the shared dialog-button rule
+  - log: 2026-11-23T11:25:46Z @kj edited evidence "copy.spec.ts:1280 and delete.spec.ts:279 DEF-COPY-48 label-centre and line-height assertions passed in both labs (Galata 62/62, logs/galata-def.log and logs/galata-venv.log exit 0); logs-2/make-test.log: Jest 153/153, pytest 123 passed, auth gate green" -> "copy.spec.ts:1280 and delete.spec.ts:279 label-centre and line-height assertions for the closed defect passed in both labs (Galata 62/62, logs/galata-def.log and logs/galata-venv.log exit 0); logs-2/make-test.log: Jest 153/153, pytest 123 passed, auth gate green"
+- [x] `DEF-COPY-49-STATUS-PLACE` **Copy status item sits at the right edge** - MEDIUM; the hidden-operation item sits in the right-hand group, after the stock items; the owner wants it left of centre, right of the audio controls, or directly centred
+  - evidence: copy.spec.ts:1229 ACC-COPY-202-STATUS-PLACE passed in both labs: item in the left group, left edge before the bar middle, other left items to its left, menu inside the window; Galata 62/62 in both labs (logs/galata-def.log, logs/galata-venv.log exit 0)
+  - related: ACC-COPY-202-STATUS-PLACE
+  - repro: start a copy of a few files, press Hide, look at the status bar
+  - test-tags: FUNCTIONAL
+  - root-cause: 2026-11-23T10:27:18Z @kj the item registers with align right and rank 1000; ACC-COPY-190-STATUS-RIGHT asked for the right-hand group and ACC-COPY-202-STATUS-PLACE overrides it
+  - log: 2026-11-23T10:27:18Z @kj added
+  - log: 2026-11-23T11:25:49Z @kj closed: fixed: the status item registers with align left, rank 1000
+- [x] `DEF-COPY-50-RELOAD-REATTACH` **Copy window is lost after a page refresh** - MAJOR; a page refresh during a copy or move drops the progress dialog and the status bar item; the server job keeps copying, and the page loses its id, so the job cannot be seen, paused or cancelled; id and title must survive the reload and the item must return
+  - evidence: copy.spec.ts:1314 DEF-COPY-50-RELOAD-REATTACH passed in both labs: the status item returned after page.reload and its dialog opened; Galata 63/63 each (logs/galata-def.log, logs/galata-venv.log exit 0); Jest 153/153 and pytest 123 passed (logs/make-test.log)
+  - repro: start a copy of several GB, leave or hide the dialog, press F5; the status item and the dialog are gone while the copy goes on
+  - test-tags: FUNCTIONAL
+  - root-cause: 2026-11-23T10:30:38Z @kj operations live in a module-level array in src/copyDialog.ts and the job id is never persisted; routes.py keeps the job in _copy_jobs and its comment says a reloaded page never reads its job
+  - log: 2026-11-23T10:30:38Z @kj added
+  - log: 2026-11-23T11:50:47Z @kj closed: fixed: the job record survives a reload and the item reattaches
+  - log: 2026-11-23T18:55:58Z @kj owner saw it again 2026-11-23 in the live lab after shift-refresh; the lab serves the 1.0.13 bundle built 10:35, which has no reattach code; the fix is in the working tree, unreleased
+- [x] `DEF-COPY-52-STATUS-MIDDLE` **Placement test fails when the left group crowds the midpoint** - MINOR; the left group can cross the bar midpoint at narrow widths, so the placement test must assert the group and the order, not a midpoint; the item stays at the end of the left group; the middle group is not centred either, because space-between shifts it with unequal side groups
+  - evidence: ACC-COPY-202-STATUS-PLACE passed [60/64] in both Galata labs (64/64 default and /opt/conda, no retries); Jest 153/153, pytest 123 passed; logs tmp/workflows/afb-place-back/logs/galata-def.log, galata-venv.log, make-test.log
+  - repro: run tests/copy.spec.ts in the /opt/conda venv Galata lab: ACC-COPY-202-STATUS-PLACE fails leftOfCentre although inLeftOrMiddle is true
+  - test-tags: FUNCTIONAL
+  - root-cause: 2026-11-23T12:53:48Z @kj left-group items share the group width; with the workstation extension set the group crosses the midpoint, and rank 1000 puts the item at its right edge
+  - log: 2026-11-23T12:53:48Z @kj added
+  - log: 2026-11-23T13:37:28Z @kj edited text "the status item sits in the left group, so at a narrow window with many left-hand extensions it lands right of the bar's midpoint and the placement test fails; the owner allowed the centre; move the item to the middle group and drop the left-group clipping change" -> "the left group can cross the bar midpoint at narrow widths, so the placement test must assert the group and the order, not a midpoint; the item stays at the end of the left group; the middle group is not centred either, because space-between shifts it with unequal side groups"
+  - log: 2026-11-23T14:04:45Z @kj closed: fixed: the test asserts the group and order; the item stays at the left group's end
 

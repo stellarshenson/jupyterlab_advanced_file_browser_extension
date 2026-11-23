@@ -2,6 +2,17 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.14] - 2026-11-23
+
+### Changed
+
+- The copy and move status item sits at the end of the left-hand group of the status bar, after the other left items (ACC-COPY-202-STATUS-PLACE)
+
+### Fixed
+
+- A page reload while a copy or move runs lost the progress dialog and the status item; the running operation now comes back as the status item in the same browser tab, reports how it ended and refreshes the listing (DEF-COPY-50-RELOAD-REATTACH)
+- The button labels of the copy progress dialog and the Delete dialog sat low; they are now centred (DEF-COPY-48-BUTTON-LABEL)
+
 ## [1.0.13] - 2026-11-23
 
 ### Changed

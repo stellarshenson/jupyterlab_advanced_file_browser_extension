@@ -40,7 +40,7 @@ pip install jupyterlab_advanced_file_browser_extension
 
 - **Trash only where it is monitored** - Move to Trash is offered for items whose mount point is the home trash's mount point, the server root or a folder in `TrashManagement.locations`. After Move to Trash, a second dialog asks to delete the other items permanently
 - **Removal progress** - The Delete dialog warns when more than 10 GiB would go to the trash; a removal that runs longer than 1 second shows a progress dialog
-- **Copy and move progress** - A copy, or a move to another volume, made by Paste or by a drop onto a folder runs in a worker thread of the server and shows a progress dialog after 1 second. Hide or Escape closes the dialog and shows the operation on the right of the status bar
+- **Copy and move progress** - A copy, or a move to another volume, made by Paste or by a drop onto a folder runs in a worker thread of the server and shows a progress dialog after 1 second. Hide or Escape closes the dialog and shows the operation in the left part of the status bar. A page reload in the same browser tab brings a running operation back as the status bar item
 
   ![Copy progress dialog](.resources/screenshot-copy-progress.png)
 

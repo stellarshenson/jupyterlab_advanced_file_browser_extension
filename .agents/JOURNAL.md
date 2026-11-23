@@ -342,3 +342,30 @@ This journal tracks substantive work on documents, diagrams, and documentation c
 
 113. **Task [Short] - Release 1.0.13 on request** (v1.0.13): owner invoked `/release-jupyterlab-extension` on a clean tree at `bd0cda0`<br>
      **Result**: No code change since 1.0.12; the release carries the same content under the next patch version. Trackers unchanged, 0 open.
+
+114. **Task - Two UI defects and the copy window lost on a refresh** (v1.0.13): owner sent screenshots of the copy dialog buttons and the status bar, then reported that a page refresh drops the copy window<br>
+     **Result**: Filed `DEF-COPY-48-BUTTON-LABEL` (labels sit about 3 px low: the stock `button.jp-mod-styled` line box is 32 px and the extension rule overrode only the height to 28 px) and `DEF-COPY-49-STATUS-PLACE` with `ACC-COPY-202-STATUS-PLACE` (item to the left group after the audio controls, or centred; overrides `ACC-COPY-190-STATUS-RIGHT`), then `DEF-COPY-50-RELOAD-REATTACH` (a refresh loses the job id, the dialog and the status item while the server job copies on). Launched `afb-ui-fix`, run `wf_6df5971f-525`, script `tmp/workflows/afb-ui-fix/run.js`, resume `Workflow({scriptPath: '<that path>', resumeFromRunId: 'wf_6df5971f-525'})`: fix, gates, verify, pm-tools close of 48, 49 and ACC-COPY-202. The reload fix chains after it. All items locked until 2026-11-24.
+
+115. **Task - Both owner-reported UI defects and the reload reattach fixed and closed** (v1.0.13): two chained workflows went green and closed six items<br>
+     **Result**: `afb-ui-fix` (run `wf_6df5971f-525`, resumed after a red gate) put `line-height: 28px` under the 28 px dialog buttons, moved the copy status item to the left group with `align: 'left'`, rank 1000, rewrote the right-group Galata test as `ACC-COPY-202-STATUS-PLACE` and added the button-centre tests; its first pass reddened on a load-sensitive test, so `DEF-FOLDER-51-TEST-SETTLE` replaced six fixed 20 ms waits with `reads(n)` and `drain()`. `afb-reload-fix` (run `wf_e9360f21-9ba`) keeps each job in sessionStorage, reattaches a running one on activation as a hidden status item, and the `DEF-COPY-50-RELOAD-REATTACH` Galata test reloads the page mid-copy. Gates: Jest 153/153, pytest 123, auth gate, lint, Galata 63/63 in both labs. Trackers 0 open, 202 criteria, 52 defects. Uncommitted; the review round and a release wait.
+
+116. **Task [Short] - Review round 9 and its plan applied** (v1.0.13): round 9 (`wf_ca89c697-27b`, the shipped loop with the ponytail rows) returned PLAN with one MAJOR - a reattached job's final report is discarded<br>
+     **Result**: `showJobErrors` shared by both call sites, a refresh callback from the file browser tracker, and the routed `DEF-COPY-50-RELOAD-REATTACH-REPORT` Galata test, applied by `afb-review-fix`, run `wf_dd3ca497-e78`, script `tmp/workflows/afb-review-fix/run.js`. All four ponytail rows refuted on evidence.
+
+117. **Task [Short] - Venv gate failure and the move to the middle group** (v1.0.13): ACC-COPY-202-STATUS-PLACE failed leftOfCentre in the /opt/conda lab, where the crowded left group crosses the midpoint<br>
+     **Result**: filed `DEF-COPY-52-STATUS-MIDDLE`; the item moves to the middle group (the owner's allowed alternative) and the flex-end rule reverts; applied by `afb-status-middle`, run `wf_1968666a-aad`, script `tmp/workflows/afb-status-middle/run.js`.
+
+118. **Task [Short] - The middle group was not centred either** (v1.0.13): the middle placement failed in both labs - the bar lays its three groups out with space-between, so the middle shifts by half the side-group difference (35.5 px in the clean lab)<br>
+     **Result**: the item returns to the end of the left group with the flex-end rule; `ACC-COPY-202-STATUS-PLACE` now asserts the group and the order, its test hint amended; fixed by `afb-place-back`, run `wf_7d1a373c-522`, script `tmp/workflows/afb-place-back/run.js`.
+
+119. **Task [Short] - Placement settled green and the review confirm launched** (v1.0.13): `afb-place-back` (run `wf_7d1a373c-522`) put the item back at the left group's end with the flex-end rule; both labs 64/64, Jest 153, pytest 123; DEF-COPY-52 closed<br>
+     **Result**: confirm round 10 launched over the two patches, loop `tmp/workflows/afb-review/loop-10.js`, run `wf_947f41e4-272`, state `state-9.json` verbatim.
+
+120. **Task [Short] - Review round 10 SHIP accepted** (v1.0.13): round 10 (`wf_947f41e4-272`) shipped with 2 MINOR non-blocking findings; the owner chose the tighter test<br>
+     **Result**: `afb-place-tighten`, run `wf_7d0362c0-cab`, script `tmp/workflows/afb-place-tighten/run.js`, asserts the left group directly and amends the ACC-COPY-202 text and hint; history 21,0,4,0,1,1,0,0,7,2, last SHIP.
+
+121. **Task [Short] - Test tightened, round-10 state shipped** (v1.0.13): the ACC-COPY-202 test now asserts `group === 'left'` unconditionally and the criterion reads left only<br>
+     **Result**: `afb-place-tighten`, run `wf_7d0362c0-cab`: lint clean, `copy.spec.ts` 34/34 in both labs, log line written on the criterion; trackers 0 open.
+
+122. **Task - Release 1.0.14: reload reattach, status item on the left, centred dialog labels** (v1.0.14): owner saw a running copy vanish after shift-refresh in the live lab and invoked `/release-jupyterlab-extension`<br>
+     **Result**: The live lab served the 1.0.13 bundle built at 10:35, which had no reattach code; the fixes of entries 114-121 were in the working tree only. The release carries them: `src/copyDialog.ts` stores each copy or move job in sessionStorage and `addCopyStatus` reattaches a running one after a page reload as the status item, reports its end through `showJobErrors` and refreshes the listing (DEF-COPY-50-RELOAD-REATTACH); the status item sits at the end of the left status bar group (ACC-COPY-202-STATUS-PLACE, DEF-COPY-49, DEF-COPY-52); dialog buttons take `line-height: 28px` so labels centre (DEF-COPY-48); the tree-model tests wait on held reads (DEF-FOLDER-51). Limit: the job record is per browser tab, and a job started by an older bundle has no record. Review round 10 SHIP; trackers 0 open.

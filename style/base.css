@@ -138,7 +138,9 @@
 
 .jp-AdvancedFileBrowser-deleteDialog .jp-Dialog-button,
 .jp-AdvancedFileBrowser-copyDialog .jp-Dialog-button {
+  /* DEF-COPY-48: button.jp-mod-styled carries a 32px line-height, which sits the label low */
   height: 28px;
+  line-height: 28px;
 }
 
 .jp-AdvancedFileBrowser-deleteProgress {
@@ -296,11 +298,12 @@
   width: 60px;
 }
 
-/* While the item shows, the left-hand group shrinks and clips, so other extensions' items cannot push it out of a narrow window */
+/* While the item shows, the left-hand group shrinks; end-alignment keeps the item, the last child, visible at the group's right edge and clips the items before it, so other extensions' items cannot push it out of a narrow window */
 .jp-StatusBar-Widget:has(.jp-AdvancedFileBrowser-copyStatus:not(.lm-mod-hidden))
   .jp-StatusBar-Left {
   min-width: 0;
   overflow: hidden;
+  justify-content: flex-end;
 }
 
 /* The operations menu: two lines a row, title, 70px bar and percentage, then the file count and time ago */

@@ -721,6 +721,84 @@ test('ACC-COPY-200-PARTIAL-LEFT a cancelled job names the partial copy it left i
   );
 });
 
+test('DEF-COPY-50-RELOAD-REATTACH-REPORT a reattached job that ends with errors names them and refreshes the listing', async ({
+  page,
+  tmpPath
+}) => {
+  writeFileSync(await onDisk(page, `${tmpPath}/a.txt`), 'a');
+  await folder(page, `${tmpPath}/dst`);
+  // The whole job is routed: its start and its reports; the done report is held back until the
+  // reload has reattached the job
+  const id = 'd'.repeat(32);
+  let ended = false;
+  await page.route(
+    /\/jupyterlab-advanced-file-browser-extension\/copy(\/[0-9a-f]{32})?(\?|$)/,
+    async route => {
+      const request = route.request();
+      if (!new URL(request.url()).pathname.endsWith(id)) {
+        return route.fulfill({ status: 202, json: { id, rename: [] } });
+      }
+      return route.fulfill({
+        json: {
+          files_total: 1,
+          bytes_total: 1,
+          files: 0,
+          bytes: 0,
+          file_size: 1,
+          file_bytes: 0,
+          from: `${tmpPath}/a.txt`,
+          to: `${tmpPath}/dst/a.txt`,
+          cross: false,
+          done: ended,
+          elapsed: 1,
+          paused: null,
+          ...(ended
+            ? {
+                errors: [
+                  {
+                    path: `${tmpPath}/a.txt`,
+                    message: 'no space left on device'
+                  }
+                ],
+                not_done: [`${tmpPath}/a.txt`]
+              }
+            : {})
+        }
+      });
+    }
+  );
+
+  const { done } = await paste(page, tmpPath, ['a.txt'], `${tmpPath}/dst`);
+  // The reload destroys the page context the Paste waits in
+  void done.catch(() => undefined);
+  await expect(page.locator(DIALOG)).toBeVisible();
+
+  await page.reload();
+
+  // The server job went on; its stored id brings the status item back
+  const status = page.locator(STATUS);
+  await expect(status).toBeVisible({ timeout: 30000 });
+
+  // Count the contents reads from here: the done report must refresh the listing
+  let reads = 0;
+  page.on('request', request => {
+    if (request.url().includes('/api/contents')) {
+      reads++;
+    }
+  });
+  const before = reads;
+  ended = true;
+
+  const error = page.locator('.jp-Dialog', {
+    hasText: `Not copied: ${tmpPath}/a.txt: no space left on device`
+  });
+  await expect(error.locator('.jp-Dialog-body')).toHaveText(
+    `Not copied: ${tmpPath}/a.txt: no space left on device`
+  );
+  await expect(status).toBeHidden();
+  await expect.poll(() => reads).toBeGreaterThan(before);
+});
+
 test('ACC-COPY-174-BUTTONS Cancel and Hide only and no close control', async ({
   page,
   tmpPath
@@ -1226,28 +1304,29 @@ test('ACC-COPY-189-NARROW-MENU the menu fits the window and drops the row bars b
   await Promise.all(done);
 });
 
-test('ACC-COPY-190-STATUS-RIGHT the status item is the first of the right-hand group and its menu opens inside the window', async ({
+test('ACC-COPY-202-STATUS-PLACE the status item sits at the end of the left-hand group, and its menu opens inside the window', async ({
   page,
   tmpPath
 }) => {
   await seedThree(page, tmpPath);
   const done = [(await startHidden(page, tmpPath, THREE[0])).done];
+  await expect(page.locator(STATUS)).toBeVisible();
 
   const place = await page.evaluate(selector => {
     const item = document.querySelector(selector)!;
-    const right = document.querySelector(
-      '#jp-main-statusbar .jp-StatusBar-Right'
-    )!;
-    const left = item.getBoundingClientRect().left;
+    const bar = document.querySelector('#jp-main-statusbar')!;
+    const left = bar.querySelector('.jp-StatusBar-Left')!;
+    const itemBox = item.getBoundingClientRect();
+    const group = left.contains(item) ? 'left' : null;
     return {
-      inRight: right.contains(item),
-      // The left edge of every other shown right-hand item, from the item's left edge
-      others: Array.from(right.children)
+      group,
+      // The left edge of every other shown left-hand item, from the item's left edge
+      others: Array.from(left.children)
         .filter(node => node !== item && node.getBoundingClientRect().width)
-        .map(node => node.getBoundingClientRect().left - left)
+        .map(node => itemBox.left - node.getBoundingClientRect().left)
     };
   }, STATUS);
-  expect(place.inRight).toBe(true);
+  expect(place.group).toBe('left');
   expect(place.others.length).toBeGreaterThan(0);
   for (const gap of place.others) {
     expect(gap).toBeGreaterThan(0);
@@ -1265,6 +1344,74 @@ test('ACC-COPY-190-STATUS-RIGHT the status item is the first of the right-hand g
   expect(box.x + box.width).toBeLessThanOrEqual(view.width);
   expect(box.y + box.height).toBeLessThanOrEqual(view.height);
   await Promise.all(done);
+});
+
+test('DEF-COPY-48-BUTTON-LABEL the Cancel and Hide labels sit on the centre of the 28 px buttons', async ({
+  page,
+  tmpPath
+}) => {
+  await bigFile(page, `${tmpPath}/big.bin`);
+  await folder(page, `${tmpPath}/dst`);
+  const { done } = await paste(page, tmpPath, ['big.bin'], `${tmpPath}/dst`);
+  await expect(header(page)).toHaveText('Copying 1 item');
+
+  for (const label of ['Cancel', 'Hide']) {
+    const metrics = await button(page, label).evaluate(node => {
+      const box = node.getBoundingClientRect();
+      const labelBox = node
+        .querySelector('.jp-Dialog-buttonLabel')!
+        .getBoundingClientRect();
+      return {
+        lineHeight: parseFloat(getComputedStyle(node).lineHeight),
+        height: box.height,
+        labelCentre: labelBox.top + labelBox.height / 2,
+        buttonCentre: box.top + box.height / 2
+      };
+    });
+    // The stock button.jp-mod-styled line box would overflow the 28 px height
+    expect(metrics.lineHeight, label).toBeCloseTo(metrics.height, 0);
+    expect(
+      Math.abs(metrics.labelCentre - metrics.buttonCentre),
+      label
+    ).toBeLessThanOrEqual(1);
+  }
+
+  await button(page, 'Cancel').click();
+  await done;
+});
+
+test('DEF-COPY-50-RELOAD-REATTACH a reload brings the status item back and its job can be cancelled', async ({
+  page,
+  tmpPath
+}) => {
+  await bigFile(page, `${tmpPath}/big.bin`, LONG);
+  await folder(page, `${tmpPath}/dst`);
+  const { done } = await paste(page, tmpPath, ['big.bin'], `${tmpPath}/dst`);
+  // The reload destroys the page context the Paste waits in
+  void done.catch(() => undefined);
+  await expect(page.locator(DIALOG)).toBeVisible();
+
+  await page.reload();
+
+  // The server job went on; its stored id brings the status item back
+  const status = page.locator(STATUS);
+  await expect(status).toBeVisible({ timeout: 30000 });
+  await expect(
+    status.locator('.jp-AdvancedFileBrowser-copyStatusTitle')
+  ).toHaveText('Copying 1 item');
+  await expect(
+    status.locator('.jp-AdvancedFileBrowser-copyPercent')
+  ).toHaveText(/^\d+%$/);
+
+  await status.click();
+  await expect(header(page)).toHaveText('Copying 1 item');
+  await expect(
+    page.locator(`${DIALOG} .jp-AdvancedFileBrowser-copyPath`).first()
+  ).toHaveText(`${tmpPath}/big.bin`);
+
+  await button(page, 'Cancel').click();
+  await expect(page.locator(DIALOG)).toHaveCount(0);
+  await expect(status).toBeHidden();
 });
 
 test('ACC-COPY-191-HIDE-FOCUS the dialog opens with no button focused; the first Tab focuses Hide with its ring', async ({

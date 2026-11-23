@@ -276,6 +276,42 @@ test('ACC-DELETE-197-BUTTON-ORDER the Delete dialog shows Cancel, Delete and Mov
   expect(await page.contents.fileExists(`${tmpPath}/acc122.txt`)).toBe(true);
 });
 
+test('DEF-COPY-48-BUTTON-LABEL the Delete dialog button labels sit on the centre of their buttons', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['acc48.txt']);
+  await pressDelete(page, [`${tmpPath}/acc48.txt`]);
+
+  // The copy dialog's assertion on the Delete dialog: a line box that overflows the button
+  // height would sit the label low
+  const metrics = await buttons(page).evaluateAll(nodes =>
+    nodes.map(node => {
+      const box = node.getBoundingClientRect();
+      const label = node
+        .querySelector('.jp-Dialog-buttonLabel')!
+        .getBoundingClientRect();
+      return {
+        lineHeight: parseFloat(getComputedStyle(node).lineHeight),
+        height: box.height,
+        labelCentre: label.top + label.height / 2,
+        buttonCentre: box.top + box.height / 2
+      };
+    })
+  );
+  expect(metrics.length).toBeGreaterThan(0);
+  for (const metric of metrics) {
+    expect(metric.lineHeight).toBeCloseTo(metric.height, 0);
+    expect(
+      Math.abs(metric.labelCentre - metric.buttonCentre)
+    ).toBeLessThanOrEqual(1);
+  }
+
+  await button(page, 'Cancel').click();
+  await expect(page.locator('.jp-Dialog')).toHaveCount(0);
+  expect(await page.contents.fileExists(`${tmpPath}/acc48.txt`)).toBe(true);
+});
+
 test('ACC-DELETE-198-TRASH-ICON Move to Trash shows the trash can icon left of its label, in the label colour', async ({
   page,
   tmpPath

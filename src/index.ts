@@ -145,7 +145,13 @@ const plugin: JupyterFrontEndPlugin<IFileBrowserFactory> = {
     const trans = translator.load('jupyterlab');
     // Without a status bar, Hide still hides a copy or move; nothing opens its dialog again.
     if (statusBar) {
-      (await import('./copyDialog')).addCopyStatus(statusBar, trans);
+      const { addCopyStatus } = await import('./copyDialog');
+      await addCopyStatus(
+        statusBar,
+        app.serviceManager.serverSettings,
+        trans,
+        () => tracker.forEach(browser => void browser.model.refresh())
+      );
     }
     const addToggle = (id: string, key: SettingKey, label: string): void => {
       app.commands.addCommand(id, {
