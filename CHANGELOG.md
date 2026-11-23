@@ -2,6 +2,12 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.15] - 2026-11-23
+
+### Changed
+
+- No functional change since 1.0.14
+
 ## [1.0.14] - 2026-11-23
 
 ### Changed
