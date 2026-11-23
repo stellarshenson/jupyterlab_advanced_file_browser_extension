@@ -339,3 +339,6 @@ This journal tracks substantive work on documents, diagrams, and documentation c
 
 112. **Task - Release 1.0.12: Elapsed held during a copy pause** (v1.0.12): released the DEF-COPY-47 fix after confirmation round 8 shipped<br>
      **Result**: The owner asked for one confirmation round after the round-7 SHIP, then commit, push and release. Round 8 (run `wf_83714f66-874`, round cap raised to 8, panel architect, bug-hunter and ux-designer) attacked every closure of rounds 1-6 and shipped with 0 findings; review history 21, 0, 4, 0, 1, 1, 0, 0. The release carries `_pause` moving `job['started']` forward on each 1 s pass of the wait loop, so Elapsed stops growing while a copy or move is paused and does not drop after Retry, plus the corrected `IJob.elapsed` comment in `src/copyDialog.ts`. The gates of entry 111 ran on this same tree. Trackers: criteria 0 open / 197 closed / 4 rejected, defects 0 open / 44 closed / 4 rejected. The galaxalab image still ships 1.0.9.
+
+113. **Task [Short] - Release 1.0.13 on request** (v1.0.13): owner invoked `/release-jupyterlab-extension` on a clean tree at `bd0cda0`<br>
+     **Result**: No code change since 1.0.12; the release carries the same content under the next patch version. Trackers unchanged, 0 open.
