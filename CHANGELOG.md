@@ -2,6 +2,12 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.12] - 2026-11-23
+
+### Fixed
+
+- Elapsed kept growing while a copy or move was paused and dropped back after Retry; it now holds during the pause (DEF-COPY-47-ELAPSED-JUMP)
+
 ## [1.0.11] - 2026-11-23
 
 ### Added

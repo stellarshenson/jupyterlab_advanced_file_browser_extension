@@ -811,11 +811,15 @@ def _pause(job: dict, src: str, error: OSError) -> None:
     job["wake"].clear()
     job["paused"] = {"path": job["from"], "reason": _reason(error)}
     since = time.monotonic()
+    # The time paused stays out of the elapsed time, so Speed and Left hold during and after the
+    # pause; moved on each second, so a report during the pause leaves it out too.
     while not job["cancelled"] and not job["wake"].wait(1):
-        if time.monotonic() - job["read"] > _UNREAD_PAUSE_SECONDS:
+        now = time.monotonic()
+        job["started"] += now - since
+        since = now
+        if now - job["read"] > _UNREAD_PAUSE_SECONDS:
             job["action"] = "skip"
             break
-    # The time paused stays out of the elapsed time, so Speed and Left hold after the pause.
     job["started"] += time.monotonic() - since
     action, job["action"], job["paused"] = job["action"], None, None
     if job["cancelled"]:

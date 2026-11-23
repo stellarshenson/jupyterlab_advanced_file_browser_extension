@@ -486,4 +486,14 @@ Copy and move server jobs, the progress dialog and the Paste Error report
   - log: 2026-11-23T00:42:09Z @kj added
   - log: 2026-11-23T00:42:09Z @kj edited test-tags added "FUNCTIONAL"
   - log: 2026-11-23T02:30:42Z @kj closed: fixed: the pause reason line has role alert and the copy dialog has aria-label equal to its title
+- [x] `DEF-COPY-47-ELAPSED-JUMP` **Elapsed jumps back after Retry** - MINOR; during a pause each report still counts the pause in elapsed, since _pause shifts job['started'] only after the wait; the paint right after Retry shows a pause-inclusive Elapsed, lower Speed and higher Left, and the next poll 250 ms later jumps back
+  - evidence: test_def_copy_47_elapsed_holds_during_the_pause_and_after_retry PASSED in make test (123 passed, tmp/workflows/afb-final-3/logs/make-test.log); copy.spec.ts 31 passed in both labs (galata-def.log, galata-venv.log); adversarial review round 7 SHIP (tmp/workflows/afb-review/round-7.json)
+  - related: DEF-COPY-45-PAUSE-ELAPSED
+  - test-tags: UNIT
+  - repro: pause a copy for 2 s, press Retry: the first paint shows Elapsed including the 2 s, the next poll drops it
+  - root-cause: 2026-11-23T08:11:45Z @kj _pause adds the paused time to job['started'] once after the wait loop, so GET reports during the pause include it
+  - log: 2026-11-23T08:11:45Z @kj added
+  - log: 2026-11-23T08:11:45Z @kj edited test-tags added "UNIT"
+  - log: 2026-11-23T08:11:45Z @kj found by adversarial review round 5 (material false); owner 2026-11-23: fix it
+  - log: 2026-11-23T09:07:52Z @kj closed: fixed: _pause shifts started on each 1 s pass of the wait loop
 

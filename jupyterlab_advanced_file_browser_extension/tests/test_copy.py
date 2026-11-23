@@ -826,6 +826,27 @@ async def test_def_copy_45_the_time_paused_stays_out_of_elapsed(
     assert reports[-1]["elapsed"] <= wall - paused_for
 
 
+async def test_def_copy_47_elapsed_holds_during_the_pause_and_after_retry(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", MiB)
+    _tree(jp_root_dir, {"f.bin": os.urandom(3 * MiB), "dst/keep": b""})
+    _fail_one_write(monkeypatch, jp_root_dir / "dst" / "f.bin", 2 * MiB)
+
+    _, started = await _start(jp_fetch, ["f.bin"], "dst")
+    first = await _paused(jp_fetch, started["id"])
+    await asyncio.sleep(2)
+    last = await _report(jp_fetch, started["id"])
+    await _act(jp_fetch, started["id"], "retry")
+    reports = await _reports(jp_fetch, started["id"])
+
+    assert first["paused"] and last["paused"]
+    assert (reports[-1]["errors"], reports[-1]["not_done"]) == ([], [])
+    # _pause takes the time paused out of elapsed once a second, so a report counts under 1 s of it.
+    assert last["elapsed"] - first["elapsed"] < 1.5
+    assert reports[0]["elapsed"] > last["elapsed"] - 1.5
+
+
 async def test_acc_copy_194_a_pause_no_page_reads_ends_as_skip_file(
     jp_fetch, jp_root_dir, monkeypatch
 ):

@@ -34,7 +34,7 @@ interface IJob {
   to: string;
   cross: boolean;
   done: boolean;
-  /** Seconds since the job started, less the pauses that have ended. */
+  /** Seconds since the job started, less the time paused; a report during a pause counts at most the last 1 s of it. */
   elapsed: number;
   /** The file whose read or write failed and why, while the job waits for Retry, Skip file or Cancel. */
   paused: { path: string; reason: string } | null;
