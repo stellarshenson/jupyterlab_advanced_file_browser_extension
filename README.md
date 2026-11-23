@@ -8,50 +8,77 @@
 [![Brought To You By KOLOMOLO](https://img.shields.io/badge/Brought%20To%20You%20By-KOLOMOLO-00ffff?style=flat)](https://kolomolo.com)
 [![Donate PayPal](https://img.shields.io/badge/Donate-PayPal-blue?style=flat)](https://www.paypal.com/donate/?hosted_button_id=B4KPBJDLLXTSA)
 
-Adds features to the JupyterLab file browser: folders that unfold in place as a tree, Unix Style Sorting, Open in Terminal on files and drag-and-drop path insertion into terminals, editors and notebooks. It replaces `jupyterlab_file_browser_sorting_extension`, `jupyterlab_open_in_terminal_extension` and `jupyterlab_drag_and_drop_path_extension`.
-
-## Features
-
-- **Folder unfolding** - A triangle on each folder row folds or unfolds the folder in place, as a tree; folding and unfolding animate over a short interval; a double-click on a folder still enters it. Based on [jupyterlab-unfold](https://github.com/jupyterlab-contrib/jupyterlab-unfold)
-- **Unfolding switch** - Right-click the column header of the file browser to turn unfolding on or off, beside Show Last Modified Column and the other column items; unfolding is on by default
-- **Unix Style Sorting** - Names sorted in `LC_COLLATE=C` byte order (dot files, digits, capitals, underscore, lower case), folders first, also inside unfolded folders; switched in the column-header menu
-- **New items at once** - A new folder, file or notebook shows in the listing as soon as the server confirms it, in its sorted place; its rename editor opens after one read of its own folder, and a Paste, Duplicate or drag-copy answer joins the read of its folder already in flight instead of starting a second one
-- **Open in Terminal** - On a file or on the empty area of the file browser, opens a terminal in that file's folder, also for a file inside an unfolded folder
-- **Drop a path into a terminal** - Drag a file or folder from the file browser onto a terminal to insert its path escaped for the shell, or single-quoted with quoting turned on; the dropped-on terminal comes to the foreground
-- **Drop several files onto a terminal** - Every dragged path arrives in one send, in the order selected, separated by a space or by a newline
-- **Drop a path into an editor or a notebook** - A Python file or a Python notebook code cell receives a quoted string literal or a `pathlib` expression; any other open file or code cell receives the bare path. A notebook drop lands in the cell under the pointer at that cell's cursor, and a drag holding several items is declined by an editor and by a notebook
-- **Drag from the breadcrumbs** - The folder trail above the listing is a drag source, so the folder the browser shows can be dropped onto a target without first finding its row; a click on a breadcrumb still navigates
-- **Delete with trash** - With the server's trash on, the Delete dialog offers Delete Permanently, Cancel and Move to Trash, and Move to Trash is the default; with the trash off, it offers Cancel and Delete. Delete Permanently removes a folder with its content whatever the server's `always_delete_dir` setting
-- **Trash only where it is monitored** - Move to Trash moves only the items whose trash the trash management extension monitors: the item's mount, found from the real path of its folder, is the mount of the home trash, the server root, or a folder in the server option `TrashManagement.locations` (default `[]`; `~` is expanded and a relative entry is taken from the server root). When no selected item is monitored, such as on a network volume linked into the server root, the dialog offers Cancel and Delete Permanently only, with a line saying the trash of this location is not monitored. When some are, a line in the dialog gives the count of the others; Move to Trash moves the monitored items, then a second dialog lists the others and asks to delete them permanently, with Cancel the default
-- **Trash on all volumes** - The server option `c.AdvancedFileBrowser.trash_on_all_volumes` (default `False`) set to `True` offers Move to Trash for every item whatever its mount, and Move to Trash moves the item through the server's contents manager; `False` keeps the rule above
-- **Core patches recommended** - `jupyterlab_core_patches_extension` with its `jupyterlab_file_delete_trash_fix` switch on is recommended for Move to Trash on other mounts, where it moves each item into the trash of its own mount; without it, the stock JupyterLab trash behaviour applies, and the server logs one start line saying the fix is not installed or switched off
-- **Large removal warning** - With the trash on, a selection larger than 10 GiB shows a warning that moving large files to the trash is not advised; the 10 GiB threshold is not a setting
-- **Removal progress** - A removal still running after 1 second shows a progress dialog with a spinner and a progress bar; its Hide button closes the dialog and the removal keeps running
-- **Copy and move progress** - A copy or move still running after 1 second, from a Paste after Copy or Cut or from a drag onto a folder, shows a progress dialog with a total bar, a bar for the current file, counters for files, bytes, speed, elapsed time and time left, and a one-line warning when the copy or move goes to another volume; it runs in a worker thread of the server, so the interface does not freeze
-- **Cancel and Hide** - Cancel stops the copy or move and keeps the files already finished; Hide or Escape closes the dialog and moves the operation to one status bar item; a click on that item opens the dialog, or a menu of the operations when several run in parallel
-
-## Settings
-
-Open **Settings → Settings Editor → Advanced File Browser**. These six keys replace the former Drag and Drop Path settings page; saved values from that extension are not carried over. Each entry below leads with the label the editor shows, with the JSON key in brackets:
-
-- **Enable drag-and-drop path insertion** (`dragDropPathEnabled`) - master on/off switch; default `true`
-- **Path type** (`pathType`) - `relative` (default) or `absolute`; a relative path is measured from the terminal's working directory or from the open document's folder
-- **Relative terminal path caveat** - the terminal working directory comes from the deepest shell the terminal is running, so a background job that changed directory can be the one used; absolute paths and editor or notebook drops are unaffected
-- **Python path style** (`pythonPathStyle`) - `posix` inserts a quoted string literal (default), `pathlib` inserts a `Path(...)` expression
-- **Pathlib constructor** (`pathlibConstructor`) - `pathlib.Path` (default) or `Path`; choose `Path` only in files that already do `from pathlib import Path`, because the extension inserts no import
-- **Terminal separator for several paths** (`terminalSeparator`) - `space` (default) keeps the paths on one line as arguments; `newline` gives each path a line of its own, ending every line but the last with a backslash so the shell reads it as a continuation
-- **Quote paths in the terminal** (`terminalQuotePaths`) - `false` (default) backslash-escapes the characters that need it; `true` wraps each path in single quotes instead
-
-## Requirements
-
-- JupyterLab 4.6 or later
-- Python 3.12 or later
+Extends the JupyterLab file browser with a folder tree, Unix Style Sorting, Open in Terminal, path drag-and-drop, Move to Trash, and copy and move with a progress dialog.
 
 ## Install
 
 ```bash
 pip install jupyterlab_advanced_file_browser_extension
 ```
+
+## Features
+
+- **Folder tree** - A triangle on each folder row unfolds the folder in place; a double-click still enters it. Ported from [jupyterlab-unfold](https://github.com/jupyterlab-contrib/jupyterlab-unfold)
+
+  ![Folders unfolded as a tree](.resources/screenshot-tree.png)
+
+- **Unix Style Sorting** - Names sort in `LC_COLLATE=C` byte order (dot files, digits, capitals, underscore, lower case), folders first
+- **Column header switches** - Right-click the column header to turn Folder Unfolding or Unix Style Sorting on or off; both are on by default
+
+  ![Column header menu](.resources/screenshot-header-menu.png)
+
+- **New items in place** - A new folder, file or notebook shows in its sorted place as soon as the server creates it
+- **Open in Terminal** - Right-click a file or the empty area of the listing to open a terminal in that folder
+- **Breadcrumb menu** - Right-click a folder name in the breadcrumbs for Open in Terminal, Copy Path, Open and, with `@jlab-enhanced/favorites`, Add to Favourite
+- **Path drag-and-drop** - Drag files, folders or a breadcrumb onto a terminal, an editor or a notebook to insert the path. A terminal takes several paths in one drop; a Python file or a Python notebook code cell receives a quoted string or a `pathlib` expression
+
+  ![Open in Terminal, then a path dropped into the terminal](.resources/screenshot-terminal.png)
+
+- **Delete dialog** - With the server's trash on, the dialog offers Cancel, Delete and Move to Trash, and Move to Trash is the default. Delete removes permanently, also a folder with content, whatever the server's `always_delete_dir` setting
+
+  ![Delete dialog](.resources/screenshot-delete.png)
+
+- **Trash only where it is monitored** - Move to Trash is offered for items whose mount point is the home trash's mount point, the server root or a folder in `TrashManagement.locations`. After Move to Trash, a second dialog asks to delete the other items permanently
+- **Removal progress** - The Delete dialog warns when more than 10 GiB would go to the trash; a removal that runs longer than 1 second shows a progress dialog
+- **Copy and move progress** - A copy, or a move to another volume, made by Paste or by a drop onto a folder runs in a worker thread of the server and shows a progress dialog after 1 second. Hide or Escape closes the dialog and shows the operation on the right of the status bar
+
+  ![Copy progress dialog](.resources/screenshot-copy-progress.png)
+
+- **Retry, Skip file and Cancel** - A read or write error pauses the copy or move. Retry continues the file from its last fsync, made every 256 MiB; Skip file goes on with the next file; Cancel stops the operation and keeps the files already finished
+
+  ![Copy paused on a read or write error](.resources/screenshot-copy-paused.png)
+
+It replaces `jupyterlab_file_browser_sorting_extension`, `jupyterlab_open_in_terminal_extension` and `jupyterlab_drag_and_drop_path_extension`.
+
+## Settings
+
+Open **Settings → Settings Editor → Advanced File Browser**.
+
+| Setting                                                     | Default        | Effect                                                                                 |
+| ----------------------------------------------------------- | -------------- | -------------------------------------------------------------------------------------- |
+| Folder unfolding (`folderUnfolding`)                        | `true`         | Shows the folder tree                                                                  |
+| Unix style sorting (`unixStyleSorting`)                     | `true`         | Sorts with Unix Style Sorting                                                          |
+| Enable drag-and-drop path insertion (`dragDropPathEnabled`) | `true`         | Allows path drag-and-drop and breadcrumb dragging                                      |
+| Path type (`pathType`)                                      | `relative`     | `relative` to the terminal's working directory or the document's folder, or `absolute` |
+| Python path style (`pythonPathStyle`)                       | `posix`        | `posix` inserts a quoted string, `pathlib` a `Path(...)` expression                    |
+| Pathlib constructor (`pathlibConstructor`)                  | `pathlib.Path` | `pathlib.Path` or `Path`; no import is inserted                                        |
+| Terminal separator for several paths (`terminalSeparator`)  | `space`        | `space` or `newline`; with `newline`, each line but the last ends with a backslash     |
+| Quote paths in the terminal (`terminalQuotePaths`)          | `false`        | `true` puts each path in single quotes instead of backslash escapes                    |
+
+A relative terminal path is measured from the working directory of the deepest shell in the terminal, which can be a background job. Saved values of the former Drag and Drop Path settings are not carried over.
+
+Server options go in `jupyter_server_config.py`:
+
+| Option                                       | Default | Effect                                                                                                                                                               |
+| -------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `c.AdvancedFileBrowser.trash_on_all_volumes` | `False` | `True` offers Move to Trash for every item whatever its mount, through the server's contents manager                                                                 |
+| `c.TrashManagement.locations`                | `[]`    | Folders of the trash management extension; an item whose mount point is one of them counts as monitored; `~` is expanded, a relative entry starts at the server root |
+
+## Requirements
+
+- JupyterLab 4, version 4.6 or later
+- Python 3.12 or later
+- Recommended: `jupyterlab_core_patches_extension` with its `jupyterlab_file_delete_trash_fix` switch on, so Move to Trash puts each item in the trash of its own mount. Without it, the stock JupyterLab trash behaviour applies and the server logs one line at start saying so
 
 ## Uninstall
 

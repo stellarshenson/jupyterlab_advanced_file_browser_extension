@@ -464,7 +464,7 @@ test('ACC-COPY-165-PROGRESS-TITLE Copying 3 items and Moving 3 items', async ({
   expect(existsSync(await onDisk(page, `${vol}/b/c.txt`))).toBe(true);
 });
 
-test('ACC-COPY-166-CROSS-VOLUME the warning line across volumes and none on one', async ({
+test('ACC-COPY-192-SLOW-WARNING the warning line across volumes says it may be slower, none on one', async ({
   page,
   tmpPath
 }) => {
@@ -475,8 +475,8 @@ test('ACC-COPY-166-CROSS-VOLUME the warning line across volumes and none on one'
   const warning = page.locator(`${DIALOG} .jp-AdvancedFileBrowser-copyWarning`);
 
   for (const [name, to, cut, expected] of [
-    ['copy.bin', vol, false, 'Cross-volume copy'],
-    ['move.bin', vol, true, 'Cross-volume move'],
+    ['copy.bin', vol, false, 'Cross-volume copy, may be slower'],
+    ['move.bin', vol, true, 'Cross-volume move, may be slower'],
     ['copy.bin', `${tmpPath}/dst`, false, '']
   ] as const) {
     const { done } = await paste(page, tmpPath, [name], to, cut);
@@ -663,6 +663,62 @@ test('ACC-COPY-173-FAIL the error names each path not done and the done files ar
     .poll(async () => (await listed(page)).sort())
     .toEqual([`${tmpPath}/dst/src/big.bin`, `${tmpPath}/dst/src/ok.txt`]);
   expect(await sizeOf(page, `${tmpPath}/dst/src/big.bin`)).toBe(SLOW);
+});
+
+test('ACC-COPY-200-PARTIAL-LEFT a cancelled job names the partial copy it left in the end dialog', async ({
+  page,
+  tmpPath
+}) => {
+  writeFileSync(await onDisk(page, `${tmpPath}/a.txt`), 'a');
+  await folder(page, `${tmpPath}/dst`);
+  // The whole job is routed: its start, its reports and the cancel, after which the share kept
+  // the partial file
+  const id = 'e'.repeat(32);
+  let ended = false;
+  await page.route(
+    /\/jupyterlab-advanced-file-browser-extension\/copy(\/[0-9a-f]{32})?(\?|$)/,
+    async route => {
+      const request = route.request();
+      if (!new URL(request.url()).pathname.endsWith(id)) {
+        return route.fulfill({ status: 202, json: { id, rename: [] } });
+      }
+      if (request.method() === 'DELETE') {
+        ended = true;
+        return route.fulfill({ status: 204 });
+      }
+      return route.fulfill({
+        json: {
+          files_total: 2,
+          bytes_total: 200 * MIB,
+          files: 0,
+          bytes: MIB,
+          file_size: 200 * MIB,
+          file_bytes: MIB,
+          from: `${tmpPath}/a.txt`,
+          to: `${tmpPath}/dst/a.txt`,
+          cross: false,
+          done: ended,
+          elapsed: 1,
+          paused: null,
+          // The failure before the cancel stays unreported, as in any cancelled job
+          errors: [
+            { path: `${tmpPath}/b.txt`, message: 'permission denied' },
+            { path: `${tmpPath}/dst/a.txt`, message: 'partial copy left' }
+          ],
+          not_done: [`${tmpPath}/a.txt`]
+        }
+      });
+    }
+  );
+
+  const { done } = await paste(page, tmpPath, ['a.txt'], `${tmpPath}/dst`);
+  await button(page, 'Cancel').click();
+  await done;
+
+  const error = page.locator('.jp-Dialog', { hasText: 'Paste Error' });
+  await expect(error.locator('.jp-Dialog-body')).toHaveText(
+    `Not copied: ${tmpPath}/dst/a.txt: partial copy left`
+  );
 });
 
 test('ACC-COPY-174-BUTTONS Cancel and Hide only and no close control', async ({
@@ -1041,6 +1097,14 @@ test('ACC-COPY-187-NARROW-STEPS the dialog drops Speed and Elapsed, then File, t
         await expect(locator, `${name} at ${width} px`).toBeVisible();
       }
     }
+    // The warning stays one line at every width (ACC-COPY-192)
+    const lines = await parts.warning.evaluate(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return new Set(Array.from(range.getClientRects(), r => Math.round(r.top)))
+        .size;
+    });
+    expect(lines, `warning lines at ${width} px`).toBe(1);
   }
   await button(page, 'Cancel').click();
   await done;
@@ -1057,6 +1121,29 @@ async function resize(page: IJupyterLabPageFixture, width: number) {
   await expect.poll(() => percent.textContent()).not.toBe(before);
 }
 
+/**
+ * Register a 480 px wide left-hand status item, as the Terminals, Git, Mem and CPU items of a lab
+ * with other extensions make, so the narrow steps are measured beside it. Priority 1 keeps it
+ * shown at 630 px and below.
+ */
+async function wideLeftItem(page: IJupyterLabPageFixture): Promise<void> {
+  await page.evaluate(async () => {
+    const statusBar: any = await window.galata.getPlugin(
+      '@jupyterlab/statusbar-extension:plugin' as any
+    );
+    // The status bar extends Lumino's Widget, the class a status item must have
+    const Widget = Object.getPrototypeOf(statusBar.constructor);
+    const item = new Widget();
+    item.node.textContent = 'Wide left-hand item';
+    item.node.style.minWidth = '480px';
+    statusBar.registerStatusItem('test:wide-left', {
+      item,
+      align: 'left',
+      priority: 1
+    });
+  });
+}
+
 test('ACC-COPY-188-NARROW-STATUS the status item drops its title, then its bar', async ({
   page,
   tmpPath
@@ -1064,6 +1151,7 @@ test('ACC-COPY-188-NARROW-STATUS the status item drops its title, then its bar',
   await bigFile(page, `${tmpPath}/big.bin`, LONG);
   await folder(page, `${tmpPath}/dst`);
   const { done } = await startHidden(page, tmpPath, ['big.bin']);
+  await wideLeftItem(page);
   const part = (css: string) =>
     page.locator(`${STATUS} .jp-AdvancedFileBrowser-${css}`);
   const parts = {
@@ -1101,6 +1189,7 @@ test('ACC-COPY-189-NARROW-MENU the menu fits the window and drops the row bars b
   tmpPath
 }) => {
   const done = await threeHidden(page, tmpPath);
+  await wideLeftItem(page);
   const menu = page.locator(MENU);
 
   for (const width of [1280, 350]) {
@@ -1135,4 +1224,242 @@ test('ACC-COPY-189-NARROW-MENU the menu fits the window and drops the row bars b
     await expect(menu).toHaveCount(0);
   }
   await Promise.all(done);
+});
+
+test('ACC-COPY-190-STATUS-RIGHT the status item is the first of the right-hand group and its menu opens inside the window', async ({
+  page,
+  tmpPath
+}) => {
+  await seedThree(page, tmpPath);
+  const done = [(await startHidden(page, tmpPath, THREE[0])).done];
+
+  const place = await page.evaluate(selector => {
+    const item = document.querySelector(selector)!;
+    const right = document.querySelector(
+      '#jp-main-statusbar .jp-StatusBar-Right'
+    )!;
+    const left = item.getBoundingClientRect().left;
+    return {
+      inRight: right.contains(item),
+      // The left edge of every other shown right-hand item, from the item's left edge
+      others: Array.from(right.children)
+        .filter(node => node !== item && node.getBoundingClientRect().width)
+        .map(node => node.getBoundingClientRect().left - left)
+    };
+  }, STATUS);
+  expect(place.inRight).toBe(true);
+  expect(place.others.length).toBeGreaterThan(0);
+  for (const gap of place.others) {
+    expect(gap).toBeGreaterThan(0);
+  }
+
+  done.push((await startHidden(page, tmpPath, THREE[1])).done);
+  done.push((await startHidden(page, tmpPath, THREE[2])).done);
+  await page.locator(STATUS).click();
+  const menu = page.locator(MENU);
+  await expect(menu).toBeVisible();
+  const box = (await menu.boundingBox())!;
+  const view = page.viewportSize()!;
+  expect(box.x).toBeGreaterThanOrEqual(0);
+  expect(box.y).toBeGreaterThanOrEqual(0);
+  expect(box.x + box.width).toBeLessThanOrEqual(view.width);
+  expect(box.y + box.height).toBeLessThanOrEqual(view.height);
+  await Promise.all(done);
+});
+
+test('ACC-COPY-191-HIDE-FOCUS the dialog opens with no button focused; the first Tab focuses Hide with its ring', async ({
+  page,
+  tmpPath
+}) => {
+  await bigFile(page, `${tmpPath}/big.bin`);
+  await folder(page, `${tmpPath}/dst`);
+  const { done } = await paste(page, tmpPath, ['big.bin'], `${tmpPath}/dst`);
+  await expect(header(page)).toHaveText('Copying 1 item');
+
+  // The focus is inside the dialog, so its keys reach it, but on no button and with no ring
+  expect(
+    await page.evaluate(selector => {
+      const active = document.activeElement!;
+      return {
+        inDialog: !!document.querySelector(selector)?.contains(active),
+        onButton: !!active.closest('.jp-Dialog-button'),
+        outline: getComputedStyle(active).outlineStyle
+      };
+    }, DIALOG)
+  ).toEqual({ inDialog: true, onButton: false, outline: 'none' });
+
+  const hideButton = button(page, 'Hide');
+  await page.keyboard.press('Tab');
+  await expect(hideButton).toBeFocused();
+  expect(
+    await hideButton.evaluate(node => {
+      const style = getComputedStyle(node);
+      return (
+        style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0
+      );
+    })
+  ).toBe(true);
+  await page.keyboard.press('Tab');
+  await expect(button(page, 'Cancel')).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(hideButton).toBeFocused();
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator(DIALOG)).toHaveCount(0);
+  await done;
+});
+
+test('ACC-COPY-194-CHUNK-RETRY a pause opens the hidden dialog once with Retry, Skip file and Cancel; each button sends its action', async ({
+  page,
+  tmpPath
+}) => {
+  writeFileSync(await onDisk(page, `${tmpPath}/a.txt`), 'a');
+  await folder(page, `${tmpPath}/dst`);
+  // The whole job is routed: its start, its reports, the actions and the cancel
+  const id = 'f'.repeat(32);
+  const sent: string[] = [];
+  let paused: { path: string; reason: string } | null = null;
+  let ended = false;
+  let reads = 0;
+  await page.route(
+    /\/jupyterlab-advanced-file-browser-extension\/copy(\/[0-9a-f]{32})?(\?|$)/,
+    async route => {
+      const request = route.request();
+      const method = request.method();
+      if (!new URL(request.url()).pathname.endsWith(id)) {
+        return route.fulfill({ status: 202, json: { id, rename: [] } });
+      }
+      if (method === 'GET') {
+        // The bytes rise at every report, also while paused, so a bar that moves shows
+        reads += 1;
+        const bytes = reads * MIB;
+        return route.fulfill({
+          json: {
+            files_total: 1,
+            bytes_total: 200 * MIB,
+            files: 0,
+            bytes,
+            file_size: 200 * MIB,
+            file_bytes: bytes,
+            from: `${tmpPath}/a.txt`,
+            to: `${tmpPath}/dst/a.txt`,
+            cross: false,
+            done: ended,
+            elapsed: 1,
+            paused,
+            errors: [],
+            not_done: [`${tmpPath}/a.txt`]
+          }
+        });
+      }
+      if (method === 'POST') {
+        sent.push(request.postDataJSON().action);
+        paused = null;
+      } else {
+        sent.push(method);
+        ended = true;
+      }
+      return route.fulfill({ status: 204 });
+    }
+  );
+  const pause = () => {
+    paused = { path: `${tmpPath}/a.txt`, reason: 'read or write error' };
+  };
+  const footer = page.locator(`${DIALOG} .jp-Dialog-button`);
+  const reason = page.locator(`${DIALOG} .jp-AdvancedFileBrowser-copyReason`);
+  const pausedButtons = ['Cancel', 'Skip file', 'Retry'];
+  const morePolls = async (count: number) => {
+    const seen = reads;
+    await expect.poll(() => reads).toBeGreaterThanOrEqual(seen + count);
+  };
+
+  const { done } = await paste(page, tmpPath, ['a.txt'], `${tmpPath}/dst`);
+  await expect(header(page)).toHaveText('Copying 1 item');
+  await hide(page);
+
+  // A pause opens the hidden dialog by itself, with the reason in one line that a screen reader
+  // announces
+  pause();
+  await expect(footer).toHaveText(pausedButtons);
+  await expect(reason).toHaveText('Paused: read or write error');
+  await expect(reason).toHaveAttribute('role', 'alert');
+  // The dialog, which takes the focus, is named by its visible title
+  await expect(page.locator(DIALOG)).toHaveAttribute(
+    'aria-label',
+    (await header(page).textContent())!
+  );
+  expect(
+    await reason.evaluate(el => {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      return new Set(Array.from(range.getClientRects(), r => Math.round(r.top)))
+        .size;
+    })
+  ).toBe(1);
+
+  // The bars stop while the reports go on
+  const total = await page.locator(TOTAL).textContent();
+  await morePolls(3);
+  await expect(page.locator(TOTAL)).toHaveText(total!);
+
+  // The three buttons fit a 320 px window in one row
+  await page.setViewportSize({ width: 320, height: 768 });
+  await expect.poll(() => layoutProblems(page, 320)).toEqual([]);
+  const boxes = await footer.evaluateAll(nodes =>
+    nodes.map(node => node.getBoundingClientRect())
+  );
+  expect(new Set(boxes.map(box => Math.round(box.top))).size).toBe(1);
+  for (const box of boxes) {
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(320);
+  }
+  await page.setViewportSize({ width: 1280, height: 768 });
+
+  // Escape hides it; the status bar item shows the pause, and the dialog opens once per pause
+  await page.keyboard.press('Escape');
+  await expect(page.locator(DIALOG)).toHaveCount(0);
+  await expect(
+    page.locator(`${STATUS} .jp-AdvancedFileBrowser-copyStatusPaused`)
+  ).toHaveText('Paused');
+  await morePolls(3);
+  await expect(page.locator(DIALOG)).toHaveCount(0);
+  await page.locator(STATUS).click();
+  await expect(footer).toHaveText(pausedButtons);
+
+  // Hidden when it paused, the job goes back to the status bar after Retry
+  await button(page, 'Retry').click();
+  await expect.poll(() => sent).toEqual(['retry']);
+  await expect(page.locator(DIALOG)).toHaveCount(0);
+  await expect(
+    page.locator(`${STATUS} .jp-AdvancedFileBrowser-copyStatusTitle`)
+  ).toHaveText('Copying 1 item');
+  await expect(
+    page.locator(`${STATUS} .jp-AdvancedFileBrowser-copyStatusPaused`)
+  ).toBeHidden();
+  await page.locator(STATUS).click();
+  await expect(footer).toHaveText(['Cancel', 'Hide']);
+  await expect(reason).toBeHidden();
+
+  // A second pause while the dialog shows; the dialog stays open after Retry
+  pause();
+  await expect(footer).toHaveText(pausedButtons);
+  await button(page, 'Retry').click();
+  await expect.poll(() => sent).toEqual(['retry', 'retry']);
+  await expect(footer).toHaveText(['Cancel', 'Hide']);
+
+  // A third pause; Skip file
+  pause();
+  await expect(footer).toHaveText(pausedButtons);
+  await button(page, 'Skip file').click();
+  await expect.poll(() => sent).toEqual(['retry', 'retry', 'skip']);
+  await expect(footer).toHaveText(['Cancel', 'Hide']);
+
+  // A fourth pause; Cancel cancels as it does while the job runs
+  pause();
+  await expect(footer).toHaveText(pausedButtons);
+  await button(page, 'Cancel').click();
+  await expect.poll(() => sent).toEqual(['retry', 'retry', 'skip', 'DELETE']);
+  await expect(page.locator(DIALOG)).toHaveCount(0);
+  await done;
+  await expect(page.locator(STATUS)).toBeHidden();
 });

@@ -432,4 +432,58 @@ defects of Delete, Move to Trash, the large-removal warning and the progress dia
   - log: 2026-11-16T12:06:40Z @kj added
   - log: 2026-11-16T12:15:21Z @kj reproduced on the workstation: the spec of 005495c with a 40000-file tree fails with Expected < 100, Received 100; with 60000 and 100000 files it passes (logs/repro-hide-40000.log)
   - log: 2026-11-16T12:15:21Z @kj closed
+- [x] `DEF-DELETE-43-BUTTON-ORDER` **Delete dialog buttons in a weird order** - MEDIUM; with the trash on, the Delete dialog shows Delete Permanently, Cancel, Move to Trash; the owner expects Cancel, Delete Permanently, Move to Trash; cause: on 2026-11-19 a workflow reordered the buttons beyond the owner's order (Move to Trash red) and amended ACC-DELETE-122-THREE-OPTIONS to match; `src/deleteDialog.ts` deleteButtons
+  - evidence: Galata delete.spec.ts 'ACC-DELETE-197-BUTTON-ORDER the Delete dialog shows Cancel, Delete and Move to Trash left to right' passed, 0 failed, in tmp/workflows/copy-chunks/logs/final-galata-def.log and tmp/workflows/copy-chunks/logs/final-galata-venv.log; Jest delete-dialog.spec.ts deleteButtons trash-on order and labels: suite PASS, 153 of 153, tmp/workflows/copy-chunks/logs/final-make-test.log
+  - overrides: ACC-DELETE-122-THREE-OPTIONS
+  - repro: trash on, select Untitled Folder, press Delete
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-22T18:54:44Z @kj added; reason: the body names the shown and the expected order and where the reorder came from
+  - log: 2026-11-22T18:54:44Z @kj reported 2026-11-22 by the owner with a screenshot: should be [Cancel] [Delete] [Move to trash], what I see is super weird; labels kept, order fixed
+  - log: 2026-11-22T18:54:50Z @kj amended text "with the trash on, the Delete dialog shows Delete Permanently, Cancel, Move to Trash; the owner expects Cancel, Delete Permanently, Move to Trash; cause: on 2026-11-19 a workflow reordered the buttons beyond the owner's order (Move to Trash red) and amended ACC-DELETE-122 to match; `src/deleteDialog.ts` deleteButtons" -> "MEDIUM; with the trash on, the Delete dialog shows Delete Permanently, Cancel, Move to Trash; the owner expects Cancel, Delete Permanently, Move to Trash; cause: on 2026-11-19 a workflow reordered the buttons beyond the owner's order (Move to Trash red) and amended ACC-DELETE-122-THREE-OPTIONS to match; `src/deleteDialog.ts` deleteButtons"; reason: full id of the amended criterion
+  - log: 2026-11-22T19:10:41Z @kj owner 2026-11-22: the permanent button is labelled Delete, not Delete Permanently; criteria naming the old label amended
+  - log: 2026-11-22T20:38:47Z @kj closed: fixed: deleteButtons orders Cancel, Delete, Move to Trash with the trash on; Move to Trash stays the default
+
+## Copy and move `COPY`
+
+Copy and move server jobs, the progress dialog and the Paste Error report
+
+- log: 2026-11-22T14:21:23Z @kj category created
+
+- [x] `DEF-COPY-42-MOVE-REASON` **Move fails with reason unknown** - MAJOR; Paste after Cut of `@volumes/shared/hackathon-delaval/archive/LønholmAgro_DailyDelPro10.11_20260629T015034_V_HN_BCS_DR_BA.bak.zip` shows Paste Error "Not moved: <path>: reason unknown"; the dialog names no cause; cause under investigation; `_reason` maps 7 errno values and gives "reason unknown" for every other error; `routes.py`, `src/copyDialog.ts`
+  - evidence: pytest test_def_copy_42_a_failed_move_logs_the_library_message_through_the_root_logger, test_a_failure_reason_is_in_the_extension_s_own_words[error4-read or write error], three test_acc_copy_193 and four test_acc_copy_194 tests PASSED, tmp/workflows/copy-chunks/logs/final-make-test.log; Galata copy.spec.ts passed, 0 failed, in tmp/workflows/copy-chunks/logs/final-galata-def.log and tmp/workflows/copy-chunks/logs/final-galata-venv.log
+  - root-cause: 2026-11-22T16:40:06Z @kj _copy_file writes through the page cache with no fsync, so GBs of WRITEs queue on the soft NFS mount (timeo=50, retrans=2: 15 s limit, kept by the owner); requests at the end of the queue time out with EIO; _REASONS had no EIO entry, so 'reason unknown'
+  - root-cause: 2026-11-22T14:57:00Z @kj likely: NAS NFS mount /mnt/nas-shared (soft, timeo=50, retrans=2) timed out at 14:19:28Z after about 9 of 9.3 GB written; soft timeout returns EIO; _REASONS has no EIO entry, so 'reason unknown'; errno inferred from kernel log and 757 WRITE errors, not read from a log line
+  - repro: Cut that file in @volumes/shared/hackathon-delaval/archive, Paste into another folder; destination folder not recorded
+  - test-tags: UNIT, FUNCTIONAL
+  - log: 2026-11-22T14:21:23Z @kj added; reason: the body quotes the reported path and the error text character for character
+  - log: 2026-11-22T14:21:29Z @kj reported 2026-11-22 by the owner with a screenshot of the Paste Error dialog; a second screenshot shows the status bar item Moving 5 items at 87%
+  - log: 2026-11-22T14:57:00Z @kj root-cause recorded; reason: the record names the mount options, the time and why the errno is inferred
+  - log: 2026-11-22T14:57:01Z @kj investigated: no data lost, source whole 9,322,566,003 bytes, partial target removed by _copy_file; job warning goes to stderr only under GalaxaLab logging_config; tmp/workflows/def42-status/investigate.json
+  - log: 2026-11-22T16:40:06Z @kj root-cause overridden; reason: GalaxaHub measured the 15 s limit and the queueing; this supersedes the stall theory
+  - log: 2026-11-22T20:38:52Z @kj closed: fixed: the copy fsyncs every 256 MiB so WRITEs no longer queue on the soft NFS mount; EIO reads read or write error; a failed chunk pauses for Retry
+- [-] `DEF-COPY-44-NAS-LOST` **Move to the NAS share lost a file** - CRITICAL; move job 48af1b06 at 14:17:34Z put a 379,725,447-byte .mp4 into @volumes/shared/nas-shared/konrad, reported it done and removed the source; at 14:24:56Z konrad on the NAS lost the entry; the file is on neither side, nor in the share sidecar's cache
+  - test-tags: MANUAL
+  - repro: not reproduced; one occurrence 2026-11-22, evidence tmp/workflows/nas-check/check.json and GalaxaHub's read-only sidecar and NAS listing
+  - root-cause: 2026-11-22T22:09:01Z @kj likely: the share's sidecar (rclone serve nfs, --vfs-cache-mode writes, 5 s write-back) answers WRITE and COMMIT from its local cache, so the move's close and fsync do not prove the NAS holds the bytes; why the upload did not stay on the NAS is unknown
+  - log: 2026-11-22T22:09:01Z @kj added
+  - log: 2026-11-22T22:09:07Z @kj edited test-tags added "MANUAL"
+  - log: 2026-11-22T22:11:21Z @kj galaxahub filed DEF-VFS-1152-MOVE-LOST (CRITICAL) for the same loss, cause unknown, sidecar write-cache upload suspected; its NFS trial now counts a pass only when the NAS copy has the full size and the right bytes
+  - log: 2026-11-22T22:53:41Z @kj owner 2026-11-22: this is a defect, to be fixed, not rejected; root: the sidecar answers COMMIT (fsync) before the NAS stores the bytes, so a move's fsync-then-remove-source loses the file; extension already fsyncs before removing the source
+  - log: 2026-11-22T23:40:50Z @kj rejected: rejected: no file lost; owner confirmed 2026-11-23 he moved the video out of konrad himself at 14:24:56Z; GalaxaHub's reconstruction on the live sidecar image kept the moved file on the NAS through the next 15 GB move; galaxahub rejected DEF-VFS-1152 too; extension unchanged
+- [x] `DEF-COPY-45-PAUSE-ELAPSED` **Paused time counts in Elapsed** - MINOR; time a job waits paused counts toward Elapsed, so Speed and Left read wrong for the rest of the job after Retry; routes.py elapsed comes from job['started'] and _pause never adjusts it
+  - evidence: pytest test_def_copy_45_the_time_paused_stays_out_of_elapsed PASSED (make test, 122 passed) in tmp/workflows/afb-final-2/logs/make-test.log; review round 4 SHIP
+  - test-tags: UNIT
+  - repro: pause a copy for 60 s, press Retry, read Speed and Left in the progress dialog
+  - root-cause: 2026-11-23T00:42:09Z @kj elapsed = now - job['started'] includes the pause; _pause does not shift started by the paused time
+  - log: 2026-11-23T00:42:09Z @kj added
+  - log: 2026-11-23T00:42:09Z @kj edited test-tags added "UNIT"
+  - log: 2026-11-23T02:30:42Z @kj closed: fixed: _pause moves job['started'] forward by the paused time, so Elapsed, Speed and Left leave out ended pauses
+- [x] `DEF-COPY-46-PAUSE-ALERT` **Pause reason not announced** - MINOR; a screen reader does not announce the pause reason, and focus lands on an unnamed dialog; the reason line in copyDialog.ts createView has no role, while the Delete dialog warning has role alert
+  - evidence: Galata copy.spec.ts 'ACC-COPY-194-CHUNK-RETRY a pause opens the hidden dialog once with Retry, Skip file and Cancel; each button sends its action' asserts role 'alert' on the reason and aria-label 'Copying 1 item' on the dialog, passed, 0 failed, not flaky, in tmp/workflows/afb-final-2/logs/galata-def.log and tmp/workflows/afb-final-2/logs/galata-venv.log; review round 4 SHIP
+  - test-tags: FUNCTIONAL
+  - repro: pause a copy with a screen reader running; the reason is not read
+  - root-cause: 2026-11-23T00:42:09Z @kj the reason div carries no role=alert
+  - log: 2026-11-23T00:42:09Z @kj added
+  - log: 2026-11-23T00:42:09Z @kj edited test-tags added "FUNCTIONAL"
+  - log: 2026-11-23T02:30:42Z @kj closed: fixed: the pause reason line has role alert and the copy dialog has aria-label equal to its title
 

@@ -918,9 +918,9 @@ test.describe('8 unfolded folders, one read per create', () => {
 
 test.describe('8 unfolded folders, the refresh after a Delete in flight at a create', () => {
   for (const [label, create] of [
-    ['Delete Permanently', true],
+    ['Delete', true],
     ['Move to Trash', true],
-    ['Delete Permanently', false]
+    ['Delete', false]
   ] as const) {
     test(`ACC-FOLDER-158-NEW-INSTANT the rows removed by ${label} leave when its refresh returns, ${create ? 'New Folder during the refresh' : 'no create'}`, async ({
       page,

@@ -2,6 +2,35 @@
 
 <!-- <START NEW CHANGELOG ENTRY> -->
 
+## [1.0.11] - 2026-11-23
+
+### Added
+
+- A copy or move to another volume writes in 256 MiB chunks and syncs each chunk to disk, so a large file sent to a soft NFS share no longer fails with a read or write error
+- A read or write error pauses the copy or move and offers Cancel, Skip file and Retry; Retry goes on from the last synced chunk, and a pause nobody answers for 180 s skips the file
+- A partial copy the share does not let the job remove is reported as "partial copy left", with its destination path
+- The Move to Trash button of the Delete dialog shows a trash can icon
+- The README shows six screenshots of the main features
+
+### Changed
+
+- The Delete dialog offers Cancel, Delete and Move to Trash, left to right; the permanent button is labelled Delete, and with the trash on the question names both outcomes
+- The copy and move status item sits in the right-hand group of the status bar
+- The progress dialog focuses Hide only after the Tab key is pressed
+- The cross-volume note reads "Cross-volume copy, may be slower" or "Cross-volume move, may be slower"
+- A failure without a reason of the extension's own shows the operating system's text instead of "reason unknown"
+- The copy route makes its file system checks on a worker thread, so a stalled network mount does not hold the server
+- A copy or move hidden in the status bar when it pauses goes back to the status bar after Retry or Skip file
+- The README is shorter and lists every setting in one table
+
+### Fixed
+
+- A move that failed with a read or write error showed "reason unknown"; it now shows "read or write error" (DEF-COPY-42-MOVE-REASON)
+- The Delete dialog showed Delete Permanently, Cancel and Move to Trash in that order (DEF-DELETE-43-BUTTON-ORDER)
+- A Retry pressed while the share still failed ended the file instead of pausing again
+- Time spent paused counted toward Elapsed, so Speed and Left read wrong after Retry (DEF-COPY-45-PAUSE-ELAPSED)
+- A screen reader did not announce the pause reason, and the focused progress dialog had no name (DEF-COPY-46-PAUSE-ALERT)
+
 ## [1.0.10] - 2026-11-22
 
 ### Added

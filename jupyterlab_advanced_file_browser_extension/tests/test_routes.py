@@ -835,7 +835,9 @@ def _caused(error: Exception, cause: Exception) -> Exception:
         (OSError(errno.EPERM, "Operation not permitted"), "permission denied"),
         (FileNotFoundError(errno.ENOENT, "No such file or directory"), "not found"),
         (OSError(errno.EBUSY, "Device or resource busy"), "in use"),
-        (OSError(errno.EIO, "Input/output error"), "reason unknown"),
+        (OSError(errno.EIO, "Input/output error"), "read or write error"),
+        # An errno without wording of the extension's own: the OS text, never the path it carries.
+        (OSError(errno.ENAMETOOLONG, "File name too long", "/srv/x/long"), "file name too long"),
         (OSError("Couldn't find mount point for /srv/x"), "reason unknown"),
         (RuntimeError("unexpected"), "reason unknown"),
         (tornado.web.HTTPError(403, "Permission denied: x"), "permission denied"),
@@ -848,7 +850,7 @@ def _caused(error: Exception, cause: Exception) -> Exception:
     ],
 )
 def test_a_failure_reason_is_in_the_extension_s_own_words(error, reason):
-    # ACC-DELETE-140: one short reason per Delete Failed line, never the library's message.
+    # ACC-DELETE-195: one short reason per failure line, never the library's message or a path.
     assert routes._reason(error) == reason
 
 

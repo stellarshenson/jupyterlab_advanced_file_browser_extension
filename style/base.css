@@ -81,9 +81,11 @@
   text-overflow: ellipsis;
 }
 
-/* Delete dialog: the large-removal warning, an inline warning message; the copy dialog's cross-volume line */
+/* Delete dialog: the large-removal warning, an inline warning message; the copy dialog's cross-volume line
+   and the reason of a pause */
 .jp-AdvancedFileBrowser-deleteWarning,
-.jp-AdvancedFileBrowser-copyWarning {
+.jp-AdvancedFileBrowser-copyWarning,
+.jp-AdvancedFileBrowser-copyReason {
   margin-top: 12px;
   padding: 8px 12px;
   border: 1px solid color-mix(in srgb, var(--jp-warn-color1) 35%, transparent);
@@ -91,6 +93,26 @@
   background: color-mix(in srgb, var(--jp-warn-color1) 15%, transparent);
   color: var(--jp-ui-font-color1);
   font-size: var(--jp-ui-font-size1);
+}
+
+/* Delete dialog: the trash can icon left of the Move to Trash label, in the label's colour */
+.jp-AdvancedFileBrowser-trashButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  /* The icon item has no text, so the baseline would come from its bottom edge */
+  vertical-align: top;
+}
+
+.jp-AdvancedFileBrowser-trashButton svg {
+  display: block;
+  width: 14px;
+  height: 14px;
+}
+
+.jp-AdvancedFileBrowser-trashButton .jp-icon3[fill] {
+  fill: currentcolor;
 }
 
 /* Delete and copy progress: the compact spinner dialog of the design system */
@@ -184,6 +206,11 @@
   max-width: calc(100vw - 32px);
 }
 
+/* The focus rests on the dialog itself until the first Tab (ACC-COPY-191), with no ring */
+.jp-AdvancedFileBrowser-copyDialog:focus {
+  outline: none;
+}
+
 .jp-AdvancedFileBrowser-copyBody {
   display: flex;
   flex-direction: column;
@@ -191,10 +218,28 @@
   padding: 8px 0;
 }
 
-.jp-AdvancedFileBrowser-copyWarning {
+.jp-AdvancedFileBrowser-copyWarning,
+.jp-AdvancedFileBrowser-copyReason {
   margin-top: 0;
   padding: 3px 8px;
   font-size: var(--jp-ui-font-size0);
+}
+
+/* The reason of a pause, in one line */
+.jp-AdvancedFileBrowser-copyReason {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Retry, Skip file and Cancel fit one row of a 320px window (ACC-COPY-187) */
+.jp-AdvancedFileBrowser-copyDialog.jp-mod-paused .jp-Dialog-button {
+  padding: 0 8px;
+}
+
+.jp-AdvancedFileBrowser-copyDialog.jp-mod-paused
+  .jp-Dialog-button:not(:last-child) {
+  margin-right: 6px;
 }
 
 .jp-AdvancedFileBrowser-copyGrid {
@@ -249,6 +294,13 @@
 
 .jp-AdvancedFileBrowser-copyStatus .jp-AdvancedFileBrowser-copyTrack {
   width: 60px;
+}
+
+/* While the item shows, the left-hand group shrinks and clips, so other extensions' items cannot push it out of a narrow window */
+.jp-StatusBar-Widget:has(.jp-AdvancedFileBrowser-copyStatus:not(.lm-mod-hidden))
+  .jp-StatusBar-Left {
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* The operations menu: two lines a row, title, 70px bar and percentage, then the file count and time ago */

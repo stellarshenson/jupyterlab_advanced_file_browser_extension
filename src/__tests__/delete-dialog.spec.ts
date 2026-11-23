@@ -71,7 +71,7 @@ async function deleteDialog(
 }
 
 describe('deleteButtons', () => {
-  it('offers Cancel, Delete Permanently and Move to Trash with the trash on, Move to Trash the default', () => {
+  it('offers Cancel, Delete and Move to Trash, in this order, with the trash on, Move to Trash the default', () => {
     const { buttons, defaultButton } = deleteButtons(true, trans);
 
     expect(
@@ -81,14 +81,14 @@ describe('deleteButtons', () => {
         displayType
       }))
     ).toEqual([
-      { label: 'Delete Permanently', accept: true, displayType: 'warn' },
       { label: 'Cancel', accept: false, displayType: 'default' },
+      { label: 'Delete', accept: true, displayType: 'warn' },
       { label: 'Move to Trash', accept: true, displayType: 'warn' }
     ]);
     expect(buttons[defaultButton].label).toBe('Move to Trash');
   });
 
-  it('offers Cancel and Delete Permanently with the trash on but not monitored, Cancel the default', () => {
+  it('offers Cancel and Delete with the trash on but not monitored, Cancel the default', () => {
     const { buttons, defaultButton } = deleteButtons(true, trans, false);
 
     expect(
@@ -99,7 +99,7 @@ describe('deleteButtons', () => {
       }))
     ).toEqual([
       { label: 'Cancel', accept: false, displayType: 'default' },
-      { label: 'Delete Permanently', accept: true, displayType: 'warn' }
+      { label: 'Delete', accept: true, displayType: 'warn' }
     ]);
     expect(buttons[defaultButton].label).toBe('Cancel');
   });
@@ -186,17 +186,13 @@ describe('a selection with monitored and unmonitored items', () => {
 
   beforeEach(() => jest.clearAllMocks());
 
-  it('offers Cancel, Delete Permanently and Move to Trash, and one line with the count of the unmonitored items', async () => {
+  it('offers Cancel, Delete and Move to Trash, and one line with the count of the unmonitored items', async () => {
     expect(await deleteMixed(mixed, [true, false], 'Cancel', 'Cancel')).toEqual(
       []
     );
 
     const options = (showDialog as jest.Mock).mock.calls[0][0];
-    expect(labels(options)).toEqual([
-      'Delete Permanently',
-      'Cancel',
-      'Move to Trash'
-    ]);
+    expect(labels(options)).toEqual(['Cancel', 'Delete', 'Move to Trash']);
     expect(warnings(options)).toEqual([
       '1 selected item is on a location whose trash is not monitored; after Move to Trash you are asked to delete it permanently'
     ]);
@@ -212,28 +208,23 @@ describe('a selection with monitored and unmonitored items', () => {
     expect(options.body).toBe(
       'This item was not moved to the trash, because the trash of its location is not monitored: nfs/b.txt. Delete it permanently?'
     );
-    expect(labels(options)).toEqual(['Cancel', 'Delete Permanently']);
+    expect(labels(options)).toEqual(['Cancel', 'Delete']);
     expect(labels(options)[options.defaultButton]).toBe('Cancel');
   });
 
-  it('Delete Permanently in the second dialog removes the other item permanently', async () => {
+  it('Delete in the second dialog removes the other item permanently', async () => {
     expect(
-      await deleteMixed(
-        mixed,
-        [true, false],
-        'Move to Trash',
-        'Delete Permanently'
-      )
+      await deleteMixed(mixed, [true, false], 'Move to Trash', 'Delete')
     ).toEqual([
       { paths: ['a.txt'], trash: true },
       { paths: ['nfs/b.txt'], trash: false }
     ]);
   });
 
-  it('Delete Permanently in the Delete dialog removes every item in one job, with no second dialog', async () => {
-    expect(
-      await deleteMixed(mixed, [true, false], 'Delete Permanently', 'Cancel')
-    ).toEqual([{ paths: ['a.txt', 'nfs/b.txt'], trash: false }]);
+  it('Delete in the Delete dialog removes every item in one job, with no second dialog', async () => {
+    expect(await deleteMixed(mixed, [true, false], 'Delete', 'Cancel')).toEqual(
+      [{ paths: ['a.txt', 'nfs/b.txt'], trash: false }]
+    );
     expect(showDialog).toHaveBeenCalledTimes(1);
   });
 
@@ -268,7 +259,7 @@ describe('a selection with monitored and unmonitored items', () => {
  * Returns the times of the job polls, counted from the start.
  */
 function serveRemoval(
-  label: 'Move to Trash' | 'Delete Permanently',
+  label: 'Move to Trash' | 'Delete',
   startMs: number,
   endMs: number,
   errors: { path: string; message: string }[] = []
@@ -312,7 +303,7 @@ describe('the removal', () => {
   afterEach(() => jest.useRealTimers());
 
   it('keeps the progress dialog 500 ms once shown: a removal ending 1.1 s after the confirm keeps it until 1.5 s', async () => {
-    serveRemoval('Delete Permanently', 850, 1100);
+    serveRemoval('Delete', 850, 1100);
     const run = deleteItems(model, items, trans);
 
     await jest.advanceTimersByTimeAsync(999);
@@ -326,7 +317,7 @@ describe('the removal', () => {
     await run;
   });
 
-  it.each(['Move to Trash', 'Delete Permanently'] as const)(
+  it.each(['Move to Trash', 'Delete'] as const)(
     '%s asks for the job state at once, then every 250 ms',
     async label => {
       const polls = serveRemoval(label, 0, 500);
@@ -344,7 +335,7 @@ describe('the removal', () => {
   );
 
   it('closes the progress dialog on Hide, also on the second press of a double-click at its raise, and the removal goes on', async () => {
-    const polls = serveRemoval('Delete Permanently', 0, 2000);
+    const polls = serveRemoval('Delete', 0, 2000);
     const run = deleteItems(model, items, trans);
     await jest.advanceTimersByTimeAsync(1000);
     const press = new MouseEvent('mousedown', {
@@ -370,7 +361,7 @@ describe('the Delete Failed message', () => {
   beforeEach(() => jest.clearAllMocks());
 
   it('names each path the server reports with its reason, the path once', async () => {
-    serveRemoval('Delete Permanently', 0, 0, [
+    serveRemoval('Delete', 0, 0, [
       { path: 'a/ro/f', message: 'permission denied' }
     ]);
 
@@ -405,7 +396,7 @@ describe('the Delete Failed message', () => {
   });
 
   it('names no path when a progress request fails after the start, and the polling stops', async () => {
-    serveRemoval('Delete Permanently', 0, 0);
+    serveRemoval('Delete', 0, 0);
     const answer = (requestAPI as jest.Mock).getMockImplementation()!;
     const error = new Error('502 Bad Gateway');
     (requestAPI as jest.Mock).mockImplementation(

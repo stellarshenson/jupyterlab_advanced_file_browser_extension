@@ -10,7 +10,7 @@ report its progress. ``delete/trash-check`` says for each item of a selection wh
 the trash management extension monitors its trash, so Move to Trash may be offered.
 
 ``copy`` and ``copy/<id>`` start a copy or a move of a selection into a folder as a job on a
-thread of its own, report its progress and cancel it.
+thread of its own, report its progress, retry or skip the file of a pause, and cancel it.
 
 ``AdvancedFileBrowser`` holds the server options of this extension.
 """
@@ -20,6 +20,7 @@ import contextlib
 import errno
 import inspect
 import json
+import logging
 import os
 import re
 import shutil
@@ -51,14 +52,25 @@ LARGE_REMOVAL_BYTES = 10 * 1024 ** 3
 # settings; the Galata server config and pytest slow a copy down by assigning these module names.
 COPY_CHUNK_BYTES = 1024 ** 2
 COPY_PAUSE_SECONDS = 0
+# A copy job fsyncs the file it writes after this many bytes, so no more than this waits in the page
+# cache: a soft NFS mount fails a WRITE request still queued when its timeout passes (EIO).
+COPY_FSYNC_BYTES = 256 * 1024 ** 2
 
 # A copy job that ended this long ago leaves the table at the next start, read or not: a reloaded
 # page never reads its job. The margin covers a background tab, whose timers Chrome throttles to
 # one per minute.
 _ENDED_JOB_SECONDS = 600
+# A paused copy job that no GET has read for this long takes Skip file: its page closed, reloaded
+# or stopped polling after a failed progress request, so no answer comes. The margin covers a
+# background tab's one poll per minute.
+_UNREAD_PAUSE_SECONDS = 180
 
 # The mount table of this process, read as core patches reads it.
 _MOUNTINFO = "/proc/self/mountinfo"
+
+# The copy job's log: it propagates to the root logger, where a deployment's logging_config puts
+# its file handler; the ServerApp logger of self.log never propagates (ServerApp.init_logging).
+_log = logging.getLogger(__name__)
 
 # The Delete Failed and copy failure reasons in this extension's words, by the errno of the failure.
 _REASONS = {
@@ -69,6 +81,8 @@ _REASONS = {
     errno.EEXIST: "already exists",
     errno.ENOSPC: "no space left",
     errno.EROFS: "read-only volume",
+    # A volume that failed the read or write, as a soft NFS mount does when its server times out.
+    errno.EIO: "read or write error",
 }
 
 # shortcut: a job leaves memory only through the GET that reports it done, so a job whose
@@ -485,11 +499,16 @@ def _bottom_up(top: str, onerror=None):
 def _reason(error: BaseException | None) -> str:
     """The Delete Failed or copy failure reason for `error`, never the library's message, which
     can hold an absolute server path: an HTTPError of the contents manager's delete by its
-    status, or by the OSError behind it (send2trash failed); an OSError by its errno."""
+    status, or by the OSError behind it (send2trash failed); an OSError by its errno, in this
+    extension's words or else the OS text of the errno, which holds no path."""
     if isinstance(error, tornado.web.HTTPError):
         reason = {403: "permission denied", 404: "not found"}.get(error.status_code)
         return reason or _reason(error.__cause__)
-    return _REASONS.get(getattr(error, "errno", None), "reason unknown")
+    code = getattr(error, "errno", None)
+    if not code:
+        return "reason unknown"
+    text = _REASONS.get(code) or os.strerror(code)
+    return text[:1].lower() + text[1:]
 
 
 def _remove(job: dict, root: str, os_paths: list[str], log) -> None:
@@ -784,24 +803,72 @@ def _reserve(src: str, info: os.stat_result, target: str) -> None:
         os.close(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL))
 
 
+def _pause(job: dict, src: str, error: OSError) -> None:
+    """Report `error` of the file `src` as the pause of `job` and wait on the job's thread for an
+    action (CopyJobHandler): return on retry, raise `error` on skip and _Cancelled on cancel. A
+    pause that no GET reads for _UNREAD_PAUSE_SECONDS takes skip."""
+    _log.warning("Copy of %s paused: %s", src, error)
+    job["wake"].clear()
+    job["paused"] = {"path": job["from"], "reason": _reason(error)}
+    since = time.monotonic()
+    while not job["cancelled"] and not job["wake"].wait(1):
+        if time.monotonic() - job["read"] > _UNREAD_PAUSE_SECONDS:
+            job["action"] = "skip"
+            break
+    # The time paused stays out of the elapsed time, so Speed and Left hold after the pause.
+    job["started"] += time.monotonic() - since
+    action, job["action"], job["paused"] = job["action"], None, None
+    if job["cancelled"]:
+        raise _Cancelled
+    if action == "skip":
+        raise error
+
+
 def _copy_file(job: dict, src: str, target: str, size: int, root: str) -> None:
-    """Copy the bytes of `src` into `target`, COPY_CHUNK_BYTES per step, counting into `job`. A
-    failed or cancelled copy removes `target`, so no partial file stays."""
+    """Copy the bytes of `src` into `target`, COPY_CHUNK_BYTES per step, counting into `job`, and
+    fsync `target` after each COPY_FSYNC_BYTES and at the end. An open, read, write, fsync or close of
+    the data that fails pauses the job (_pause); a retry goes on from the last fsynced offset. A
+    failed, skipped or cancelled copy removes `target`, so no partial file stays; a `target` that
+    cannot be removed is listed in the job's errors as 'partial copy left'."""
     job["from"], job["to"] = to_api_path(src, root), to_api_path(target, root)
     job["file_size"], job["file_bytes"] = size, 0
     try:
-        with open(src, "rb") as reader, open(target, "wb") as writer:
-            while chunk := reader.read(COPY_CHUNK_BYTES):
-                writer.write(chunk)
-                job["bytes"] += len(chunk)
-                job["file_bytes"] += len(chunk)
-                if job["cancelled"]:
-                    raise _Cancelled
-                if COPY_PAUSE_SECONDS:
-                    time.sleep(COPY_PAUSE_SECONDS)
+        with open(src, "rb") as reader:
+            synced = 0
+            while True:
+                try:
+                    with open(target, "r+b") as writer:
+                        writer.truncate(synced)
+                        writer.seek(synced)
+                        reader.seek(synced)
+                        while chunk := reader.read(COPY_CHUNK_BYTES):
+                            writer.write(chunk)
+                            job["bytes"] += len(chunk)
+                            job["file_bytes"] += len(chunk)
+                            if job["file_bytes"] - synced >= COPY_FSYNC_BYTES:
+                                writer.flush()
+                                os.fsync(writer.fileno())
+                                synced = job["file_bytes"]
+                            if job["cancelled"]:
+                                raise _Cancelled
+                            if COPY_PAUSE_SECONDS:
+                                time.sleep(COPY_PAUSE_SECONDS)
+                        writer.flush()
+                        os.fsync(writer.fileno())
+                        synced = job["file_bytes"]
+                    return
+                except OSError as error:
+                    _pause(job, src, error)
+                    job["bytes"] -= job["file_bytes"] - synced
+                    job["file_bytes"] = synced
     except BaseException:
-        with contextlib.suppress(OSError):
+        try:
             os.unlink(target)
+        except FileNotFoundError:
+            pass
+        except OSError:
+            # Left on disk, as when the share does not answer, so the user is told to delete it.
+            job["errors"].append({"path": job["to"], "message": "partial copy left"})
         raise
 
 
@@ -967,6 +1034,46 @@ async def _transfer(
         job["done"] = True
 
 
+def _plan_copy(contents_manager, paths: list[str], to: str, move: bool):
+    """Check a copy or move of `paths` into the folder `to`, and split it: the destination folder,
+    the paths left to the stock rename, the paths and sources of the job, and whether the job
+    crosses a volume. It makes every file system call of the copy route, on a worker thread
+    (CopyHandler), so a stalled network mount never holds the server loop."""
+    dest = contents_manager._get_os_path(to)
+    if not os.path.isdir(dest):
+        raise tornado.web.HTTPError(404, "No such directory: %s" % to)
+    sources = [contents_manager._get_os_path(path) for path in paths]
+    if not contents_manager.allow_hidden and any(
+        is_hidden(os_path, contents_manager.root_dir) for os_path in [dest, *sources]
+    ):
+        raise tornado.web.HTTPError(400, "Cannot copy or move a hidden file or directory")
+    # The real destination: a folder copied below itself, even through a link, would recurse.
+    real = os.path.realpath(dest)
+    device = os.stat(dest).st_dev
+    try:
+        mounts = _mounts()
+    except OSError:
+        mounts = []
+    mount = _mount_point(real, mounts)
+    rename, job_paths, job_sources, cross = [], [], [], move
+    for path, src in zip(paths, sources):
+        # A link is judged where it lies, by device and mount as well.
+        located = os.path.join(os.path.realpath(os.path.dirname(src)), os.path.basename(src))
+        if real == located or real.startswith(located + os.sep):
+            raise tornado.web.HTTPError(400, "Cannot copy %r into itself" % path)
+        try:
+            other = os.lstat(src).st_dev != device or _mount_point(located, mounts) != mount
+        except OSError:
+            other = None  # the job reports it
+        if move and other is False:
+            rename.append(path)
+        else:
+            job_paths.append(path)
+            job_sources.append(src)
+            cross = cross or bool(other)
+    return dest, rename, job_paths, job_sources, cross
+
+
 class CopyHandler(APIHandler):
     """Start a copy of ``paths`` into the folder ``to``, or a move when the body says
     ``"move": true``. A move of an item on the destination's volume is left to the stock rename,
@@ -982,38 +1089,9 @@ class CopyHandler(APIHandler):
         if not isinstance(to, str):
             raise tornado.web.HTTPError(400, "Expected the destination folder in to")
         to = to.strip("/")
-        dest = contents_manager._get_os_path(to)
-        if not os.path.isdir(dest):
-            raise tornado.web.HTTPError(404, "No such directory: %s" % to)
-        sources = [contents_manager._get_os_path(path) for path in paths]
-        if not contents_manager.allow_hidden and any(
-            is_hidden(os_path, contents_manager.root_dir) for os_path in [dest, *sources]
-        ):
-            raise tornado.web.HTTPError(400, "Cannot copy or move a hidden file or directory")
-        # The real destination: a folder copied below itself, even through a link, would recurse.
-        real = os.path.realpath(dest)
-        device = os.stat(dest).st_dev
-        try:
-            mounts = _mounts()
-        except OSError:
-            mounts = []
-        mount = _mount_point(real, mounts)
-        rename, job_paths, job_sources, cross = [], [], [], move
-        for path, src in zip(paths, sources):
-            # A link is judged where it lies, by device and mount as well.
-            located = os.path.join(os.path.realpath(os.path.dirname(src)), os.path.basename(src))
-            if real == located or real.startswith(located + os.sep):
-                raise tornado.web.HTTPError(400, "Cannot copy %r into itself" % path)
-            try:
-                other = os.lstat(src).st_dev != device or _mount_point(located, mounts) != mount
-            except OSError:
-                other = None  # the job reports it
-            if move and other is False:
-                rename.append(path)
-            else:
-                job_paths.append(path)
-                job_sources.append(src)
-                cross = cross or bool(other)
+        dest, rename, job_paths, job_sources, cross = await asyncio.to_thread(
+            _plan_copy, contents_manager, paths, to, move
+        )
         if not job_paths:
             self.finish(json.dumps({"id": None, "rename": rename}))
             return
@@ -1039,6 +1117,12 @@ class CopyHandler(APIHandler):
             "started": now,
             "ended": None,
             "cancelled": False,
+            # The file whose read or write failed and the reason, while the job waits (_pause).
+            "paused": None,
+            "action": None,
+            "wake": threading.Event(),
+            # When a GET last read the job; a pause nobody reads ends as Skip file (_pause).
+            "read": now,
         }
         # A thread of its own with its own event loop, as _transfer awaits the contents manager's
         # naming and checkpoint calls. Not the default executor, whose bounded workers the delete
@@ -1049,9 +1133,7 @@ class CopyHandler(APIHandler):
         threading.Thread(
             target=asyncio.run,
             args=(
-                _transfer(
-                    job, contents_manager, job_paths, job_sources, dest, to, move, self.log
-                ),
+                _transfer(job, contents_manager, job_paths, job_sources, dest, to, move, _log),
             ),
             daemon=True,
         ).start()
@@ -1060,19 +1142,22 @@ class CopyHandler(APIHandler):
 
 
 class CopyJobHandler(APIHandler):
-    """Progress of a copy job, its errors and the paths not done once done; DELETE cancels it."""
+    """Progress of a copy job, its errors and the paths not done once done; POST with ``action``
+    ``retry`` or ``skip`` goes on from a pause; DELETE cancels it."""
 
     @tornado.web.authenticated
     def get(self, job_id: str):
         job = _copy_jobs.get(job_id)
         if job is None:
             raise tornado.web.HTTPError(404, "Unknown copy job")
+        job["read"] = time.monotonic()
         # Read first: done is set last, so a job read as done holds its final counts.
         done = job["done"]
         report = {
             key: value
             for key, value in job.items()
-            if key not in ("errors", "not_done", "started", "ended", "cancelled")
+            if key
+            not in ("errors", "not_done", "started", "ended", "cancelled", "action", "wake", "read")
         }
         report["done"] = done
         report["elapsed"] = (job["ended"] or time.monotonic()) - job["started"]
@@ -1082,12 +1167,29 @@ class CopyJobHandler(APIHandler):
         self.finish(json.dumps(report))
 
     @tornado.web.authenticated
+    def post(self, job_id: str):
+        job = _copy_jobs.get(job_id)
+        if job is None:
+            raise tornado.web.HTTPError(404, "Unknown copy job")
+        action = (self.get_json_body() or {}).get("action")
+        if action not in ("retry", "skip"):
+            raise tornado.web.HTTPError(400, "Expected retry or skip in action")
+        if not job["paused"]:
+            raise tornado.web.HTTPError(409, "The copy job is not paused")
+        # Cleared here, so a report read after this answer shows the job going on.
+        job["action"], job["paused"] = action, None
+        job["wake"].set()
+        self.set_status(204)
+        self.finish()
+
+    @tornado.web.authenticated
     def delete(self, job_id: str):
         job = _copy_jobs.get(job_id)
         if job is None:
             raise tornado.web.HTTPError(404, "Unknown copy job")
-        # The job stops at its next step or file.
+        # The job stops at its next step or file; a paused job wakes to stop.
         job["cancelled"] = True
+        job["wake"].set()
         self.set_status(204)
         self.finish()
 

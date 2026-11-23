@@ -1,5 +1,6 @@
 """Route tests for the copy and move jobs, copy and copy/<id>."""
 import asyncio
+import errno
 import json
 import os
 import shutil
@@ -74,10 +75,12 @@ async def test_acc_copy_164_background_copy_and_cross_volume_move_leave_the_serv
     jp_fetch, jp_root_dir, other_volume, slow
 ):
     data = os.urandom(4 * MiB)
-    _tree(jp_root_dir, {"big.bin": data, "dst/keep.txt": b"x"})
+    _tree(jp_root_dir, {"big.bin": data, "a/big.bin": data, "dst/keep.txt": b"x"})
     # How late a 10 ms sleep on the server loop wakes, and how long a contents GET takes, while a
     # job is part way.
     lags, answers = [], []
+    # A file copy, a cross-volume move and a folder copy.
+    steps = [("big.bin", "dst", False), ("big.bin", "vol", True), ("a", "dst", False)]
 
     async def probe():
         while True:
@@ -87,8 +90,8 @@ async def test_acc_copy_164_background_copy_and_cross_volume_move_leave_the_serv
 
     probing = asyncio.ensure_future(probe())
     try:
-        for to, move in (("dst", False), ("vol", True)):
-            _, started = await _start(jp_fetch, ["big.bin"], to, move)
+        for step, (path, to, move) in enumerate(steps):
+            _, started = await _start(jp_fetch, [path], to, move)
             for _ in range(3000):
                 report = await _report(jp_fetch, started["id"])
                 if report["done"]:
@@ -96,17 +99,65 @@ async def test_acc_copy_164_background_copy_and_cross_volume_move_leave_the_serv
                 if 0 < report["bytes"] < report["bytes_total"]:
                     start = time.monotonic()
                     await jp_fetch("api", "contents", "dst")
-                    answers.append((move, time.monotonic() - start))
+                    answers.append((step, time.monotonic() - start))
                 await asyncio.sleep(0.01)
     finally:
         probing.cancel()
 
-    assert {move for move, _ in answers} == {False, True}
+    assert {step for step, _ in answers} == {0, 1, 2}
     assert max(seconds for _, seconds in answers) < 0.5
     assert max(lags) < 0.1
     assert (jp_root_dir / "dst" / "big.bin").read_bytes() == data
     assert (other_volume / "big.bin").read_bytes() == data
     assert not (jp_root_dir / "big.bin").exists()
+    assert (jp_root_dir / "dst" / "a" / "big.bin").read_bytes() == data
+
+
+@pytest.mark.usefixtures("frozen_gc")
+async def test_acc_copy_196_the_copy_route_checks_its_paths_off_the_server_loop(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    _tree(jp_root_dir, {"f.txt": b"f", "dst/keep": b""})
+    src = str(jp_root_dir / "f.txt")
+    real_stat = os.stat
+    stalled = threading.Event()
+
+    def stalled_stat(path, *args, **kwargs):
+        # The source on a network mount that stops answering, at its first stat: the route's check.
+        if str(path) == src and not stalled.is_set():
+            stalled.set()
+            time.sleep(2)
+        return real_stat(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "stat", stalled_stat)
+    # How late a 10 ms sleep on the server loop wakes while the POST runs.
+    lags = []
+
+    async def probe():
+        while True:
+            start = time.monotonic()
+            await asyncio.sleep(0.01)
+            lags.append(time.monotonic() - start - 0.01)
+
+    probing = asyncio.ensure_future(probe())
+    try:
+        posting = asyncio.ensure_future(_start(jp_fetch, ["f.txt"], "dst"))
+        while not stalled.is_set():
+            await asyncio.sleep(0.01)
+        start = time.monotonic()
+        await jp_fetch("api", "contents", "dst")
+        answered = time.monotonic() - start
+        pending = not posting.done()
+        code, started = await posting
+    finally:
+        probing.cancel()
+    reports = await _reports(jp_fetch, started["id"])
+
+    # A probe request answers while the stat of the source still stalls the POST.
+    assert pending and answered < 0.5
+    assert max(lags) < 0.5
+    assert (code, reports[-1]["errors"]) == (202, [])
+    assert (jp_root_dir / "dst" / "f.txt").read_bytes() == b"f"
 
 
 async def test_acc_copy_166_cross_is_set_by_device_or_mount(
@@ -427,6 +478,386 @@ async def test_cross_volume_move_onto_an_existing_name_reports_already_exists_an
     assert (other_volume / "f.txt").read_bytes() == b"old"
 
 
+async def test_def_copy_42_a_failed_move_logs_the_library_message_through_the_root_logger(
+    jp_fetch, jp_root_dir, jp_serverapp, monkeypatch, caplog
+):
+    name = "LønholmAgro_DailyDelPro10.11_20260629T015034_V_HN_BCS_DR_BA.bak.zip"
+    _tree(jp_root_dir, {f"archive/{name}": b"zip", "delpro_data/keep": b""})
+    # Two mounts, so the move runs as a job; the destination file fails as a soft NFS mount does.
+    monkeypatch.setattr(
+        routes,
+        "_mounts",
+        lambda: [os.path.realpath(jp_root_dir / folder) for folder in ("archive", "delpro_data")],
+    )
+    real_reserve = routes._reserve
+
+    def eio_reserve(src, info, target):
+        if os.path.basename(target) == name:
+            raise OSError(errno.EIO, "Input/output error")
+        real_reserve(src, info, target)
+
+    monkeypatch.setattr(routes, "_reserve", eio_reserve)
+    # As ServerApp.init_logging leaves it in a server; pytest-jupyter turns it on for caplog.
+    monkeypatch.setattr(jp_serverapp.log, "propagate", False)
+
+    reports = await _run(jp_fetch, [f"archive/{name}"], "delpro_data", move=True)
+
+    assert reports[-1]["errors"] == [{"path": f"archive/{name}", "message": "read or write error"}]
+    assert (jp_root_dir / "archive" / name).read_bytes() == b"zip"
+    # caplog sits on the root logger, where a deployment's logging_config puts its file handler.
+    assert [r.getMessage() for r in caplog.records if r.levelname == "WARNING"] == [
+        f"Move of {jp_root_dir / 'archive' / name} failed: [Errno 5] Input/output error"
+    ]
+
+
+def _fd_path(fd: int) -> str:
+    return os.readlink(f"/proc/self/fd/{fd}")
+
+
+async def test_acc_copy_193_a_copy_fsyncs_after_each_chunk_and_once_at_the_end(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", MiB)
+    data = os.urandom(3 * MiB + 1000)
+    _tree(jp_root_dir, {"f.bin": data, "dst/keep": b""})
+    real_fsync = os.fsync
+    synced = []
+
+    def fsync(fd):
+        synced.append(_fd_path(fd))
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+
+    reports = await _run(jp_fetch, ["f.bin"], "dst")
+
+    assert reports[-1]["errors"] == []
+    # After each of the three full chunks, then once for the last part.
+    assert synced == [os.path.realpath(jp_root_dir / "dst" / "f.bin")] * 4
+    assert (jp_root_dir / "dst" / "f.bin").read_bytes() == data
+
+
+async def test_acc_copy_193_a_cross_volume_move_removes_its_source_after_the_final_fsync(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", MiB)
+    data = os.urandom(2 * MiB + 1000)
+    _tree(jp_root_dir, {"a/f.bin": data, "b/keep": b""})
+    # Two mounts, so the move runs as a job.
+    monkeypatch.setattr(
+        routes, "_mounts", lambda: [os.path.realpath(jp_root_dir / name) for name in ("a", "b")]
+    )
+    src, target = str(jp_root_dir / "a" / "f.bin"), jp_root_dir / "b" / "f.bin"
+    real_fsync, real_unlink = os.fsync, os.unlink
+    steps = []
+
+    def fsync(fd):
+        steps.append(("fsync", _fd_path(fd)))
+        real_fsync(fd)
+
+    def unlink(path, *args, **kwargs):
+        # With the bytes the destination holds when the source goes.
+        steps.append(("unlink", os.fspath(path), os.path.getsize(target)))
+        real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+    monkeypatch.setattr(os, "unlink", unlink)
+
+    reports = await _run(jp_fetch, ["a/f.bin"], "b", move=True)
+
+    assert (reports[-1]["errors"], reports[-1]["not_done"]) == ([], [])
+    assert steps == [("fsync", os.path.realpath(target))] * 3 + [("unlink", src, len(data))]
+    assert target.read_bytes() == data
+
+
+async def test_acc_copy_193_an_fsync_error_removes_the_partial_file_and_keeps_the_source(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", MiB)
+    data = os.urandom(2 * MiB + 1000)
+    _tree(jp_root_dir, {"a/f.bin": data, "b/keep": b""})
+    monkeypatch.setattr(
+        routes, "_mounts", lambda: [os.path.realpath(jp_root_dir / name) for name in ("a", "b")]
+    )
+    target = os.path.realpath(jp_root_dir / "b" / "f.bin")
+    real_fsync = os.fsync
+
+    def fsync(fd):
+        # A soft NFS mount whose server did not answer a WRITE in time.
+        if _fd_path(fd) == target:
+            raise OSError(errno.EIO, "Input/output error")
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+
+    _, started = await _start(jp_fetch, ["a/f.bin"], "b", move=True)
+    # The error pauses the move (ACC-COPY-194); Skip file ends the item as a failure.
+    paused = await _paused(jp_fetch, started["id"])
+    await _act(jp_fetch, started["id"], "skip")
+    reports = await _reports(jp_fetch, started["id"])
+
+    assert paused["paused"] == {"path": "a/f.bin", "reason": "read or write error"}
+    assert reports[-1]["errors"] == [{"path": "a/f.bin", "message": "read or write error"}]
+    assert reports[-1]["not_done"] == ["a/f.bin"]
+    assert os.listdir(jp_root_dir / "b") == ["keep"]
+    assert (jp_root_dir / "a" / "f.bin").read_bytes() == data
+
+
+def _fail_one_write(monkeypatch, target, offset):
+    """Make the first write at `offset` into the file `target` raise EIO, as a soft NFS mount does
+    when its server does not answer a WRITE in time; the offsets written, in order."""
+    offsets, real_open = [], open
+
+    class Writer:
+        def __init__(self, file):
+            self.file = file
+
+        def __getattr__(self, name):
+            return getattr(self.file, name)
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            self.file.close()
+
+        def write(self, data):
+            offsets.append(self.file.tell())
+            if offsets[-1] == offset and offsets.count(offset) == 1:
+                raise OSError(errno.EIO, "Input/output error")
+            return self.file.write(data)
+
+    def fake_open(path, mode="r", *args, **kwargs):
+        file = real_open(path, mode, *args, **kwargs)
+        mine = mode != "rb" and os.path.realpath(path) == os.path.realpath(target)
+        return Writer(file) if mine else file
+
+    monkeypatch.setattr(routes, "open", fake_open, raising=False)
+    return offsets
+
+
+async def _paused(jp_fetch, job_id):
+    """Poll a copy job until it reports a pause or its end; that report."""
+    for _ in range(3000):
+        report = await _report(jp_fetch, job_id)
+        if report.get("paused") or report["done"]:
+            return report
+        await asyncio.sleep(0.01)
+    raise AssertionError("the copy did not pause")
+
+
+async def _act(jp_fetch, job_id, action):
+    return await jp_fetch(URL, "copy", job_id, method="POST", body=json.dumps({"action": action}))
+
+
+async def test_acc_copy_194_a_failed_write_pauses_and_retry_goes_on_from_the_last_fsynced_chunk(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", 2 * MiB)
+    data = os.urandom(5 * MiB + 1000)
+    _tree(jp_root_dir, {"f.bin": data, "dst/keep": b""})
+    offsets = _fail_one_write(monkeypatch, jp_root_dir / "dst" / "f.bin", 3 * MiB)
+
+    _, started = await _start(jp_fetch, ["f.bin"], "dst")
+    paused = await _paused(jp_fetch, started["id"])
+    retried = await _act(jp_fetch, started["id"], "retry")
+    # A second press finds the job going again.
+    with pytest.raises(HTTPClientError) as again:
+        await _act(jp_fetch, started["id"], "retry")
+    reports = await _reports(jp_fetch, started["id"])
+
+    assert paused["paused"] == {"path": "f.bin", "reason": "read or write error"}
+    assert (paused["bytes"], paused["file_bytes"]) == (3 * MiB, 3 * MiB)
+    assert retried.code == 204
+    assert again.value.code == 409
+    # Truncated to the fsync at 2 MiB, the file is written again from there.
+    assert offsets == [0, MiB, 2 * MiB, 3 * MiB, 2 * MiB, 3 * MiB, 4 * MiB, 5 * MiB]
+    assert (reports[-1]["errors"], reports[-1]["not_done"]) == ([], [])
+    # The counters went back to 2 MiB with the file, so they end at its size.
+    assert reports[-1]["bytes"] == reports[-1]["file_bytes"] == len(data)
+    assert (jp_root_dir / "dst" / "f.bin").read_bytes() == data
+
+
+async def test_acc_copy_194_retry_while_the_destination_still_fails_to_open_pauses_again(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", MiB)
+    data = os.urandom(3 * MiB + 1000)
+    _tree(jp_root_dir, {"f.bin": data, "dst/keep": b""})
+    target = os.path.realpath(jp_root_dir / "dst" / "f.bin")
+    _fail_one_write(monkeypatch, target, 2 * MiB)
+    write_open, pauses, reopens = routes.open, [], []
+    real_pause = routes._pause
+
+    def pause(*args):
+        pauses.append(args)
+        real_pause(*args)
+
+    def eio_reopen(path, mode="r", *args, **kwargs):
+        # The share still does not answer when Retry opens the destination again.
+        if pauses and mode == "r+b" and os.path.realpath(path) == target:
+            reopens.append(path)
+            if len(reopens) == 1:
+                raise OSError(errno.EIO, "Input/output error")
+        return write_open(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(routes, "_pause", pause)
+    monkeypatch.setattr(routes, "open", eio_reopen, raising=False)
+
+    _, started = await _start(jp_fetch, ["f.bin"], "dst")
+    first = await _paused(jp_fetch, started["id"])
+    await _act(jp_fetch, started["id"], "retry")
+    second = await _paused(jp_fetch, started["id"])
+    await _act(jp_fetch, started["id"], "retry")
+    reports = await _reports(jp_fetch, started["id"])
+
+    assert first["paused"] == {"path": "f.bin", "reason": "read or write error"}
+    assert second["paused"] == {"path": "f.bin", "reason": "read or write error"}
+    assert len(pauses) == 2
+    assert (reports[-1]["errors"], reports[-1]["not_done"]) == ([], [])
+    assert (jp_root_dir / "dst" / "f.bin").read_bytes() == data
+
+
+async def test_acc_copy_194_skip_removes_the_partial_file_keeps_the_source_and_moves_the_next_item(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", MiB)
+    first, second = os.urandom(3 * MiB), os.urandom(MiB + 1000)
+    _tree(jp_root_dir, {"a/f1.bin": first, "a/f2.bin": second, "b/keep": b""})
+    # Two mounts, so the move runs as a job.
+    monkeypatch.setattr(
+        routes, "_mounts", lambda: [os.path.realpath(jp_root_dir / name) for name in ("a", "b")]
+    )
+    _fail_one_write(monkeypatch, jp_root_dir / "b" / "f1.bin", 2 * MiB)
+
+    _, started = await _start(jp_fetch, ["a/f1.bin", "a/f2.bin"], "b", move=True)
+    paused = await _paused(jp_fetch, started["id"])
+    partial = os.path.getsize(jp_root_dir / "b" / "f1.bin")
+    skipped = await _act(jp_fetch, started["id"], "skip")
+    reports = await _reports(jp_fetch, started["id"])
+
+    assert paused["paused"] == {"path": "a/f1.bin", "reason": "read or write error"}
+    assert partial == 2 * MiB
+    assert skipped.code == 204
+    assert reports[-1]["errors"] == [{"path": "a/f1.bin", "message": "read or write error"}]
+    assert reports[-1]["not_done"] == ["a/f1.bin"]
+    assert sorted(os.listdir(jp_root_dir / "b")) == ["f2.bin", "keep"]
+    assert (jp_root_dir / "b" / "f2.bin").read_bytes() == second
+    assert os.listdir(jp_root_dir / "a") == ["f1.bin"]
+    assert (jp_root_dir / "a" / "f1.bin").read_bytes() == first
+
+
+async def test_acc_copy_194_cancel_while_paused_ends_the_job_and_leaves_no_partial_file(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    _tree(jp_root_dir, {"f.bin": os.urandom(3 * MiB), "dst/keep": b""})
+    _fail_one_write(monkeypatch, jp_root_dir / "dst" / "f.bin", MiB)
+
+    _, started = await _start(jp_fetch, ["f.bin"], "dst")
+    paused = await _paused(jp_fetch, started["id"])
+    cancelled = await jp_fetch(URL, "copy", started["id"], method="DELETE")
+    reports = await _reports(jp_fetch, started["id"])
+
+    assert paused["paused"] == {"path": "f.bin", "reason": "read or write error"}
+    assert cancelled.code == 204
+    assert (reports[-1]["errors"], reports[-1]["not_done"]) == ([], ["f.bin"])
+    assert os.listdir(jp_root_dir / "dst") == ["keep"]
+
+
+PARTIAL = {"path": "dst/f.bin", "message": "partial copy left"}
+
+
+@pytest.mark.parametrize(
+    "action, errors",
+    [
+        ("skip", [PARTIAL, {"path": "f.bin", "message": "read or write error"}]),
+        ("cancel", [PARTIAL]),
+    ],
+)
+async def test_acc_copy_200_a_partial_file_the_share_keeps_is_listed_with_its_destination(
+    jp_fetch, jp_root_dir, monkeypatch, action, errors
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", MiB)
+    _tree(jp_root_dir, {"f.bin": os.urandom(3 * MiB), "dst/keep": b""})
+    target = os.path.realpath(jp_root_dir / "dst" / "f.bin")
+    _fail_one_write(monkeypatch, target, 2 * MiB)
+    real_unlink = os.unlink
+
+    def unlink(path, *args, **kwargs):
+        # The share still does not answer when the partial file is removed.
+        if os.path.realpath(path) == target:
+            raise OSError(errno.EIO, "Input/output error")
+        real_unlink(path, *args, **kwargs)
+
+    monkeypatch.setattr(os, "unlink", unlink)
+
+    _, started = await _start(jp_fetch, ["f.bin"], "dst")
+    await _paused(jp_fetch, started["id"])
+    if action == "skip":
+        await _act(jp_fetch, started["id"], "skip")
+    else:
+        await jp_fetch(URL, "copy", started["id"], method="DELETE")
+    reports = await _reports(jp_fetch, started["id"])
+
+    assert (reports[-1]["errors"], reports[-1]["not_done"]) == (errors, ["f.bin"])
+    assert os.path.getsize(target) == 2 * MiB
+
+
+async def test_def_copy_45_the_time_paused_stays_out_of_elapsed(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", MiB)
+    _tree(jp_root_dir, {"f.bin": os.urandom(3 * MiB), "dst/keep": b""})
+    _fail_one_write(monkeypatch, jp_root_dir / "dst" / "f.bin", 2 * MiB)
+
+    begun = time.monotonic()
+    _, started = await _start(jp_fetch, ["f.bin"], "dst")
+    await _paused(jp_fetch, started["id"])
+    paused_at = time.monotonic()
+    await asyncio.sleep(1)
+    # At most the time the job waited paused: it paused before and goes on after.
+    paused_for = time.monotonic() - paused_at
+    await _act(jp_fetch, started["id"], "retry")
+    reports = await _reports(jp_fetch, started["id"])
+    wall = time.monotonic() - begun
+
+    assert (reports[-1]["errors"], reports[-1]["not_done"]) == ([], [])
+    # The job ran within the wall time, so its elapsed without the pause is at most this.
+    assert reports[-1]["elapsed"] <= wall - paused_for
+
+
+async def test_acc_copy_194_a_pause_no_page_reads_ends_as_skip_file(
+    jp_fetch, jp_root_dir, monkeypatch
+):
+    monkeypatch.setattr(routes, "COPY_FSYNC_BYTES", MiB)
+    monkeypatch.setattr(routes, "_UNREAD_PAUSE_SECONDS", 0.5)
+    data = os.urandom(3 * MiB)
+    _tree(jp_root_dir, {"a/f.bin": data, "b/keep": b""})
+    # Two mounts, so the move runs as a job.
+    monkeypatch.setattr(
+        routes, "_mounts", lambda: [os.path.realpath(jp_root_dir / name) for name in ("a", "b")]
+    )
+    _fail_one_write(monkeypatch, jp_root_dir / "b" / "f.bin", 2 * MiB)
+
+    _, started = await _start(jp_fetch, ["a/f.bin"], "b", move=True)
+    # No GET until the end, as after a closed or reloaded page: the test reads the table itself.
+    job, partial = routes._copy_jobs[started["id"]], None
+    for _ in range(1000):
+        if job["paused"] and partial is None:
+            partial = os.path.getsize(jp_root_dir / "b" / "f.bin")
+        if job["done"]:
+            break
+        await asyncio.sleep(0.01)
+    report = await _report(jp_fetch, started["id"])
+
+    assert partial == 2 * MiB
+    assert report["done"]
+    assert report["errors"] == [{"path": "a/f.bin", "message": "read or write error"}]
+    assert report["not_done"] == ["a/f.bin"]
+    assert os.listdir(jp_root_dir / "b") == ["keep"]
+    assert (jp_root_dir / "a" / "f.bin").read_bytes() == data
+
+
 async def test_cross_volume_move_renames_a_checkpoint_and_makes_no_checkpoint_folder(
     jp_fetch, jp_root_dir, other_volume
 ):
@@ -563,7 +994,12 @@ async def test_copy_refuses_a_path(jp_fetch, jp_root_dir, monkeypatch, body, cod
 
 @pytest.mark.parametrize(
     "parts, method",
-    [(("copy",), "POST"), (("copy", "0" * 32), "GET"), (("copy", "0" * 32), "DELETE")],
+    [
+        (("copy",), "POST"),
+        (("copy", "0" * 32), "GET"),
+        (("copy", "0" * 32), "POST"),
+        (("copy", "0" * 32), "DELETE"),
+    ],
 )
 async def test_copy_routes_refuse_an_unauthenticated_request(jp_fetch, parts, method):
     body = json.dumps({"paths": ["f"], "to": ""}) if method == "POST" else None

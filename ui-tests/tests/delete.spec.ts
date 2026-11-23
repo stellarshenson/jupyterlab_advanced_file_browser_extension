@@ -36,10 +36,10 @@ import {
   writeTree
 } from './helpers';
 
-const TRASH_ON = ['Delete Permanently', 'Cancel', 'Move to Trash'];
+const TRASH_ON = ['Cancel', 'Delete', 'Move to Trash'];
 const TRASH_OFF = ['Cancel', 'Delete'];
 /** The buttons where the trash management extension does not monitor the trash. */
-const UNMONITORED = ['Cancel', 'Delete Permanently'];
+const UNMONITORED = ['Cancel', 'Delete'];
 const WARNING = 'Moving large files to the trash is not advised';
 const NOT_MONITORED =
   'The trash of this location is not monitored, so Move to Trash is not offered';
@@ -252,13 +252,18 @@ async function largeTree(
   return `${tmpPath}/big`;
 }
 
-test('ACC-DELETE-122-THREE-OPTIONS the Delete dialog offers Cancel, Delete Permanently and Move to Trash', async ({
+test('ACC-DELETE-197-BUTTON-ORDER the Delete dialog shows Cancel, Delete and Move to Trash left to right', async ({
   page,
   tmpPath
 }) => {
   await seedTree(page, tmpPath, ['acc122.txt']);
   await pressDelete(page, [`${tmpPath}/acc122.txt`]);
   await expect(buttons(page)).toHaveText(TRASH_ON);
+  // The labels in the DOM order, and the DOM order is the order on screen
+  const lefts = await buttons(page).evaluateAll(nodes =>
+    nodes.map(node => node.getBoundingClientRect().left)
+  );
+  expect(lefts).toEqual([...lefts].sort((a, b) => a - b));
   await expect(page.locator('.jp-Dialog .jp-Dialog-header')).toHaveText(
     'Delete'
   );
@@ -269,6 +274,46 @@ test('ACC-DELETE-122-THREE-OPTIONS the Delete dialog offers Cancel, Delete Perma
   await button(page, 'Cancel').click();
   await expect(page.locator('.jp-Dialog')).toHaveCount(0);
   expect(await page.contents.fileExists(`${tmpPath}/acc122.txt`)).toBe(true);
+});
+
+test('ACC-DELETE-198-TRASH-ICON Move to Trash shows the trash can icon left of its label, in the label colour', async ({
+  page,
+  tmpPath
+}) => {
+  await seedTree(page, tmpPath, ['acc198.txt']);
+  await pressDelete(page, [`${tmpPath}/acc198.txt`]);
+  // The accessible name is the label alone: the icon is hidden from assistive technology
+  const trash = button(page, 'Move to Trash');
+  await expect(trash).toHaveCount(1);
+  await expect(trash.locator('svg')).toHaveCount(1);
+  await expect(button(page, 'Cancel').locator('svg')).toHaveCount(0);
+  await expect(button(page, 'Delete').locator('svg')).toHaveCount(0);
+
+  for (const theme of ['JupyterLab Light', 'JupyterLab Dark']) {
+    await page.theme.setTheme(theme);
+    const icon = await trash.evaluate(node => {
+      const svg = node.querySelector('svg')!;
+      const label = node.querySelector('.jp-Dialog-buttonLabel')!;
+      return {
+        right: svg.getBoundingClientRect().right,
+        labelLeft: label.getBoundingClientRect().left,
+        // The painted glyph is the path; the svg element itself has no fill of its own
+        fills: Array.from(
+          svg.querySelectorAll('path'),
+          path => getComputedStyle(path).fill
+        ),
+        color: getComputedStyle(label).color
+      };
+    });
+    expect(icon.right, theme).toBeLessThanOrEqual(icon.labelLeft);
+    expect(icon.fills.length, theme).toBeGreaterThan(0);
+    for (const fill of icon.fills) {
+      expect(fill, theme).toBe(icon.color);
+    }
+  }
+
+  await button(page, 'Cancel').click();
+  await expect(page.locator('.jp-Dialog')).toHaveCount(0);
 });
 
 test('ACC-DELETE-123-TRASH-DEFAULT Enter moves the selection to the trash', async ({
@@ -293,7 +338,7 @@ test('ACC-DELETE-123-TRASH-DEFAULT Enter moves the selection to the trash', asyn
   );
 });
 
-test('ACC-DELETE-124-PERMANENT Delete Permanently removes a file without the trash', async ({
+test('ACC-DELETE-124-PERMANENT Delete removes a file without the trash', async ({
   page,
   tmpPath
 }) => {
@@ -302,14 +347,14 @@ test('ACC-DELETE-124-PERMANENT Delete Permanently removes a file without the tra
   const mark = trashMark();
 
   await (
-    await confirmDelete(page, [`${tmpPath}/acc124.txt`], 'Delete Permanently')
+    await confirmDelete(page, [`${tmpPath}/acc124.txt`], 'Delete')
   ).done;
 
   expect(existsSync(file)).toBe(false);
   expect(trashedSince(mark)).not.toContain(file);
 });
 
-test('ACC-DELETE-142-TAB-CLOSE Delete Permanently closes the tab of the removed file', async ({
+test('ACC-DELETE-142-TAB-CLOSE Delete closes the tab of the removed file', async ({
   page,
   tmpPath
 }) => {
@@ -322,14 +367,14 @@ test('ACC-DELETE-142-TAB-CLOSE Delete Permanently closes the tab of the removed 
   await expect(tab).toHaveCount(2);
 
   await (
-    await confirmDelete(page, [`${tmpPath}/tabclose.txt`], 'Delete Permanently')
+    await confirmDelete(page, [`${tmpPath}/tabclose.txt`], 'Delete')
   ).done;
 
   expect(existsSync(await onDisk(page, `${tmpPath}/tabclose.txt`))).toBe(false);
   await expect(tab).toHaveCount(0);
 });
 
-test('ACC-DELETE-146-SIBLING-VIEWS Delete Permanently closes the sibling views of a notebook', async ({
+test('ACC-DELETE-146-SIBLING-VIEWS Delete closes the sibling views of a notebook', async ({
   page,
   tmpPath
 }) => {
@@ -372,7 +417,7 @@ test('ACC-DELETE-146-SIBLING-VIEWS Delete Permanently closes the sibling views o
   }
 
   await (
-    await confirmDelete(page, [path], 'Delete Permanently')
+    await confirmDelete(page, [path], 'Delete')
   ).done;
 
   expect(existsSync(await onDisk(page, path))).toBe(false);
@@ -392,7 +437,7 @@ test('ACC-DELETE-147-FOLDER-TABS removing a folder closes the tab of a file insi
     'trash/c.txt'
   ]);
   for (const [folder, file, label] of [
-    ['perm', 'b.txt', 'Delete Permanently'],
+    ['perm', 'b.txt', 'Delete'],
     ['trash', 'c.txt', 'Move to Trash']
   ]) {
     await openEditor(page, `${tmpPath}/${folder}/${file}`);
@@ -437,7 +482,7 @@ test('ACC-DELETE-150-FOLDER-KERNELS removing a folder shuts down the kernel of a
   const { id } = await created.json();
   try {
     await (
-      await confirmDelete(page, [folder], 'Delete Permanently')
+      await confirmDelete(page, [folder], 'Delete')
     ).done;
 
     expect(existsSync(await onDisk(page, folder))).toBe(false);
@@ -450,7 +495,7 @@ test('ACC-DELETE-150-FOLDER-KERNELS removing a folder shuts down the kernel of a
   }
 });
 
-test('ACC-DELETE-125-PERM-FOLDER Delete Permanently removes a folder with content', async ({
+test('ACC-DELETE-125-PERM-FOLDER Delete removes a folder with content', async ({
   page,
   tmpPath
 }) => {
@@ -468,7 +513,7 @@ test('ACC-DELETE-125-PERM-FOLDER Delete Permanently removes a folder with conten
   );
 
   await (
-    await confirmDelete(page, [`${tmpPath}/acc125`], 'Delete Permanently')
+    await confirmDelete(page, [`${tmpPath}/acc125`], 'Delete')
   ).done;
 
   expect(existsSync(folder)).toBe(false);
@@ -499,13 +544,13 @@ test('ACC-DELETE-126-TRASH-OFF trash off keeps Cancel and Delete, and Delete rem
   expect(trashedSince(mark)).not.toContain(file);
 });
 
-test('ACC-DELETE-127-BUTTON-STYLE both confirm buttons, Delete Permanently and Move to Trash, are warn buttons', async ({
+test('ACC-DELETE-127-BUTTON-STYLE both confirm buttons, Delete and Move to Trash, are warn buttons', async ({
   page,
   tmpPath
 }) => {
   await seedTree(page, tmpPath, ['acc127.txt']);
   await pressDelete(page, [`${tmpPath}/acc127.txt`]);
-  const permanent = button(page, 'Delete Permanently');
+  const permanent = button(page, 'Delete');
   const trash = button(page, 'Move to Trash');
 
   await expect(permanent).toHaveClass(/\bjp-mod-warn\b/);
@@ -619,7 +664,7 @@ test('ACC-DELETE-134-PROGRESS-SHOW a slow removal shows the progress dialog, a q
   expect((await progressLog(page)).shown).toBe(0);
 
   await (
-    await confirmDelete(page, [big], 'Delete Permanently')
+    await confirmDelete(page, [big], 'Delete')
   ).done;
   expect((await progressLog(page)).shown).toBe(1);
 });
@@ -631,7 +676,7 @@ test('ACC-DELETE-135-PROGRESS-SPINNER the progress dialog shows the spinner unti
   const big = await largeTree(page, tmpPath);
 
   await (
-    await confirmDelete(page, [big], 'Delete Permanently')
+    await confirmDelete(page, [big], 'Delete')
   ).done;
 
   const log = await progressLog(page);
@@ -648,7 +693,7 @@ test('ACC-DELETE-136-PROGRESS-BAR the percentage only rises and ends at 100', as
   const big = await largeTree(page, tmpPath);
 
   await (
-    await confirmDelete(page, [big], 'Delete Permanently')
+    await confirmDelete(page, [big], 'Delete')
   ).done;
 
   const { percents } = await progressLog(page);
@@ -682,7 +727,7 @@ test('ACC-DELETE-137-PROGRESS-TITLE the progress title names the action and the 
   await page.unroute(JOB_URL);
   const permanent = ['p1', 'p2', 'p3'].map(name => `${tmpPath}/${name}`);
   await (
-    await confirmDelete(page, permanent, 'Delete Permanently')
+    await confirmDelete(page, permanent, 'Delete')
   ).done;
 
   expect((await progressLog(page)).titles).toEqual([
@@ -703,7 +748,7 @@ test('ACC-DELETE-138-PROGRESS-HIDE Hide closes the dialog and the removal goes o
     await afterHide;
     await route.continue();
   });
-  const { done } = await confirmDelete(page, [big], 'Delete Permanently');
+  const { done } = await confirmDelete(page, [big], 'Delete');
 
   await page
     .locator(PROGRESS)
@@ -725,7 +770,7 @@ test('ACC-DELETE-139-PROGRESS-END the progress dialog closes at the end and the 
   const big = await largeTree(page, tmpPath);
 
   await (
-    await confirmDelete(page, [big], 'Delete Permanently')
+    await confirmDelete(page, [big], 'Delete')
   ).done;
 
   expect((await progressLog(page)).closedAt).toEqual([100]);
@@ -752,7 +797,7 @@ test('ACC-DELETE-140-REMOVE-FAIL a failed removal names the path and keeps the r
     await page.filebrowser.refresh();
 
     await (
-      await confirmDelete(page, [`${tmpPath}/acc140`], 'Delete Permanently')
+      await confirmDelete(page, [`${tmpPath}/acc140`], 'Delete')
     ).done;
 
     // One line form in both modes: the path relative to the server root, then the reason
@@ -793,7 +838,7 @@ test('ACC-DELETE-144-ERROR-CAP the Delete Failed message names 10 paths, then th
     await page.filebrowser.refresh();
 
     await (
-      await confirmDelete(page, [`${tmpPath}/acc144`], 'Delete Permanently')
+      await confirmDelete(page, [`${tmpPath}/acc144`], 'Delete')
     ).done;
 
     const message = page
@@ -853,7 +898,7 @@ async function unmonitored(page: IJupyterLabPageFixture): Promise<void> {
   );
 }
 
-test('ACC-DELETE-151-UNMONITORED an unmonitored trash offers Cancel and Delete Permanently only', async ({
+test('ACC-DELETE-151-UNMONITORED an unmonitored trash offers Cancel and Delete only', async ({
   page,
   tmpPath
 }) => {
@@ -875,7 +920,7 @@ test('ACC-DELETE-151-UNMONITORED an unmonitored trash offers Cancel and Delete P
     `Are you sure you want to permanently delete: acc151.txt?${NOT_MONITORED}`
   );
   await expect(page.locator(WARNING_LINE)).toHaveText([NOT_MONITORED]);
-  await button(page, 'Delete Permanently').click();
+  await button(page, 'Delete').click();
 
   await expect
     .poll(() => existsSync(file), { timeout: SERVER_TIMEOUT })
@@ -912,7 +957,7 @@ test('ACC-DELETE-152-SYMLINK-MOUNT a file on another mount reached through a lin
     await pressDelete(page, [`${tmpPath}/nfs/acc152.txt`]);
     expect((await (await checked).json()).monitored).toEqual([false]);
     await expect(buttons(page)).toHaveText(UNMONITORED);
-    await button(page, 'Delete Permanently').click();
+    await button(page, 'Delete').click();
 
     await expect
       .poll(() => existsSync(file), { timeout: SERVER_TIMEOUT })
@@ -930,7 +975,7 @@ test('ACC-DELETE-152-SYMLINK-MOUNT a file on another mount reached through a lin
   }
 });
 
-test('ACC-DELETE-153-ALL-VOLUMES with the default False a file on another mount gets Cancel and Delete Permanently only', async ({
+test('ACC-DELETE-153-ALL-VOLUMES with the default False a file on another mount gets Cancel and Delete only', async ({
   page,
   tmpPath
 }) => {
@@ -981,10 +1026,10 @@ test('ACC-DELETE-156-MIXED-SELECTION Move to Trash moves the monitored file, the
     await setUnfolding(page, true);
     await page.filebrowser.refresh();
 
-    // Cancel in the second dialog keeps the other file; a repeat with Delete Permanently removes it
+    // Cancel in the second dialog keeps the other file; a repeat with Delete removes it
     for (const [name, label] of [
       ['acc156a.txt', 'Cancel'],
-      ['acc156b.txt', 'Delete Permanently']
+      ['acc156b.txt', 'Delete']
     ]) {
       await unfold(page, `${tmpPath}/nfs`);
       const mark = trashMark();
@@ -1033,7 +1078,7 @@ test('ACC-DELETE-156-MIXED-SELECTION Move to Trash moves the monitored file, the
   }
 });
 
-for (const label of ['Delete Permanently', 'Move to Trash']) {
+for (const label of ['Delete', 'Move to Trash']) {
   test(`ACC-DELETE-157-CHECKPOINTS with hidden files shown ${label} removes .ipynb_checkpoints and a folder and makes no new .ipynb_checkpoints`, async ({
     page,
     tmpPath

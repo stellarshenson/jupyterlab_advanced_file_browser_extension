@@ -7,6 +7,7 @@ import {
 import { PageConfig } from '@jupyterlab/coreutils';
 import type { Contents } from '@jupyterlab/services';
 import type { TranslationBundle } from '@jupyterlab/translation';
+import { deleteIcon } from '@jupyterlab/ui-components';
 import { Panel, Widget } from '@lumino/widgets';
 
 import { isBelow, type TreeFileBrowserModel } from './model';
@@ -31,36 +32,47 @@ interface IJob {
   errors?: { path: string; message: string }[];
 }
 
+const TRASH_BUTTON = 'jp-AdvancedFileBrowser-trashButton';
+
+/** The stock dialog renderer, with the trash can icon in the icon slot of Move to Trash. */
+class Renderer extends Dialog.Renderer {
+  renderIcon(data: Dialog.IButton): HTMLElement {
+    const node = super.renderIcon(data);
+    if (data.className === TRASH_BUTTON) {
+      deleteIcon.element({ container: node });
+    }
+    return node;
+  }
+}
+
+const renderer = new Renderer();
+
 /**
- * The confirm buttons: with the trash on and monitored, Move to Trash is the
- * default; with it on but not monitored, Cancel, the default, and Delete
- * Permanently; with it off, the stock pair with Cancel the default.
+ * The confirm buttons, Cancel first and Delete, the permanent removal, next: with the
+ * trash on and monitored, Move to Trash follows as the default; otherwise Cancel is
+ * the default.
  */
 export function deleteButtons(
   trash: boolean,
   trans: TranslationBundle,
   monitored = true
 ): { buttons: Dialog.IButton[]; defaultButton: number } {
-  const cancel = Dialog.cancelButton({ label: trans.__('Cancel') });
+  const buttons = [
+    Dialog.cancelButton({ label: trans.__('Cancel') }),
+    Dialog.warnButton({ label: trans.__('Delete') })
+  ];
   return trash && monitored
     ? {
-        // Both confirm buttons are red, so the destructive one stands far left, Cancel between it and the default.
         buttons: [
-          Dialog.warnButton({ label: trans.__('Delete Permanently') }),
-          cancel,
-          Dialog.warnButton({ label: trans.__('Move to Trash') })
+          ...buttons,
+          Dialog.warnButton({
+            label: trans.__('Move to Trash'),
+            className: TRASH_BUTTON
+          })
         ],
         defaultButton: 2
       }
-    : {
-        buttons: [
-          cancel,
-          Dialog.warnButton({
-            label: trash ? trans.__('Delete Permanently') : trans.__('Delete')
-          })
-        ],
-        defaultButton: 0
-      };
+    : { buttons, defaultButton: 0 };
 }
 
 /** The whole percentage of `done` out of `total`; 0 while the total is unknown. */
@@ -281,8 +293,8 @@ async function run(
  * Confirm and run a Delete of `items` through this extension's server job:
  * Move to Trash, offered when the trash management extension monitors the
  * trash of a selected item, sends those items to the trash, then a second
- * dialog asks to delete the others permanently; Delete Permanently, and Delete
- * with the trash off, remove every item, a folder with content included.
+ * dialog asks to delete the others permanently; Delete, with the trash on or
+ * off, removes every item permanently, a folder with content included.
  */
 export async function deleteItems(
   model: TreeFileBrowserModel,
@@ -315,13 +327,17 @@ export async function deleteItems(
   const count = items.length;
   const name = items[0].name;
   const body = new Widget();
-  // The stock wording.
+  // The trash question names both outcomes its buttons offer; only the permanent-delete branch
+  // keeps the stock wording.
   body.node.textContent = trash
     ? count === 1
-      ? trans.__('Are you sure you want to move to trash: %1?', name)
+      ? trans.__(
+          'Are you sure you want to move to trash or permanently delete: %1?',
+          name
+        )
       : trans._n(
-          'Are you sure you want to move to trash the %1 selected item?',
-          'Are you sure you want to move to trash the %1 selected items?',
+          'Are you sure you want to move to trash or permanently delete the %1 selected item?',
+          'Are you sure you want to move to trash or permanently delete the %1 selected items?',
           count
         )
     : count === 1
@@ -374,6 +390,7 @@ export async function deleteItems(
   const result = await showDialog({
     title: trans.__('Delete'),
     body,
+    renderer,
     ...dialog
   });
   if (!result.button.accept) {

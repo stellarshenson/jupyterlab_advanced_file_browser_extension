@@ -52,8 +52,8 @@ test('ACC-DELETE-153-ALL-VOLUMES with True a file on another mount gets Move to 
     expect((await (await checked).json()).monitored).toEqual([true]);
     const dialog = page.locator('.jp-Dialog');
     await expect(dialog.locator('.jp-Dialog-button')).toHaveText([
-      'Delete Permanently',
       'Cancel',
+      'Delete',
       'Move to Trash'
     ]);
     await dialog

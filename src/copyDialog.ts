@@ -34,8 +34,10 @@ interface IJob {
   to: string;
   cross: boolean;
   done: boolean;
-  /** Seconds since the job started. */
+  /** Seconds since the job started, less the pauses that have ended. */
   elapsed: number;
+  /** The file whose read or write failed and why, while the job waits for Retry, Skip file or Cancel. */
+  paused: { path: string; reason: string } | null;
   /** Only in the report that says done. */
   errors?: { path: string; message: string }[];
   /** Only in the report that says done: the request paths not copied or moved in full. */
@@ -51,6 +53,7 @@ interface IBar {
 /** The parts of an open progress dialog that each poll repaints. */
 interface IView {
   warning: HTMLElement;
+  reason: HTMLElement;
   from: HTMLElement;
   to: HTMLElement;
   file: IBar;
@@ -76,6 +79,8 @@ interface IOperation {
   view: IView | null;
   /** Date.now() when the dialog last opened. */
   opened: number;
+  /** Hidden when its current pause opened the dialog, so Retry and Skip file hide it again. */
+  hideAfterPause: boolean;
 }
 
 /** The operations running now, in start order. */
@@ -161,6 +166,9 @@ function createView(trans: TranslationBundle): { body: Widget; view: IView } {
   const node = body.node;
   const warning = add(node, 'div', 'jp-AdvancedFileBrowser-copyWarning');
   warning.hidden = true;
+  const reason = add(node, 'div', 'jp-AdvancedFileBrowser-copyReason');
+  reason.hidden = true;
+  reason.setAttribute('role', 'alert');
   const paths = add(
     node,
     'div',
@@ -194,6 +202,7 @@ function createView(trans: TranslationBundle): { body: Widget; view: IView } {
     body,
     view: {
       warning,
+      reason,
       from,
       to,
       file,
@@ -215,8 +224,12 @@ function paint(op: IOperation): void {
   const speed = job.elapsed > 0 ? job.bytes / job.elapsed : 0;
   view.warning.hidden = !job.cross;
   view.warning.textContent = op.move
-    ? trans.__('Cross-volume move')
-    : trans.__('Cross-volume copy');
+    ? trans.__('Cross-volume move, may be slower')
+    : trans.__('Cross-volume copy, may be slower');
+  view.reason.hidden = !job.paused;
+  view.reason.textContent = job.paused
+    ? trans.__('Paused: %1', job.paused.reason)
+    : '';
   view.from.textContent = view.from.title = job.from;
   view.to.textContent = view.to.title = job.to;
   // The last report paints 100 before the dialog closes.
@@ -266,26 +279,73 @@ function cancel(op: IOperation): void {
   );
 }
 
-/** Show the dialog of `op`; the dialog shown before hides to the status bar. */
+/**
+ * Send Retry or Skip file for the paused job of `op`; its dialog then shows Cancel and Hide
+ * again, or goes back to the status bar when the job was hidden as it paused.
+ */
+function act(op: IOperation, action: string): void {
+  requestAPI(`copy/${op.id}`, op.settings, {
+    method: 'POST',
+    body: JSON.stringify({ action })
+  })
+    .then(
+      () => {
+        // This pause has ended, so the next report of one opens the dialog again.
+        op.job = { ...op.job!, paused: null };
+      },
+      error =>
+        console.warn(
+          '[jupyterlab_advanced_file_browser_extension] copy could not go on',
+          error
+        )
+    )
+    .then(() => {
+      if (operations.includes(op)) {
+        // Still paused after a failed request, it offers the three buttons again.
+        if (op.hideAfterPause && !op.job?.paused) {
+          hide(op);
+        } else {
+          open(op);
+        }
+      }
+    });
+}
+
+/** Show the dialog of `op`, or show it again for a pause; the dialog shown before hides to the status bar. */
 function open(op: IOperation): void {
+  closeDialog(op);
   for (const other of operations) {
     if (other !== op && other.state === 'shown') {
       hide(other);
     }
   }
   const trans = op.trans;
+  const paused = !!op.job?.paused;
+  // Hide, or Retry while paused
+  const defaultButton = paused ? 2 : 1;
   const { body, view } = createView(trans);
   const dialog = new Dialog({
     title: op.title,
     body,
-    buttons: [
-      Dialog.cancelButton({ label: trans.__('Cancel') }),
-      Dialog.okButton({ label: trans.__('Hide') })
-    ],
-    defaultButton: 1,
+    buttons: paused
+      ? [
+          Dialog.cancelButton({ label: trans.__('Cancel') }),
+          Dialog.cancelButton({
+            label: trans.__('Skip file'),
+            actions: ['skip']
+          }),
+          Dialog.okButton({ label: trans.__('Retry'), actions: ['retry'] })
+        ]
+      : [
+          Dialog.cancelButton({ label: trans.__('Cancel') }),
+          Dialog.okButton({ label: trans.__('Hide') })
+        ],
+    defaultButton,
     hasClose: false
   });
+  dialog.node.setAttribute('aria-label', op.title);
   dialog.addClass('jp-AdvancedFileBrowser-copyDialog');
+  dialog.toggleClass('jp-mod-paused', paused);
   // The buttons act on their press, so a press begun as the operation ends still counts.
   dialog.node.addEventListener(
     'mousedown',
@@ -304,18 +364,34 @@ function open(op: IOperation): void {
     },
     true
   );
-  // hasClose false leaves the stock Escape inert; here it hides, as Hide does.
+  // hasClose false leaves the stock Escape inert; here it hides, as Hide does, also while paused.
   dialog.node.addEventListener(
     'keydown',
     event => {
       if (event.key === 'Escape') {
         event.preventDefault();
         event.stopPropagation();
-        dialog.resolve(1);
+        hide(op);
+      } else if (
+        event.key === 'Tab' &&
+        document.activeElement === dialog.node
+      ) {
+        // The first Tab goes to the default button (Hide, or Retry while paused) though Cancel
+        // comes first; the stock Tab handler would move on from it at once.
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        dialog.node
+          .querySelectorAll<HTMLElement>('.jp-Dialog-button')
+          [defaultButton].focus();
       }
     },
     true
   );
+  // The stock dialog focuses the default button (Hide, or Retry while paused), which shows the ring
+  // at once; the focus moves to the dialog itself, so Escape and Enter still reach it and Tab goes
+  // to that button.
+  dialog.node.tabIndex = -1;
+  void dialog.ready.then(() => dialog.node.focus());
   op.dialog = dialog;
   op.view = view;
   op.state = 'shown';
@@ -328,7 +404,10 @@ function open(op: IOperation): void {
       if (op.dialog !== dialog) {
         return;
       }
-      if (result.button.accept) {
+      const [action] = result.button.actions;
+      if (action) {
+        act(op, action);
+      } else if (result.button.accept) {
         hide(op);
       } else {
         cancel(op);
@@ -360,8 +439,16 @@ async function follow(op: IOperation): Promise<IJob | null> {
       if (!job) {
         return null;
       }
+      const pausedBefore = !!op.job?.paused;
       op.job = job;
-      paint(op);
+      if (!job.paused) {
+        paint(op);
+      } else if (!pausedBefore && op.state !== 'cancelled') {
+        // A new pause opens the dialog once, also when hidden; until the pause ends no report
+        // repaints it, so its bars stop.
+        op.hideAfterPause = op.state === 'hidden';
+        open(op);
+      }
       changed.emit(undefined);
       if (job.done) {
         return job;
@@ -489,7 +576,8 @@ export async function transfer(
       trans,
       dialog: null,
       view: null,
-      opened: 0
+      opened: 0,
+      hideAfterPause: false
     };
     operations.push(op);
     ran = follow(op).then(job => {
@@ -528,10 +616,11 @@ export async function transfer(
           });
         }
       }
-      const lines = (job.errors ?? []).map(
-        ({ path, message }) => `${path}: ${message}`
-      );
-      if (lines.length && !cancelled) {
+      // A cancelled job reports only the partial copies it left, which the user must delete.
+      const lines = (job.errors ?? [])
+        .filter(({ message }) => !cancelled || message === 'partial copy left')
+        .map(({ path, message }) => `${path}: ${message}`);
+      if (lines.length) {
         void showErrorMessage(
           title,
           move
@@ -569,6 +658,13 @@ export function addCopyStatus(
   const node = item.node;
   node.tabIndex = 0;
   node.setAttribute('role', 'button');
+  // Kept at every width, as the percentage is.
+  const pausedLabel = add(
+    node,
+    'span',
+    'jp-AdvancedFileBrowser-copyStatusPaused jp-StatusBar-TextItem'
+  );
+  pausedLabel.textContent = trans.__('Paused');
   const title = add(
     node,
     'span',
@@ -628,7 +724,9 @@ export function addCopyStatus(
         '%2 files',
         files,
         group(files)
-      )} · ${timeAgo((Date.now() - op.started) / 1000, trans)}`;
+      )} · ${timeAgo((Date.now() - op.started) / 1000, trans)}${
+        op.job?.paused ? ` · ${trans.__('paused')}` : ''
+      }`;
     }
   };
 
@@ -642,8 +740,10 @@ export function addCopyStatus(
       ops.length === 1 ? ops[0].title : trans.__('%1 operations', ops.length);
     const value = totalPercent(ops);
     setBar(total, value);
+    // A hidden paused operation shows until its dialog is opened.
+    pausedLabel.hidden = !ops.some(op => op.job?.paused);
     // Below 600 px the title is hidden; the tooltip and the accessible name still name the item.
-    node.title = `${title.textContent}, ${value}%`;
+    node.title = `${pausedLabel.hidden ? '' : `${pausedLabel.textContent}: `}${title.textContent}, ${value}%`;
     node.setAttribute('aria-label', node.title);
     caret.hidden = ops.length < 2;
     if (menu && popup && !popup.isDisposed) {
@@ -675,6 +775,8 @@ export function addCopyStatus(
       popup = showPopup({
         body,
         anchor: item,
+        // The hover box moves a menu past the window's right edge back inside, but hides one past
+        // its left edge, where a right-aligned menu goes in a narrow window.
         align: 'left',
         hasDynamicSize: true
       });
@@ -692,12 +794,10 @@ export function addCopyStatus(
     '@stellarshenson/jupyterlab-advanced-file-browser-extension:copy-status',
     {
       item,
-      align: 'left',
-      // After the kernel status (rank 1) and before other extensions' items (rank 2 and up), so
-      // they cannot push it out of a narrow window.
-      // shortcut: wide items ranked 1.5 or lower can still push it out; place it outside the
-      // status bar flow if one does.
-      rank: 1.5,
+      align: 'right',
+      // The right-hand group shows its items from the highest rank on the left to the lowest on
+      // the right (the stock items rank -1 to 4), so the highest rank puts this item first.
+      rank: 1000,
       // The stock status bar hides priority 0 items at 630px and below; this one shrinks itself.
       priority: 1,
       isActive: () => hidden().length > 0,
